@@ -27,10 +27,12 @@ export default function App() {
     };
   }, []);
 
-  // Motion-responsive specular — the .app's ::before highlight gradient
-  // tracks the cursor via CSS variables. RAF-throttled so we update at
-  // most once per frame. Skipped entirely when the user has opted into
-  // reduced motion (system accessibility preference).
+  // Motion-responsive specular + parallax tilt. The .app and several inner
+  // glass surfaces use cursor-relative radial highlights driven by
+  // --mouse-x / --mouse-y. The .app also picks up a subtle 3D tilt via
+  // --tilt-x / --tilt-y so the whole window feels like a physical glass
+  // plane catching light from off-screen. RAF-throttled, gated on the
+  // user's reduced-motion preference.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -39,8 +41,20 @@ export default function App() {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         const root = document.documentElement;
-        root.style.setProperty('--mouse-x', `${e.clientX}px`);
-        root.style.setProperty('--mouse-y', `${e.clientY}px`);
+        const x = e.clientX;
+        const y = e.clientY;
+        root.style.setProperty('--mouse-x', `${x}px`);
+        root.style.setProperty('--mouse-y', `${y}px`);
+        // Tilt: cursor offset from window center, normalized to [-1, 1],
+        // then mapped to a max ~1.5deg rotation in each axis. Sign is
+        // inverted on X so the tilt "leans away" from the cursor,
+        // matching how a real plane catching light would behave.
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const dx = (x - cx) / cx;
+        const dy = (y - cy) / cy;
+        root.style.setProperty('--tilt-x', `${-dy * 1.5}deg`);
+        root.style.setProperty('--tilt-y', `${dx * 1.5}deg`);
         raf = 0;
       });
     }
