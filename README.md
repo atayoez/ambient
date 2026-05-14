@@ -122,6 +122,32 @@ ambient/
 └─ LICENSE               MIT
 ```
 
+## Licensing — commercial use
+
+Ambient's own code is **MIT** (see `LICENSE`) — you can fork it, modify it, build proprietary derivatives, and sell them with no royalty obligations to upstream.
+
+Every direct dependency is permissive too:
+
+| Dep | License | Commercial OK? | Attribution required? |
+|-----|---------|----------------|------------------------|
+| Tauri 2 + plugins | MIT / Apache-2.0 | ✅ | ❌ |
+| React 18 + react-dom | MIT | ✅ | ❌ |
+| TypeScript | Apache-2.0 | ✅ | ❌ |
+| Vite + `@vitejs/plugin-react` | MIT | ✅ | ❌ |
+| `wallpaper` Rust crate | MIT | ✅ | ❌ |
+| `reqwest`, `serde`, `serde_json` | MIT / Apache-2.0 | ✅ | ❌ |
+| Microsoft Fluent Emoji (art via jsDelivr) | MIT | ✅ | ❌ |
+| Google Noto Emoji (fallback) | OFL-1.1 | ✅ | ❌ |
+| jsDelivr CDN | Public CDN, no restriction | ✅ | ❌ |
+| `emojicdn.elk.sh` | Community proxy of MIT art | ✅ | ❌ |
+| NASA APOD API | Public domain | ✅ | ❌ |
+| Pexels API | Free commercial | ✅ | Appreciated, not required |
+| Pollinations.ai API | Free, commercial allowed | ✅ | ❌ |
+| OpenAI Images API | Paid, commercial allowed under their TOS | ✅ | ❌ |
+| **Unsplash API** | Free commercial **with attribution** | ✅ | ⚠ **Required** — "Photo by [user] on Unsplash" must be surfaced when displaying Unsplash photos |
+
+**For shipping commercially**: everything works out of the box *except* if you let users pull from Unsplash, you need to display the photographer attribution somewhere visible. v0 doesn't render this in the UI yet — fix by surfacing `previewMeta.title` or `entry.title` plus an "on Unsplash" link in the Library card, or steer users toward NASA / Pexels / Pollinations which have no attribution requirement.
+
 ## License
 
 MIT — see `LICENSE`.

@@ -52,6 +52,64 @@ textarea,
   overflow: hidden;
 }
 
+/* Liquid-glass enhancements — specular dome + slow shimmer band.
+   Pure CSS approximation of Apple's Liquid Glass; not 1:1 (that requires
+   Metal-level compositor shaders) but visually closer than flat
+   backdrop-filter alone. Pseudo-elements sit between the background and
+   foreground content; we lift content with z-index so it stays interactive. */
+.app::before,
+.app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+.app::before {
+  /* Specular dome — soft top-left light catch as if from an off-screen
+     window. The 18% 0% origin matches where a real glass dome would
+     pick up light from a typical screen environment. */
+  background: radial-gradient(
+    ellipse 80% 60% at 18% 0%,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 35%,
+    transparent 70%
+  );
+}
+
+.app::after {
+  /* Slow chromatic shimmer — sweeps a faint white band diagonally across
+     the surface over ~14s. Mix-blend-mode overlay tints rather than
+     paints, so it picks up the underlying gradient tones. */
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.025) 47%,
+    rgba(255, 255, 255, 0.045) 50%,
+    rgba(255, 255, 255, 0.025) 53%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  mix-blend-mode: overlay;
+  animation: liquid-shimmer 14s linear infinite;
+}
+
+.app > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes liquid-shimmer {
+  0% {
+    background-position: 240% 0;
+  }
+  100% {
+    background-position: -140% 0;
+  }
+}
+
 /* --- Custom titlebar with centered sliding-pill tabs --- */
 .titlebar {
   display: grid;
