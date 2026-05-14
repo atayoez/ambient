@@ -27,6 +27,30 @@ export default function App() {
     };
   }, []);
 
+  // Motion-responsive specular — the .app's ::before highlight gradient
+  // tracks the cursor via CSS variables. RAF-throttled so we update at
+  // most once per frame. Skipped entirely when the user has opted into
+  // reduced motion (system accessibility preference).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    function onMove(e: MouseEvent) {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        const root = document.documentElement;
+        root.style.setProperty('--mouse-x', `${e.clientX}px`);
+        root.style.setProperty('--mouse-y', `${e.clientY}px`);
+        raf = 0;
+      });
+    }
+    window.addEventListener('mousemove', onMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   function onTitlebarMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;

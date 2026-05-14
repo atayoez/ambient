@@ -68,14 +68,16 @@ textarea,
 }
 
 .app::before {
-  /* Specular dome — soft top-left light catch as if from an off-screen
-     window. The 18% 0% origin matches where a real glass dome would
-     pick up light from a typical screen environment. */
+  /* Specular highlight — tracks the cursor when motion is allowed,
+     otherwise falls back to a static top-left dome. Mouse coords are
+     pushed onto :root by an App.tsx RAF-throttled listener as
+     --mouse-x / --mouse-y px values. The fallback origin (18% 0%) is
+     where an off-screen light source would naturally hit a real dome. */
   background: radial-gradient(
-    ellipse 80% 60% at 18% 0%,
-    rgba(255, 255, 255, 0.07) 0%,
+    ellipse 520px 380px at var(--mouse-x, 18%) var(--mouse-y, 0%),
+    rgba(255, 255, 255, 0.08) 0%,
     rgba(255, 255, 255, 0.02) 35%,
-    transparent 70%
+    transparent 65%
   );
 }
 
@@ -885,4 +887,89 @@ input[type='range'] {
   width: 0;
   height: 0;
   display: none;
+}
+
+/* --- Accessibility: respect system motion / transparency / contrast prefs.
+   Mirroring Apple's HIG guidance that glass effects should automatically
+   tone down when the user has opted into these system-level a11y settings. */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Kill the slow shimmer and the cursor-tracked specular. */
+  .app::after {
+    animation: none;
+  }
+  .app::before {
+    background: radial-gradient(
+      ellipse 520px 380px at 18% 0%,
+      rgba(255, 255, 255, 0.07) 0%,
+      transparent 65%
+    );
+  }
+  /* Snap state transitions for the sliding pills instead of easing. */
+  .tab-indicator,
+  .pattern-tab-indicator,
+  .pattern-tab-emoji,
+  .save-toast {
+    transition: none;
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  /* User has asked for solid surfaces — drop backdrop-blur and bump
+     surface opacity so nothing is see-through anymore. */
+  .app {
+    background: #0f0d1a;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .app::before,
+  .app::after {
+    display: none;
+  }
+  .tabs,
+  .pattern-tabs {
+    background: rgba(15, 13, 26, 0.95);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .pattern-tab[data-label]::after {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(15, 13, 26, 0.95);
+  }
+  .save-toast {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(110, 231, 163, 0.95);
+    color: #0f0d1a;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: light) {
+  .app {
+    background: #fafaff;
+  }
+  .tabs,
+  .pattern-tabs {
+    background: rgba(252, 250, 255, 0.95);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: rgba(255, 255, 255, 0.32);
+    --border-strong: rgba(255, 255, 255, 0.52);
+    --muted: #d8d0f0;
+    --text: #ffffff;
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: light) {
+  :root {
+    --border: rgba(0, 0, 0, 0.32);
+    --border-strong: rgba(0, 0, 0, 0.52);
+    --muted: #2a2440;
+    --text: #000000;
+  }
 }

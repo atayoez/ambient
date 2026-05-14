@@ -122,6 +122,39 @@ ambient/
 └─ LICENSE               MIT
 ```
 
+## Design principles
+
+Ambient's visual language follows the spirit of Apple's Liquid Glass aesthetic
+(navigation glass over content, hierarchical materials, signature settle-in
+motion curves) but is implemented entirely in web tech. No Apple proprietary
+assets are used — system font stack instead of SF Pro, custom CSS instead of
+SwiftUI's `.glassEffect()`, and our own icon work instead of SF Symbols.
+
+Principles we honor:
+
+- **One primary glass per view.** The app window itself is the main glass
+  layer. Pattern-tab and tooltip overlays are floating panels over content,
+  not stacked on the window glass.
+- **Motion-responsive specular.** The `.app::before` highlight gradient
+  tracks the cursor via RAF-throttled `--mouse-x` / `--mouse-y` CSS variables.
+- **Accessibility-aware.** `prefers-reduced-motion` disables shimmer and
+  cursor-tracked specular and snaps the sliding-pill transitions.
+  `prefers-reduced-transparency` drops every backdrop-filter and replaces
+  translucent surfaces with opaque ones. `prefers-contrast: more` strengthens
+  borders and saturates text colors.
+- **Settle-in motion.** Sliding pills use `cubic-bezier(0.32, 0.72, 0, 1)`
+  (fast in, soft out) at `380ms` — close to Apple's spring-physics feel
+  without a JS animation library.
+
+Limitations vs. real Liquid Glass:
+
+- No real-time refraction (no Metal shaders in the browser; SVG
+  `feDisplacementMap` was prototyped but feels artifical).
+- No motion-data response (web has no equivalent of CoreMotion on Mac
+  desktops; on iPads / phones it'd be available via `DeviceMotionEvent`).
+- Specular is one moving highlight per window, not Apple's continuous
+  contextual reflection across every glass surface.
+
 ## Licensing — commercial use
 
 Ambient's own code is **MIT** (see `LICENSE`) — you can fork it, modify it, build proprietary derivatives, and sell them with no royalty obligations to upstream.
