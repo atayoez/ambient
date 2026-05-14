@@ -41,7 +41,11 @@ export default function App() {
     await getCurrentWindow().toggleMaximize();
   }
   async function closeWindow() {
-    await getCurrentWindow().close();
+    // We want hide-to-tray, not actual quit. Calling .hide() directly skips
+    // the CloseRequested → prevent_close round-trip and works with the
+    // allow-hide capability we already have. (close() would need an extra
+    // allow-close permission, but the end state is the same anyway.)
+    await getCurrentWindow().hide();
   }
 
   const activeTabIndex = TABS.findIndex((t) => t.id === tab);
