@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .row { gap: 12px; align-items: stretch; }
+  .cell {
+    flex: 1; min-width: 0; padding: 12px; border-radius: var(--radius-inline);
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--surface);
+  }
+  .demo {
+    height: 36px; border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+  }
+  .b1 { border: 1px solid rgba(255,255,255,0.08); }
+  .b2 { border: 1px solid rgba(255,255,255,0.16); }
+  .b3 { border: 1px solid transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
+  .nm { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+  .val { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+  .use { font-size: 11px; color: var(--muted); }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="cell">
+      <div class="demo b1"></div>
+      <div class="nm">--border</div><div class="val">rgba(255,255,255,0.08)</div>
+      <div class="use">Default hairline — cards, inputs, sections</div>
+    </div>
+    <div class="cell">
+      <div class="demo b2"></div>
+      <div class="nm">--border-strong</div><div class="val">rgba(255,255,255,0.16)</div>
+      <div class="use">App window edge, checkbox, color-chip</div>
+    </div>
+    <div class="cell">
+      <div class="demo b3"></div>
+      <div class="nm">--highlight-edge</div><div class="val">inset 0 1px 0 rgba(255,255,255,0.18)</div>
+      <div class="use">Glass-sheen top edge on every elevated surface</div>
+    </div>
+  </div>
+</div></body></html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card {
+    padding: 0; display: flex; flex-direction: column;
+    background:
+      radial-gradient(circle at 30% 40%, #7c5cff 0%, transparent 50%),
+      radial-gradient(circle at 70% 60%, #ec4899 0%, transparent 50%),
+      radial-gradient(circle at 50% 80%, #fbbf24 0%, transparent 60%),
+      #0c0a1f;
+  }
+  .preview { flex: 1; position: relative; min-height: 230px; }
+  .pattern-tabs {
+    position: absolute;
+    bottom: 14px; left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
+    padding: 3px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 12px 32px rgba(0,0,0,0.35);
+  }
+  .indicator {
+    position: absolute; top: 3px; left: 3px;
+    width: 40px; height: calc(100% - 6px);
+    background: rgba(255,255,255,0.20);
+    border-radius: 8px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.28),
+                inset 0 -1px 0 rgba(0,0,0,0.10),
+                0 1px 4px rgba(0,0,0,0.18);
+    transform: translateX(160px);
+  }
+  .ptab {
+    position: relative; width: 40px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: white; font-size: 18px; z-index: 1;
+  }
+  .tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.72); backdrop-filter: blur(20px);
+    padding: 4px 10px; border-radius: 8px; font-size: 11px;
+    color: white; white-space: nowrap;
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  .caption { padding: 12px 22px; font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.7); text-align: center; }
+</style></head>
+<body><div class="preview-card">
+  <div class="preview">
+    <div class="pattern-tabs">
+      <div class="indicator"></div>
+      <div class="ptab" style="position:relative">
+        <div class="tooltip">Mesh gradient</div>
+        🎨
+      </div>
+      <div class="ptab">🔺</div>
+      <div class="ptab">🔘</div>
+      <div class="ptab">🦓</div>
+      <div class="ptab">😀</div>
+    </div>
+  </div>
+  <div class="caption">Floating overlay — emoji-as-icon · tooltip on hover · blur(24px) saturate(180%)</div>
+</div></body></html>

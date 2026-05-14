@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 0; }
+  .strip { display: flex; height: 100%; min-height: 200px; }
+  .stop { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 14px; gap: 2px; }
+  .stop-name { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.95); font-weight: 600; }
+  .stop-hex { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.7); }
+  .meta {
+    position: absolute; top: 14px; left: 18px;
+    font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: rgba(255,255,255,0.85); font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+</style></head>
+<body><div class="preview-card">
+  <div class="meta">Cosmic — brand 5-stop · Patterns default (dark)</div>
+  <div class="strip">
+    <div class="stop" style="background:#0c0a1f"><div class="stop-name">cosmic-1</div><div class="stop-hex">#0c0a1f</div></div>
+    <div class="stop" style="background:#7c5cff"><div class="stop-name">cosmic-2</div><div class="stop-hex">#7c5cff</div></div>
+    <div class="stop" style="background:#ec4899"><div class="stop-name">cosmic-3</div><div class="stop-hex">#ec4899</div></div>
+    <div class="stop" style="background:#fbbf24"><div class="stop-name" style="color:#1a1a1a">cosmic-4</div><div class="stop-hex" style="color:#3a3a3a">#fbbf24</div></div>
+    <div class="stop" style="background:#f1ecff"><div class="stop-name" style="color:#1a1a1a">cosmic-5</div><div class="stop-hex" style="color:#5a5a5a">#f1ecff</div></div>
+  </div>
+</div></body></html>

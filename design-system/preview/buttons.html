@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 22px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+  button {
+    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 14px;
+    cursor: pointer; border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.08); color: var(--text);
+  }
+  button.primary {
+    background: linear-gradient(180deg, #b794f6, #d6bcff);
+    border-color: transparent; color: white;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, 0 6px 16px rgba(124,92,255,0.35);
+  }
+  button.danger { color: #ff7a90; }
+  button.danger:hover { border-color: #ff7a90; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.16); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .lbl { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); width: 70px; }
+</style></head>
+<body><div class="preview-card">
+  <div class="grid">
+    <div class="row"><div class="lbl">default</div><button>Re-roll</button></div>
+    <div class="row"><div class="lbl">hover</div><button class="hover">Re-roll</button></div>
+    <div class="row"><div class="lbl">primary</div><button class="primary">Apply as wallpaper</button></div>
+    <div class="row"><div class="lbl">disabled</div><button class="primary" disabled>Working…</button></div>
+    <div class="row"><div class="lbl">danger</div><button class="danger">Delete</button></div>
+    <div class="row"><div class="lbl">disabled</div><button disabled>Re-fetch</button></div>
+  </div>
+</div></body></html>

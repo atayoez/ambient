@@ -1,0 +1,37 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .row { gap: 14px; }
+  .cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .swatch { height: 54px; }
+  .nm { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+  .hex { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+  .use { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .demo {
+    border-radius: var(--radius-inline); padding: 6px 12px;
+    font-size: 12px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid currentColor; background: transparent;
+  }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="cell">
+      <div class="swatch" style="background:#ff7a90"></div>
+      <div><div class="nm">--danger</div><div class="hex">#ff7a90</div></div>
+      <span class="demo" style="color:#ff7a90">Delete</span>
+      <div class="use">Destructive actions, close-button hover bg, error text</div>
+    </div>
+    <div class="cell">
+      <div class="swatch" style="background:#6ee7a3"></div>
+      <div><div class="nm">--success</div><div class="hex">#6ee7a3</div></div>
+      <span class="demo" style="color:#6ee7a3; background:rgba(110,231,163,0.18); border-color:rgba(110,231,163,0.32); border-radius:999px">Saved</span>
+      <div class="use">Save toast text + tinted background only</div>
+    </div>
+    <div class="cell">
+      <div class="swatch" style="background:rgba(124,92,255,0.35); box-shadow: 0 6px 16px rgba(124,92,255,0.35)"></div>
+      <div><div class="nm">--accent-glow</div><div class="hex">rgba(124,92,255,0.35)</div></div>
+      <div class="use">Drop-shadow under primary buttons. The brand's only signature glow.</div>
+    </div>
+  </div>
+</div></body></html>

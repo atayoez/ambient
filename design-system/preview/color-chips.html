@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 22px; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip { position: relative; width: 38px; height: 38px; }
+  .chip > .sw {
+    width: 100%; height: 100%; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .chip-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 18px; height: 18px; border-radius: 999px;
+    background: #ff7a90; color: white; border: none; font-size: 11px;
+    line-height: 1; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add {
+    width: 38px; height: 38px; background: transparent;
+    border: 1px dashed rgba(255,255,255,0.16);
+    border-radius: 8px; color: var(--muted);
+    font-size: 18px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add.hover { border-style: solid; color: #b794f6; border-color: #b794f6; background: rgba(255,255,255,0.04); }
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; }
+  .preset {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 3px 10px; font-size: 12px; color: var(--muted);
+  }
+  .preset.match { border-style: dashed; }
+</style></head>
+<body><div class="preview-card">
+  <div class="stack">
+    <div class="label">Colors</div>
+    <div class="chips">
+      <div class="chip"><div class="sw" style="background:#0c0a1f"></div><div class="chip-remove">×</div></div>
+      <div class="chip"><div class="sw" style="background:#7c5cff"></div><div class="chip-remove">×</div></div>
+      <div class="chip"><div class="sw" style="background:#ec4899"></div><div class="chip-remove">×</div></div>
+      <div class="chip"><div class="sw" style="background:#fbbf24"></div><div class="chip-remove">×</div></div>
+      <div class="chip"><div class="sw" style="background:#f1ecff"></div><div class="chip-remove">×</div></div>
+      <div class="add">+</div>
+      <div class="add hover">+</div>
+    </div>
+    <div class="presets">
+      <div class="preset">Sunset</div>
+      <div class="preset">Ocean</div>
+      <div class="preset">Forest</div>
+      <div class="preset">Pastel</div>
+      <div class="preset">Cosmic</div>
+      <div class="preset match">Match system</div>
+    </div>
+  </div>
+</div></body></html>

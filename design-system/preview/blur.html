@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card {
+    background:
+      url('../assets/app-icon.svg') no-repeat -40px -40px / 200px,
+      url('../assets/app-icon.svg') no-repeat right -30px bottom -50px / 240px,
+      linear-gradient(180deg, var(--bg-tint-top), var(--bg-tint-bottom)),
+      var(--bg-base),
+      #0a0815;
+  }
+  .row { gap: 14px; }
+  .cell {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .c1 { backdrop-filter: blur(8px) saturate(180%); -webkit-backdrop-filter: blur(8px) saturate(180%); }
+  .c2 { backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
+  .c3 { backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
+  .nm { font-family: var(--font-mono); font-size: 10.5px; color: var(--text); }
+  .val { font-family: var(--font-mono); font-size: 9.5px; color: rgba(255,255,255,0.85); }
+  .use { font-size: 10.5px; color: rgba(255,255,255,0.7); line-height: 1.4; }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="cell c1"><div class="nm">no var / soft</div><div class="val">blur(8px) saturate(180%)</div><div class="use">not used; reference</div></div>
+    <div class="cell c2"><div class="nm">--blur-tabs</div><div class="val">blur(20px) saturate(180%)</div><div class="use">titlebar tab tray</div></div>
+    <div class="cell c3"><div class="nm">--blur-window</div><div class="val">blur(40px) saturate(180%)</div><div class="use">the app window itself</div></div>
+  </div>
+</div></body></html>

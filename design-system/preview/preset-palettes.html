@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .preset {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-inline); padding: 10px 12px;
+    box-shadow: var(--inset-edge); display: flex; align-items: center; gap: 12px;
+  }
+  .strip { display: flex; height: 24px; border-radius: 5px; overflow: hidden; flex: 1; border: 1px solid var(--border); }
+  .strip > div { flex: 1; }
+  .name { font-size: 12px; font-weight: 500; color: var(--text); width: 64px; flex-shrink: 0; }
+</style></head>
+<body><div class="preview-card">
+  <div class="grid">
+    <div class="preset"><div class="name">Sunset</div><div class="strip"><div style="background:#1f0e3d"></div><div style="background:#7b2cbf"></div><div style="background:#e94560"></div><div style="background:#ff9f1c"></div><div style="background:#fcd34d"></div></div></div>
+    <div class="preset"><div class="name">Ocean</div><div class="strip"><div style="background:#011627"></div><div style="background:#0e2954"></div><div style="background:#2e8bc0"></div><div style="background:#5fd3bc"></div><div style="background:#bfffcc"></div></div></div>
+    <div class="preset"><div class="name">Forest</div><div class="strip"><div style="background:#0f1f12"></div><div style="background:#264e36"></div><div style="background:#5a8a52"></div><div style="background:#a4c47e"></div><div style="background:#dad7a0"></div></div></div>
+    <div class="preset"><div class="name">Pastel</div><div class="strip"><div style="background:#fdf2f8"></div><div style="background:#fbcfe8"></div><div style="background:#c7d2fe"></div><div style="background:#a7f3d0"></div><div style="background:#fef3c7"></div></div></div>
+    <div class="preset"><div class="name">Mono</div><div class="strip"><div style="background:#0a0a0a"></div><div style="background:#262626"></div><div style="background:#525252"></div><div style="background:#a3a3a3"></div><div style="background:#fafafa"></div></div></div>
+    <div class="preset"><div class="name">Vibrant</div><div class="strip"><div style="background:#0d0221"></div><div style="background:#ff006e"></div><div style="background:#fb5607"></div><div style="background:#ffbe0b"></div><div style="background:#3a86ff"></div></div></div>
+  </div>
+</div></body></html>

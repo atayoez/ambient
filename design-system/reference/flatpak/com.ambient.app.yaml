@@ -1,0 +1,58 @@
+id: com.ambient.app
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+
+command: ambient
+
+finish-args:
+  # Network — required for source APIs (NASA, Unsplash, Pexels, OpenAI,
+  # Pollinations) and emoji CDN.
+  - --share=network
+  - --share=ipc
+  # GUI
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # System tray
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # COSMIC wallpaper config lives in ~/.config/cosmic/. The wallpaper crate
+  # also shells out to GNOME's gsettings, KDE's qdbus, etc. — all need
+  # config write access.
+  - --filesystem=xdg-config:rw
+  # Wallpapers we generate are saved to the user's app data dir, which inside
+  # the sandbox is under ~/.var/app/com.ambient.app/data — already writable
+  # by default. xdg-pictures is for the optional local-folder source.
+  - --filesystem=xdg-pictures:rw
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+  env:
+    CARGO_HOME: /run/build/ambient/cargo
+
+modules:
+  - name: ambient
+    buildsystem: simple
+    build-commands:
+      # NOTE: For Flathub submission, npm + cargo must be vendored offline.
+      # Generate offline manifests:
+      #   pip install flatpak-node-generator
+      #   flatpak-node-generator npm package-lock.json
+      #   flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
+      #     src-tauri/Cargo.lock -o cargo-sources.json
+      # Then reference them as additional 'sources' below.
+      - npm ci
+      - npm run build
+      - cd src-tauri && cargo build --release --locked
+      - install -Dm755 src-tauri/target/release/ambient /app/bin/ambient
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.ambient.app.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/com.ambient.app.png
+      - install -Dm644 flatpak/com.ambient.app.desktop /app/share/applications/com.ambient.app.desktop
+      - install -Dm644 flatpak/com.ambient.app.metainfo.xml /app/share/metainfo/com.ambient.app.metainfo.xml
+    sources:
+      - type: dir
+        path: ..

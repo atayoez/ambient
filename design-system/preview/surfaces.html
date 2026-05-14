@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .row { gap: 14px; align-items: stretch; }
+  .layer {
+    flex: 1; border-radius: var(--radius-inline);
+    border: 1px solid var(--border); padding: 14px 12px;
+    box-shadow: var(--inset-sheen); display: flex; flex-direction: column;
+    gap: 6px; min-height: 110px; justify-content: space-between;
+  }
+  .layer .lbl { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  .layer .name { font-family: var(--font-mono); font-size: 11px; color: var(--text); font-weight: 600; }
+  .layer .val { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); line-height: 1.4; }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="layer" style="background:rgba(255,255,255,0.04)">
+      <div><div class="lbl">Level 1</div><div class="name">--surface</div></div>
+      <div class="val">rgba(255,255,255,0.04)<br>cards, sections</div>
+    </div>
+    <div class="layer" style="background:rgba(255,255,255,0.08)">
+      <div><div class="lbl">Level 2</div><div class="name">--surface-2</div></div>
+      <div class="val">rgba(255,255,255,0.08)<br>buttons, inputs</div>
+    </div>
+    <div class="layer" style="background:rgba(255,255,255,0.14)">
+      <div><div class="lbl">Level 3</div><div class="name">--surface-3</div></div>
+      <div class="val">rgba(255,255,255,0.14)<br>hover, input focus</div>
+    </div>
+  </div>
+</div></body></html>

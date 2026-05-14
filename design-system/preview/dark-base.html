@@ -1,0 +1,43 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 22px; }
+  .strip { display: flex; flex-direction: column; gap: 14px; }
+  .pal {
+    display: flex; align-items: center; gap: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 10px 14px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .name { font-family: var(--font-mono); font-size: 11px; color: var(--text); width: 110px; flex-shrink: 0; font-weight: 600; }
+  .swatches { display: flex; gap: 4px; flex: 1; }
+  .swatches > div { flex: 1; height: 26px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.05); }
+  .val { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+</style></head>
+<body><div class="preview-card">
+  <div class="strip">
+    <div class="pal">
+      <div class="name">--bg-base</div>
+      <div class="swatches"><div style="background:#0a0815"></div></div>
+      <div class="val">rgba(15,13,26,0.78)</div>
+    </div>
+    <div class="pal">
+      <div class="name">--bg-tint-top</div>
+      <div class="swatches"><div style="background:rgba(124,92,255,0.4)"></div></div>
+      <div class="val">rgba(124,92,255,0.06)</div>
+    </div>
+    <div class="pal">
+      <div class="name">--bg-tint-bottom</div>
+      <div class="swatches"><div style="background:rgba(236,72,153,0.4)"></div></div>
+      <div class="val">rgba(236,72,153,0.04)</div>
+    </div>
+    <div class="pal">
+      <div class="name">stacked</div>
+      <div class="swatches">
+        <div style="background:linear-gradient(180deg,rgba(124,92,255,0.06),rgba(236,72,153,0.04)),rgba(15,13,26,0.78),#0c0a1f"></div>
+      </div>
+      <div class="val">live window background</div>
+    </div>
+  </div>
+</div></body></html>

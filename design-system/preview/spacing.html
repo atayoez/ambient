@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 22px; }
+  .scale { display: flex; flex-direction: column; gap: 6px; }
+  .step { display: grid; grid-template-columns: 44px 1fr 90px; align-items: center; gap: 12px; }
+  .nm { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-align: right; }
+  .bar { height: 18px; background: linear-gradient(90deg, #b794f6, #d6bcff); border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); }
+  .use { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); }
+</style></head>
+<body><div class="preview-card">
+  <div class="scale">
+    <div class="step"><div class="nm">2px</div><div class="bar" style="width:2px"></div><div class="use">tab-indicator gap</div></div>
+    <div class="step"><div class="nm">3px</div><div class="bar" style="width:3px"></div><div class="use">tab tray padding</div></div>
+    <div class="step"><div class="nm">4px</div><div class="bar" style="width:4px"></div><div class="use">label-input gap</div></div>
+    <div class="step"><div class="nm">6px</div><div class="bar" style="width:6px"></div><div class="use">button v-pad</div></div>
+    <div class="step"><div class="nm">8px</div><div class="bar" style="width:8px"></div><div class="use">stack gap (sm)</div></div>
+    <div class="step"><div class="nm">10px</div><div class="bar" style="width:10px"></div><div class="use">input pad, section stack</div></div>
+    <div class="step"><div class="nm">12px</div><div class="bar" style="width:12px"></div><div class="use">button h-pad, grid gap</div></div>
+    <div class="step"><div class="nm">14px</div><div class="bar" style="width:14px"></div><div class="use">page pad, section pad, row gap</div></div>
+    <div class="step"><div class="nm">18px</div><div class="bar" style="width:18px"></div><div class="use">settings page h-pad</div></div>
+  </div>
+</div></body></html>

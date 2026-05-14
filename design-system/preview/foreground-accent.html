@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .row { gap: 14px; }
+  .cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .swatch { height: 64px; }
+  .nm { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+  .hex { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+  .use { font-size: 11px; color: var(--muted); line-height: 1.4; }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="cell">
+      <div class="swatch" style="background:#f1ecff"></div>
+      <div><div class="nm">--text</div><div class="hex">#f1ecff</div></div>
+      <div class="use">All primary body, headings, button labels</div>
+    </div>
+    <div class="cell">
+      <div class="swatch" style="background:#a59cc4"></div>
+      <div><div class="nm">--muted</div><div class="hex">#a59cc4</div></div>
+      <div class="use">Eyebrows, captions, status, helper text</div>
+    </div>
+    <div class="cell">
+      <div class="swatch" style="background:#b794f6"></div>
+      <div><div class="nm">--accent</div><div class="hex">#b794f6</div></div>
+      <div class="use">Primary button base, focus borders, empty-state highlight</div>
+    </div>
+    <div class="cell">
+      <div class="swatch" style="background:linear-gradient(180deg,#b794f6,#d6bcff)"></div>
+      <div><div class="nm">primary gradient</div><div class="hex">accent → accent-hover</div></div>
+      <div class="use">Top-down on .primary buttons + checked checkboxes</div>
+    </div>
+  </div>
+</div></body></html>

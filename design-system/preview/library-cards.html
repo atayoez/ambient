@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 22px; }
+  .row { display: flex; gap: 14px; align-items: stretch; }
+  .card {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    display: flex; flex-direction: column;
+  }
+  .thumb-wrap {
+    position: relative;
+    width: 100%; aspect-ratio: 16/10;
+  }
+  .thumb {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+  }
+  .t1 { background: radial-gradient(circle at 30% 40%, #7c5cff, transparent 60%),
+                   radial-gradient(circle at 70% 70%, #ec4899, transparent 60%),
+                   #0c0a1f; }
+  .t2 { background: radial-gradient(circle at 50% 50%, #fbbf24, transparent 50%),
+                   linear-gradient(180deg, #15053d, #5b21b6 60%, #ec4899); }
+  .t3 { background: linear-gradient(135deg, #011627, #2e8bc0, #5fd3bc); }
+
+  /* On-image floating pill — same recipe as .pattern-tabs from index.css:
+   * dark glass tray, blur(24px) saturate(180%), inner sheen + outer shadow. */
+  .actions {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex; align-items: center;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
+    padding: 3px;
+    gap: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 12px 32px rgba(0,0,0,0.35);
+  }
+  .actions > button {
+    appearance: none; background: transparent; border: none;
+    color: white; font: inherit; font-size: 12px; font-weight: 500;
+    padding: 6px 14px; cursor: pointer; border-radius: 8px;
+    line-height: 1;
+  }
+  .actions > button.danger { color: #ff7a90; }
+
+  .meta {
+    padding: 10px 12px;
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="card">
+      <div class="thumb-wrap">
+        <div class="thumb t1"></div>
+        <div class="actions">
+          <button>Apply</button>
+          <button class="danger">Delete</button>
+        </div>
+      </div>
+      <div class="meta">generated · cosmic mesh (5 colors)</div>
+    </div>
+    <div class="card">
+      <div class="thumb-wrap">
+        <div class="thumb t2"></div>
+        <div class="actions">
+          <button>Apply</button>
+          <button class="danger">Delete</button>
+        </div>
+      </div>
+      <div class="meta">nasa-apod · Andromeda over the Alps</div>
+    </div>
+    <div class="card">
+      <div class="thumb-wrap">
+        <div class="thumb t3"></div>
+        <div class="actions">
+          <button>Apply</button>
+          <button class="danger">Delete</button>
+        </div>
+      </div>
+      <div class="meta">unsplash · misty valley dawn</div>
+    </div>
+  </div>
+</div></body></html>

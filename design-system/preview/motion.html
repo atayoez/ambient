@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 18px 22px; }
+  .track {
+    position: relative; height: 64px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .pill {
+    position: absolute; top: 14px; left: 12px;
+    width: 88px; height: 36px;
+    background: rgba(255,255,255,0.20);
+    border-radius: 8px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -1px 0 rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.18);
+    animation: slide 2.4s cubic-bezier(0.32, 0.72, 0, 1) infinite alternate;
+  }
+  @keyframes slide {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(380px); }
+  }
+  .marks { display: flex; gap: 2px; padding-top: 14px; }
+  .mark {
+    width: 88px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 500; color: rgba(245,236,255,0.6);
+  }
+  .footer { margin-top: 12px; display: flex; gap: 18px; flex-wrap: wrap; }
+  .nm { font-family: var(--font-mono); font-size: 10px; color: var(--text); }
+  .val { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+</style></head>
+<body><div class="preview-card">
+  <div class="track">
+    <div class="pill"></div>
+    <div class="marks">
+      <div class="mark">Patterns</div>
+      <div class="mark">Sources</div>
+      <div class="mark">Library</div>
+      <div class="mark">Generate</div>
+      <div class="mark">Settings</div>
+    </div>
+  </div>
+  <div class="footer">
+    <div><div class="nm">--ease-pill</div><div class="val">cubic-bezier(0.32, 0.72, 0, 1)</div></div>
+    <div><div class="nm">--t-pill</div><div class="val">380ms · slide pill</div></div>
+    <div><div class="nm">--t-base</div><div class="val">220ms · tab color, overlay fade</div></div>
+    <div><div class="nm">--t-fast</div><div class="val">120ms · button hover bg</div></div>
+  </div>
+</div></body></html>

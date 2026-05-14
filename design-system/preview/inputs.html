@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview-card { padding: 22px; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  input, select, textarea {
+    appearance: none; -webkit-appearance: none;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 8px 10px; color: var(--text);
+    font: inherit; font-size: 14px; outline: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  input.focused {
+    background: rgba(255,255,255,0.14); border-color: #b794f6;
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpolyline points='2,4 5,7 8,4' fill='none' stroke='%23a59cc4' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+    background-size: 10px 10px; padding-right: 28px; cursor: pointer;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+</style></head>
+<body><div class="preview-card">
+  <div class="stack">
+    <div class="row">
+      <label>API key<input type="password" value="sk-•••••••••••••••••" /></label>
+      <label>Topic<input class="focused" value="nature" /></label>
+    </div>
+    <label>Provider<select><option>Pollinations (free, no key)</option></select></label>
+  </div>
+</div></body></html>

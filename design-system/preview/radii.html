@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .row { gap: 18px; align-items: flex-end; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .box {
+    width: 86px; height: 86px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .pill {
+    width: 130px; height: 32px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--muted);
+  }
+  .nm { font-family: var(--font-mono); font-size: 10.5px; color: var(--text); }
+  .val { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); }
+  .use { font-size: 10.5px; color: var(--muted); text-align: center; max-width: 110px; line-height: 1.35; }
+</style></head>
+<body><div class="preview-card">
+  <div class="row">
+    <div class="cell">
+      <div class="box" style="border-radius:8px"></div>
+      <div class="nm">--radius-inline</div><div class="val">8px</div>
+      <div class="use">buttons, inputs, chips</div>
+    </div>
+    <div class="cell">
+      <div class="box" style="border-radius:12px"></div>
+      <div class="nm">--radius-container</div><div class="val">12px</div>
+      <div class="use">cards, sections, trays</div>
+    </div>
+    <div class="cell">
+      <div class="box" style="border-radius:14px"></div>
+      <div class="nm">--radius-window</div><div class="val">14px</div>
+      <div class="use">the app window</div>
+    </div>
+    <div class="cell">
+      <div class="pill" style="border-radius:999px">Saved</div>
+      <div class="nm">--radius-pill</div><div class="val">999px</div>
+      <div class="use">toasts only</div>
+    </div>
+  </div>
+</div></body></html>
