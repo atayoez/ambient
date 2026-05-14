@@ -9,8 +9,6 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "tauri:build:debug": "tauri build --debug",
     "flatpak:build": "flatpak-builder --user --install --force-clean build-dir flatpak/com.ambient.app.yaml"
   },
   "dependencies": {
