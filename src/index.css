@@ -1,50 +1,11 @@
-:root {
-  color-scheme: dark light;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
-  font-size: 14px;
-
-  --bg-base: rgba(15, 13, 26, 0.78);
-  --bg-tint-top: rgba(124, 92, 255, 0.06);
-  --bg-tint-bottom: rgba(236, 72, 153, 0.04);
-  --surface: rgba(255, 255, 255, 0.04);
-  --surface-2: rgba(255, 255, 255, 0.08);
-  --surface-3: rgba(255, 255, 255, 0.14);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --text: #f1ecff;
-  --muted: #a59cc4;
-  --accent: #b794f6;
-  --accent-hover: #d6bcff;
-  --danger: #ff7a90;
-  --success: #6ee7a3;
-  --highlight-edge: rgba(255, 255, 255, 0.18);
-
-  /* Standardized radii — only three values across the whole app. */
-  --radius-inline: 8px;
-  --radius-container: 12px;
-  --radius-window: 14px;
-  --radius-pill: 999px;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg-base: rgba(252, 250, 255, 0.78);
-    --bg-tint-top: rgba(124, 92, 255, 0.04);
-    --bg-tint-bottom: rgba(236, 72, 153, 0.03);
-    --surface: rgba(255, 255, 255, 0.5);
-    --surface-2: rgba(255, 255, 255, 0.7);
-    --surface-3: rgba(255, 255, 255, 0.95);
-    --border: rgba(0, 0, 0, 0.08);
-    --border-strong: rgba(0, 0, 0, 0.14);
-    --text: #1a1729;
-    --muted: #5e577a;
-    --accent: #7c3aed;
-    --accent-hover: #6d28d9;
-    --danger: #dc2626;
-    --success: #16a34a;
-    --highlight-edge: rgba(0, 0, 0, 0.04);
-  }
-}
+/*
+ * src/index.css
+ *
+ * App stylesheet. All design tokens live in design-system/colors_and_type.css
+ * — this file imports them, then uses them via var(--*). To rebrand or
+ * retune any token, change the design-system file ONCE; the app picks it up.
+ */
+@import '../design-system/colors_and_type.css';
 
 * {
   box-sizing: border-box;
@@ -81,12 +42,12 @@ textarea,
   background:
     linear-gradient(180deg, var(--bg-tint-top), var(--bg-tint-bottom)),
     var(--bg-base);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: var(--blur-window);
+  -webkit-backdrop-filter: var(--blur-window);
   border-radius: var(--radius-window);
   border: 1px solid var(--border-strong);
   box-shadow:
-    0 32px 80px rgba(0, 0, 0, 0.35),
+    var(--shadow-window),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
 }
@@ -111,13 +72,13 @@ textarea,
   display: inline-flex;
   align-items: center;
   background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: var(--radius-container);
   padding: 3px;
   gap: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: var(--inset-edge);
 }
 
 .tab-indicator {
@@ -132,7 +93,7 @@ textarea,
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
     0 1px 3px rgba(0, 0, 0, 0.18);
-  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform var(--t-pill) var(--ease-pill);
   pointer-events: none;
   transform: translateX(calc(var(--active-tab, 0) * 88px));
 }
@@ -145,9 +106,7 @@ textarea,
   gap: 2px;
 }
 
-/* --- Glass tab-style buttons (top tabs, pattern tabs, window controls).
-   Need a fully reset visual: never any hover/active/focus bg of their own,
-   since the sliding indicator is the entire selected-state UI. --- */
+/* --- Glass tab-style buttons --- */
 .tab,
 .pattern-tab,
 .wc {
@@ -167,12 +126,12 @@ textarea,
   box-shadow: none;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
   cursor: pointer;
   border-radius: var(--radius-inline);
   z-index: 1;
-  transition: color 220ms ease;
+  transition: color var(--t-base) ease;
 }
 
 .tab:hover,
@@ -206,7 +165,7 @@ textarea,
   cursor: pointer;
   border-radius: var(--radius-inline);
   padding: 0;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background var(--t-fast) ease, color var(--t-fast) ease;
 }
 
 .wc:hover {
@@ -230,7 +189,6 @@ textarea,
   flex-direction: column;
 }
 
-/* Center all tab views with sensible max-widths. */
 .library,
 .patterns,
 .generate,
@@ -244,8 +202,7 @@ textarea,
   max-width: 1100px;
 }
 
-/* --- Generic buttons --- explicitly scoped so they DO NOT apply to .tab,
-   .pattern-tab, or .wc (those have their own reset above). --- */
+/* --- Generic buttons (scoped to exclude tab-like) --- */
 button {
   background: var(--surface-2);
   color: var(--text);
@@ -255,8 +212,8 @@ button {
   font: inherit;
   cursor: pointer;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
+    background var(--t-fast) ease,
+    border-color var(--t-fast) ease,
     transform 80ms ease;
 }
 
@@ -280,7 +237,7 @@ button.primary {
   color: white;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.2) inset,
-    0 6px 16px rgba(124, 92, 255, 0.35);
+    var(--shadow-primary);
 }
 
 button.primary:hover:not(:disabled) {
@@ -295,7 +252,7 @@ button.danger:hover:not(:disabled) {
   border-color: var(--danger);
 }
 
-/* --- Native form element overrides --- */
+/* --- Form elements --- */
 input[type='text'],
 input[type='password'],
 input[type='number'],
@@ -312,7 +269,7 @@ select {
   font: inherit;
   outline: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: border-color 120ms ease, background 120ms ease;
+  transition: border-color var(--t-fast) ease, background var(--t-fast) ease;
 }
 
 input[type='text']:focus,
@@ -346,7 +303,7 @@ input[type='checkbox'] {
   position: relative;
   flex-shrink: 0;
   margin: 0;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
 }
 
 input[type='checkbox']:hover {
@@ -418,9 +375,9 @@ input[type='range'] {
 .card-meta {
   padding: 0 10px 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-eyebrow);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-eyebrow);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -433,17 +390,17 @@ input[type='range'] {
   color: var(--muted);
   border: 1px dashed var(--border);
   border-radius: var(--radius-container);
-  line-height: 1.6;
+  line-height: var(--lh-loose);
   background: var(--surface);
 }
 
 .empty em {
   color: var(--accent);
   font-style: normal;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
-/* --- Generate / Patterns / Sources / Settings: shared page padding --- */
+/* --- Pages: Generate, Patterns, Settings --- */
 .generate,
 .patterns,
 .settings {
@@ -482,10 +439,10 @@ input[type='range'] {
 }
 
 .prompt-field span {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-eyebrow);
 }
 
 .prompt-field textarea {
@@ -493,7 +450,7 @@ input[type='range'] {
   min-height: 80px;
 }
 
-/* --- Preview surfaces shared between Patterns + Sources --- */
+/* --- Preview surfaces (Patterns + Sources) --- */
 .preview-wrap {
   position: relative;
   width: 100%;
@@ -529,19 +486,19 @@ input[type='range'] {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-body);
   text-align: center;
   padding: 20px;
 }
 
-/* --- Pattern type overlay (visible on preview hover) --- */
+/* --- Pattern type overlay --- */
 .pattern-tabs-overlay {
   position: absolute;
   bottom: 14px;
   left: 50%;
   transform: translateX(-50%) translateY(6px);
   opacity: 0;
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition: opacity var(--t-base) ease, transform var(--t-base) ease;
   pointer-events: none;
 }
 
@@ -557,15 +514,15 @@ input[type='range'] {
   display: inline-flex;
   align-items: center;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: var(--blur-overlay);
+  -webkit-backdrop-filter: var(--blur-overlay);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--radius-container);
   padding: 3px;
   gap: 0;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 12px 32px rgba(0, 0, 0, 0.35);
+    var(--shadow-overlay);
 }
 
 .pattern-tab-indicator {
@@ -580,7 +537,7 @@ input[type='range'] {
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
     inset 0 -1px 0 rgba(0, 0, 0, 0.1),
     0 1px 4px rgba(0, 0, 0, 0.18);
-  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform var(--t-pill) var(--ease-pill);
   pointer-events: none;
   transform: translateX(calc(var(--active-index, 0) * 40px));
 }
@@ -617,7 +574,7 @@ input[type='range'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 160ms var(--ease-pill);
 }
 
 .pattern-tab:hover:not(.active) .pattern-tab-emoji {
@@ -631,17 +588,17 @@ input[type='range'] {
   left: 50%;
   transform: translateX(-50%) translateY(4px);
   background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
   padding: 4px 10px;
   border-radius: var(--radius-inline);
-  font-size: 11px;
+  font-size: var(--fs-eyebrow);
   color: white;
   white-space: nowrap;
   z-index: 10;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition: opacity var(--t-tooltip) ease, transform var(--t-tooltip) ease;
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
@@ -669,10 +626,10 @@ input[type='range'] {
 }
 
 .control-group > label {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-eyebrow);
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -718,7 +675,7 @@ input[type='range'] {
   background: var(--danger);
   color: white;
   border: none;
-  font-size: 11px;
+  font-size: var(--fs-eyebrow);
   line-height: 1;
   padding: 0;
   cursor: pointer;
@@ -757,7 +714,7 @@ input[type='range'] {
   border: 1px solid var(--border);
   border-radius: var(--radius-inline);
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--muted);
 }
 
@@ -783,18 +740,18 @@ input[type='range'] {
 
 .settings h2 {
   margin: 0;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  font-weight: 600;
+  font-size: var(--h2-size);
+  text-transform: var(--h2-transform);
+  letter-spacing: var(--h2-tracking);
+  color: var(--h2-color);
+  font-weight: var(--h2-weight);
 }
 
 .settings label {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--muted);
 }
 
@@ -802,36 +759,35 @@ input[type='range'] {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   color: var(--text);
 }
 
 /* --- Status, errors, save toast --- */
 .status {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .error {
   color: var(--danger);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .muted {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
 }
 
 .muted code {
-  background: var(--surface-2);
+  background: var(--code-bg);
   padding: 1px 5px;
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--code-font);
 }
 
-/* Auto-save indicator — fixed bottom-right toast, doesn't disrupt layout. */
 .save-toast {
   position: fixed;
   bottom: 18px;
@@ -842,10 +798,10 @@ input[type='range'] {
   padding: 5px 12px;
   border-radius: var(--radius-pill);
   border: 1px solid rgba(110, 231, 163, 0.32);
-  font-size: 11px;
+  font-size: var(--fs-eyebrow);
   pointer-events: none;
   animation: save-in 200ms ease;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-toast);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
