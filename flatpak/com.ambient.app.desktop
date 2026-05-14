@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Ambient
+GenericName=Wallpaper Generator
+Comment=Generate wallpapers from patterns, emoji, curated sources, or AI
+Categories=Utility;Graphics;
+Exec=ambient
+Icon=com.ambient.app
+Terminal=false
+StartupNotify=true
+StartupWMClass=ambient
+Keywords=wallpaper;background;desktop;pattern;emoji;ai;
