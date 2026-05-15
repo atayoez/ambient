@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { primaryMonitor } from '@tauri-apps/api/window';
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useKeydown, usePersistedState } from '../lib/hooks';
 import {
   DEFAULT_CONFIG,
   PATTERN_TYPES,
@@ -51,8 +52,12 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 export default function Patterns() {
   const systemDark = useSystemDark();
-  const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
-  const [config, setConfig] = useState<PatternConfig>(() =>
+  const [themeMode, setThemeMode] = usePersistedState<ThemeMode>(
+    'patterns.themeMode',
+    'auto',
+  );
+  const [config, setConfig] = usePersistedState<PatternConfig>(
+    'patterns.config',
     pickInitialConfig(isDarkForMode('auto', systemDark)),
   );
   const [busy, setBusy] = useState(false);
@@ -61,6 +66,16 @@ export default function Patterns() {
   const [emojiVersion, setEmojiVersion] = useState(0);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Defer the config used by the renderer so high-frequency slider input
+  // doesn't trigger a render per pixel of drag — React schedules the
+  // deferred update at lower priority, smoothing the slider thumb.
+  const deferredConfig = useDeferredValue(config);
+
+  // Hold the render closure in a ref so the ResizeObserver effect can be
+  // set up once (mount) but always call the latest closure with the
+  // current config.
+  const renderRef = useRef<() => void>(() => {});
+
   // Sync the palette to the resolved theme. Manual color edits via chips
   // still apply, but flipping the theme mode or — in auto — the system
   // color-scheme always wins, so the user can lock to Light/Dark to opt
@@ -68,19 +83,45 @@ export default function Patterns() {
   const effectiveDark = isDarkForMode(themeMode, systemDark);
   useEffect(() => {
     setConfig((c) => ({ ...c, colors: paletteFor(effectiveDark) }));
-  }, [effectiveDark]);
+  }, [effectiveDark, setConfig]);
 
+  // Pre-paint render: useLayoutEffect runs synchronously after the DOM is
+  // ready but before the browser paints, so the canvas never flashes empty.
+  useLayoutEffect(() => {
+    renderRef.current = () => {
+      const canvas = previewRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const wrap = canvas.parentElement;
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      renderPattern(ctx, canvas.width, canvas.height, deferredConfig);
+    };
+    renderRef.current();
+  }, [deferredConfig, emojiVersion]);
+
+  // Re-render when the window resizes — the wrap's size changes but
+  // config doesn't, so the existing layout-effect wouldn't pick it up.
   useEffect(() => {
     const canvas = previewRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    renderPattern(ctx, canvas.width, canvas.height, config);
-  }, [config, emojiVersion]);
+    const wrap = canvas?.parentElement;
+    if (!wrap) return;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => renderRef.current());
+    });
+    ro.observe(wrap);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   useEffect(() => {
     if (config.type !== 'emoji') return;
@@ -220,6 +261,12 @@ export default function Patterns() {
       setBusy(false);
     }
   }
+
+  // Cmd/Ctrl+Enter applies, Cmd/Ctrl+Shift+R re-rolls. Apple desktop
+  // staples — Cmd+R itself is avoided since some webviews still treat
+  // it as a reload.
+  useKeydown('Enter', () => void apply(), { cmdOrCtrl: true });
+  useKeydown('r', () => reroll(), { cmdOrCtrl: true, shift: true });
 
   const ranges = SLIDER_RANGES[config.type] ?? {};
   const densityRange = ranges.density;

@@ -1,6 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useEffect, useRef, useState } from 'react';
+import { useKeydown } from '../lib/hooks';
 import { fetchRandomFromSource } from '../lib/sources';
 import { loadLibrary, loadSettings, saveLibrary, saveSettings } from '../lib/store';
 import {
@@ -233,6 +234,11 @@ export default function Sources() {
       setBusy(false);
     }
   }
+
+  // Cmd/Ctrl+Enter applies the current preview as the wallpaper.
+  // Cmd/Ctrl+Shift+R fetches a fresh image.
+  useKeydown('Enter', () => void applyPreview(), { cmdOrCtrl: true });
+  useKeydown('r', () => void fetchNew(false), { cmdOrCtrl: true, shift: true });
 
   const emptyMessage = canFetch(settings)
     ? 'Loading preview…'

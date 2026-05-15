@@ -1,6 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 import { generateWallpaper } from '../lib/aigen';
+import { useKeydown, usePersistedState } from '../lib/hooks';
 import { loadLibrary, loadSettings, saveLibrary, saveSettings } from '../lib/store';
 import { DEFAULT_SETTINGS, type GenProvider, type Settings } from '../lib/types';
 import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
@@ -15,11 +16,14 @@ const DEFAULT_PROMPT = 'a calm misty mountain valley at dawn, painterly, soft li
 
 export default function Generate() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
+  const [prompt, setPrompt] = usePersistedState<string>('generate.prompt', DEFAULT_PROMPT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<string | null>(null);
+  const [lastResult, setLastResult] = usePersistedState<string | null>(
+    'generate.lastResult',
+    null,
+  );
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -80,6 +84,11 @@ export default function Generate() {
     settings.genProvider === 'pollinations'
       ? 'Pollinations.ai — free, anonymous, capped at ~2048/side.'
       : 'OpenAI DALL-E 3 HD — set your API key in Settings.';
+
+  // Cmd/Ctrl+Enter kicks off a generation from anywhere in the tab,
+  // including inside the prompt textarea — matches the iMessage /
+  // Chat-style "send" gesture.
+  useKeydown('Enter', () => void go(), { cmdOrCtrl: true });
 
   return (
     <div className="generate">

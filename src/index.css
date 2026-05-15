@@ -332,6 +332,11 @@ button:not(.tab):not(.type-row):not(.segment):not(.wc):hover:not(:disabled) {
   border-color: var(--border-strong);
 }
 
+button:not(.tab):not(.type-row):not(.segment):not(.wc):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 35%, transparent);
+}
+
 button:not(.tab):not(.type-row):not(.segment):not(.wc):active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -1070,6 +1075,48 @@ input[type='range']:active::-moz-range-thumb {
   font-size: var(--fs-caption);
 }
 
+/* --- Keyboard focus rings ---
+   Apple-style: invisible during mouse use, prominent on Tab. Built on
+   :focus-visible so it never appears on click. The accent halo matches
+   the slider's active state for visual consistency. */
+.type-row:focus-visible,
+.segment:focus-visible,
+.preset-btn:focus-visible,
+.color-chip input[type='color']:focus-visible,
+.add-color:focus-visible,
+.chip-remove:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 35%, transparent);
+  border-radius: var(--radius-inline);
+}
+
+/* --- ErrorBoundary panel --- */
+.error-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px;
+  max-width: 480px;
+  margin: 40px auto;
+  text-align: left;
+}
+
+.error-panel h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+
+.error-panel p {
+  margin: 0;
+  word-break: break-word;
+}
+
+.error-panel button {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
 .muted {
   margin: 0;
   color: var(--muted);
@@ -1161,9 +1208,10 @@ input[type='range']:active::-moz-range-thumb {
 @media (prefers-reduced-transparency: reduce) {
   /* User has asked for solid surfaces — drop backdrop-blur, drop the
      refraction filter, drop the 3D tilt, and bump surface opacity so
-     nothing is see-through anymore. */
+     nothing is see-through anymore. Achromatic neutrals match the
+     Liquid Glass colorless principle. */
   .app {
-    background: #0f0d1a;
+    background: #141416;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     transform: none;
@@ -1175,7 +1223,7 @@ input[type='range']:active::-moz-range-thumb {
     display: none;
   }
   .tabs {
-    background: rgba(15, 13, 26, 0.95);
+    background: rgba(20, 20, 22, 0.95);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -1183,16 +1231,16 @@ input[type='range']:active::-moz-range-thumb {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: rgba(110, 231, 163, 0.95);
-    color: #0f0d1a;
+    color: #141416;
   }
 }
 
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: light) {
   .app {
-    background: #fafaff;
+    background: #fafafc;
   }
   .tabs {
-    background: rgba(252, 250, 255, 0.95);
+    background: rgba(250, 250, 252, 0.95);
   }
 }
 
@@ -1200,7 +1248,7 @@ input[type='range']:active::-moz-range-thumb {
   :root {
     --border: rgba(255, 255, 255, 0.32);
     --border-strong: rgba(255, 255, 255, 0.52);
-    --muted: #d8d0f0;
+    --muted: #d4d4d8;
     --text: #ffffff;
   }
 }
@@ -1209,7 +1257,7 @@ input[type='range']:active::-moz-range-thumb {
   :root {
     --border: rgba(0, 0, 0, 0.32);
     --border-strong: rgba(0, 0, 0, 0.52);
-    --muted: #2a2440;
+    --muted: #18181b;
     --text: #000000;
   }
 }

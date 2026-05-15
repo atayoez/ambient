@@ -1,6 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useState } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import Library from './components/Library';
 import Patterns from './components/Patterns';
@@ -25,6 +26,22 @@ export default function App() {
     return () => {
       unsub.then((fn) => fn()).catch(() => {});
     };
+  }, []);
+
+  // Cmd/Ctrl + 1..5 jumps to that tab — Apple desktop staple. Single
+  // listener that fans out by key rather than one hook per tab, so we
+  // don't pull React's rules-of-hooks loop trap.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey || e.altKey) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > TABS.length) return;
+      e.preventDefault();
+      setTab(TABS[n - 1].id);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Motion-responsive specular + parallax tilt. The .app and several inner
@@ -161,11 +178,15 @@ export default function App() {
         </div>
       </header>
       <main className="content">
-        {tab === 'patterns' && <Patterns />}
-        {tab === 'sources' && <Sources />}
-        {tab === 'library' && <Library />}
-        {tab === 'generate' && <Generate />}
-        {tab === 'settings' && <SettingsView />}
+        {/* key={tab} re-mounts on tab switch so a captured error in one
+            tab doesn't persist across tabs. */}
+        <ErrorBoundary key={tab}>
+          {tab === 'patterns' && <Patterns />}
+          {tab === 'sources' && <Sources />}
+          {tab === 'library' && <Library />}
+          {tab === 'generate' && <Generate />}
+          {tab === 'settings' && <SettingsView />}
+        </ErrorBoundary>
       </main>
     </div>
   );

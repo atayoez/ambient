@@ -32,3 +32,17 @@ export async function saveLibrary(library: Wallpaper[]): Promise<void> {
   await store.set('library', library);
   await store.save();
 }
+
+// Generic key/value access for component-level persisted state. Used by
+// usePersistedState so each consumer can pick a unique key (e.g.
+// "patterns.config", "generate.prompt") without growing this file.
+export async function loadKey<T>(key: string): Promise<T | null> {
+  const store = await getStore();
+  return ((await store.get<T>(key)) as T | undefined) ?? null;
+}
+
+export async function saveKey<T>(key: string, value: T): Promise<void> {
+  const store = await getStore();
+  await store.set(key, value);
+  await store.save();
+}
