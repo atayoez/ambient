@@ -459,65 +459,370 @@ code {
 }
 
 /* ============================================================ */
-/* Download                                                       */
+/* Pricing                                                        */
 /* ============================================================ */
 
-.download {
+.pricing {
   max-width: var(--content-w);
   margin: 0 auto;
-  padding: 80px 24px 120px;
+  padding: 80px 24px 40px;
   text-align: center;
 }
 
-.download-sub {
+.pricing-sub {
   color: var(--muted);
-  margin: -20px 0 36px;
+  margin: -20px auto 40px;
+  font-size: 16px;
+  max-width: 480px;
+  line-height: 1.55;
+}
+
+.price-card {
+  position: relative;
+  isolation: isolate;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 48px 40px;
+  border-radius: var(--radius-window);
+  text-align: center;
+  overflow: hidden;
+}
+
+.price-card-aurora {
+  position: absolute;
+  inset: -50% -20% auto -20%;
+  height: 80%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(124, 92, 255, 0.32), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 40%, rgba(236, 72, 153, 0.22), transparent 60%);
+  filter: blur(48px);
+  pointer-events: none;
+}
+
+.price-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.price-currency {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--muted);
+  position: relative;
+  top: -16px;
+}
+
+.price-number {
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  background: linear-gradient(
+    100deg,
+    var(--cosmic-2) 0%,
+    var(--cosmic-3) 50%,
+    var(--cosmic-4) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.price-period {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.price-tagline {
+  margin: 0 0 28px;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.price-features {
+  list-style: none;
+  margin: 0 0 32px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  max-width: 380px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.price-features li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 14.5px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.price-features .check {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--cosmic-2), var(--cosmic-3));
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.4);
+}
+
+.price-cta-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.btn-large {
+  padding: 15px 28px;
   font-size: 15px;
 }
 
-.download-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  max-width: 800px;
+.price-fineprint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.price-fineprint a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-base) ease;
+}
+
+.price-fineprint a:hover {
+  text-decoration-color: var(--accent);
+}
+
+/* ============================================================ */
+/* Trial                                                          */
+/* ============================================================ */
+
+.trial {
+  max-width: var(--content-w);
   margin: 0 auto;
-}
-
-.dl-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 28px;
-  border-radius: var(--radius-container);
+  padding: 20px 24px 100px;
   text-align: center;
-  cursor: pointer;
-  transition: transform var(--t-base) ease, border-color var(--t-base) ease;
 }
 
-.dl-card:hover {
-  transform: translateY(-2px);
+.trial-sub {
+  color: var(--muted);
+  margin: -20px auto 24px;
+  font-size: 15px;
+  max-width: 480px;
+  line-height: 1.55;
+}
+
+.trial-form {
+  display: flex;
+  gap: 10px;
+  max-width: 480px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.trial-form input {
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 13px 16px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-inline);
+  outline: none;
+  transition: border-color var(--t-base) ease, background var(--t-base) ease;
+}
+
+.trial-form input:focus {
   border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 25%, transparent);
 }
 
-.dl-platform {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.dl-meta {
-  font-size: 13px;
+.trial-form input::placeholder {
   color: var(--muted);
 }
 
-.dl-note {
-  margin-top: 28px;
+.trial-form button {
+  flex: 0 0 auto;
+}
+
+.trial-note {
+  margin-top: 20px;
   font-size: 13px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.55;
+}
+
+.trial-status {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--cosmic-2);
 }
 
 .muted {
   color: var(--muted);
+}
+
+/* ============================================================ */
+/* About                                                          */
+/* ============================================================ */
+
+.about {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 40px 24px 100px;
+  display: flex;
+  justify-content: center;
+}
+
+.about-card {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 540px;
+  padding: 56px 40px 44px;
+  border-radius: var(--radius-window);
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Soft aurora glow behind the avatar, scoped to the card so it doesn't
+   bleed into the rest of the page. */
+.about-aurora {
+  position: absolute;
+  inset: -40% -10% auto -10%;
+  height: 70%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 60% at 30% 40%, rgba(124, 92, 255, 0.35), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 75% 30%, rgba(236, 72, 153, 0.28), transparent 60%);
+  filter: blur(40px);
+}
+
+.avatar-wrap {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 20px;
+  position: relative;
+  border-radius: 50%;
+  /* Two-layer glow: tight outline + softer accent halo. */
+  padding: 3px;
+  background:
+    conic-gradient(
+      from 180deg,
+      var(--cosmic-2),
+      var(--cosmic-3),
+      var(--cosmic-4),
+      var(--cosmic-2)
+    );
+  box-shadow:
+    0 16px 40px rgba(124, 92, 255, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
+  background: var(--cosmic-1);
+}
+
+.about-eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.about-name {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.about-role {
+  margin: 0 0 22px;
+  font-size: 14px;
+  color: var(--accent);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.about-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 auto 28px;
+  max-width: 380px;
+}
+
+.about-links {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  border-radius: var(--radius-inline);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition:
+    transform var(--t-base) ease,
+    border-color var(--t-base) ease,
+    background var(--t-base) ease;
+}
+
+.about-link:hover {
+  transform: translateY(-1px);
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.about-link svg {
+  color: var(--accent);
 }
 
 /* ============================================================ */
@@ -539,24 +844,106 @@ footer {
   flex-wrap: wrap;
 }
 
-.footer-links {
-  display: flex;
-  gap: 22px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.footer-links a {
-  transition: color var(--t-base) ease;
-}
-
-.footer-links a:hover {
-  color: var(--text);
-}
-
 .footer-meta {
   font-size: 12px;
   color: var(--muted);
+}
+
+.footer-meta a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+  transition: color var(--t-base) ease, text-decoration-color var(--t-base) ease;
+}
+
+.footer-meta a:hover {
+  color: var(--text);
+  text-decoration-color: var(--accent);
+}
+
+/* ============================================================ */
+/* Legal pages (Impressum, Privacy)                              */
+/* ============================================================ */
+
+.legal-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 60px 24px 100px;
+  line-height: 1.65;
+}
+
+.legal-page h1 {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+
+.legal-page .legal-lede {
+  font-size: 15px;
+  color: var(--muted);
+  margin: 0 0 48px;
+}
+
+.legal-page section {
+  margin-bottom: 36px;
+}
+
+.legal-page h2 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0 0 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+
+.legal-page section:first-of-type h2 {
+  border-top: none;
+  padding-top: 0;
+}
+
+.legal-page h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  margin: 22px 0 8px;
+  color: var(--text);
+}
+
+.legal-page p,
+.legal-page address,
+.legal-page ul {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--text);
+  font-style: normal;
+}
+
+.legal-page ul {
+  padding-left: 22px;
+}
+
+.legal-page li {
+  margin-bottom: 8px;
+}
+
+.legal-page a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-base) ease;
+}
+
+.legal-page a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.legal-page code {
+  font-size: 13.5px;
 }
 
 /* ============================================================ */

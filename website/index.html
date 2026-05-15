@@ -31,8 +31,9 @@
       </a>
       <nav class="nav-links">
         <a href="#features">Features</a>
-        <a href="#download">Download</a>
-        <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">GitHub</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#trial">Trial</a>
+        <a href="#about">About</a>
       </nav>
     </header>
 
@@ -52,14 +53,12 @@
             wallpapers to your screen.
           </p>
           <div class="cta-row">
-            <a href="#download" class="btn btn-primary">Download free</a>
-            <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener" class="btn btn-ghost">
-              View on GitHub →
-            </a>
+            <a href="#pricing" class="btn btn-primary">Start 7-day free trial</a>
+            <a href="#features" class="btn btn-ghost">See what's in it →</a>
           </div>
           <div class="hero-meta">
-            <span class="dot"></span> macOS · Windows · Linux &nbsp;·&nbsp; MIT
-            licensed &nbsp;·&nbsp; no telemetry
+            <span class="dot"></span> macOS · Windows · Linux &nbsp;·&nbsp;
+            <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry
           </div>
         </div>
 
@@ -179,27 +178,155 @@
         </div>
       </section>
 
-      <section id="download" class="download">
-        <h2 class="section-eyebrow">Download</h2>
-        <p class="download-sub">v0.1 — pick your platform</p>
-        <div class="download-grid">
-          <a class="dl-card glass" href="https://github.com/atayozcan/ambient/releases/latest" target="_blank" rel="noopener">
-            <div class="dl-platform">macOS</div>
-            <div class="dl-meta">Apple Silicon · .dmg</div>
-          </a>
-          <a class="dl-card glass" href="https://github.com/atayozcan/ambient/releases/latest" target="_blank" rel="noopener">
-            <div class="dl-platform">Windows</div>
-            <div class="dl-meta">x64 · NSIS installer</div>
-          </a>
-          <a class="dl-card glass" href="https://github.com/atayozcan/ambient/releases/latest" target="_blank" rel="noopener">
-            <div class="dl-platform">Linux</div>
-            <div class="dl-meta">x86_64 · AppImage</div>
-          </a>
-        </div>
-        <p class="dl-note muted">
-          Flatpak (Flathub) is in flight. Builds are unsigned — see the README for
-          unblock steps on macOS Gatekeeper / Windows SmartScreen.
+      <section id="pricing" class="pricing">
+        <h2 class="section-eyebrow">Pricing</h2>
+        <p class="pricing-sub">
+          One price. Yours forever. All updates included.
         </p>
+
+        <div class="price-card glass">
+          <div class="price-card-aurora" aria-hidden="true"></div>
+          <div class="price-amount">
+            <span class="price-currency">$</span>
+            <span class="price-number">15</span>
+            <span class="price-period">once</span>
+          </div>
+          <p class="price-tagline">
+            Lifetime license. Every future update. Every platform.
+          </p>
+
+          <ul class="price-features">
+            <li>
+              <span class="check" aria-hidden="true">✓</span>
+              <span>All five pattern generators, all sources, AI generation</span>
+            </li>
+            <li>
+              <span class="check" aria-hidden="true">✓</span>
+              <span>Works on macOS, Windows, and Linux</span>
+            </li>
+            <li>
+              <span class="check" aria-hidden="true">✓</span>
+              <span>Signed binaries with automatic updates</span>
+            </li>
+            <li>
+              <span class="check" aria-hidden="true">✓</span>
+              <span>Use on every Mac/PC you own — no per-device cap</span>
+            </li>
+            <li>
+              <span class="check" aria-hidden="true">✓</span>
+              <span>No subscription, no telemetry, no account required</span>
+            </li>
+          </ul>
+
+          <div class="price-cta-row">
+            <a class="btn btn-primary btn-large" href="https://polar.sh/atayozcan/ambient/checkout" target="_blank" rel="noopener">
+              Buy for $15
+            </a>
+            <a class="btn btn-ghost btn-large" href="#trial">
+              Try free for 7 days
+            </a>
+          </div>
+
+          <p class="price-fineprint">
+            Open-source under MIT — you can also <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">build from source</a> if you'd rather not pay. Buying gets you signed builds, auto-updates, and supports development.
+          </p>
+        </div>
+      </section>
+
+      <section id="trial" class="trial">
+        <h2 class="section-eyebrow">Free 7-day trial</h2>
+        <p class="trial-sub">
+          No credit card. No nags. Just your email so we can send the license file.
+        </p>
+
+        <form class="trial-form" id="trial-form">
+          <input
+            type="email"
+            name="email"
+            placeholder="you@example.com"
+            required
+            autocomplete="email"
+            aria-label="Email address"
+          />
+          <button type="submit" class="btn btn-primary">Email me a trial</button>
+        </form>
+
+        <p class="trial-note muted">
+          You'll get an instant download link and a 7-day license file. After
+          the trial, the app keeps your library intact but locks the apply
+          button until you enter a paid license key.
+        </p>
+        <p class="trial-status" id="trial-status" hidden></p>
+      </section>
+
+      <script>
+        // Trial form: backend endpoint at license.ambient.oezcan.me is not
+        // live yet. While we're pre-launch, fall back to a mailto so the
+        // request still reaches a human. Replace this with a real fetch()
+        // POST once the Worker is deployed.
+        (function () {
+          var form = document.getElementById('trial-form');
+          var status = document.getElementById('trial-status');
+          if (!form) return;
+          form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var email = form.querySelector('input[name="email"]').value.trim();
+            if (!email) return;
+            // Soft fallback: surface a confirmation and open a mailto so the
+            // request lands in the inbox. Real API call lives here later:
+            //   fetch('https://license.ambient.oezcan.me/trial', { ... })
+            status.hidden = false;
+            status.textContent =
+              "Thanks — opening your mail client. We'll send your trial license shortly.";
+            var subj = encodeURIComponent('Ambient trial request');
+            var body = encodeURIComponent(
+              'Hi Atay, please send me a 7-day trial license for Ambient.\n\nEmail: ' +
+                email +
+                '\n',
+            );
+            window.location.href =
+              'mailto:atay@oezcan.me?subject=' + subj + '&body=' + body;
+          });
+        })();
+      </script>
+
+      <section id="about" class="about">
+        <div class="about-card glass">
+          <div class="about-aurora" aria-hidden="true"></div>
+          <div class="avatar-wrap">
+            <img
+              class="avatar"
+              src="./avatar.png"
+              width="120"
+              height="120"
+              alt="Atay Özcan"
+            />
+          </div>
+          <p class="about-eyebrow">The maker</p>
+          <h2 class="about-name">Atay Özcan</h2>
+          <p class="about-role">Computer science student · building things on the internet</p>
+          <p class="about-body">
+            Ambient is something I made for myself first. If it works for you
+            (or doesn't), I'd love to hear — drop me a line or check what
+            else I'm working on.
+          </p>
+          <div class="about-links">
+            <a class="about-link" href="mailto:atay@oezcan.me">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="M3 7 L12 13 L21 7" />
+              </svg>
+              atay@oezcan.me
+            </a>
+            <a class="about-link" href="https://oezcan.me" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12 H21 M12 3 Q7.5 12 12 21 M12 3 Q16.5 12 12 21" />
+              </svg>
+              oezcan.me
+            </a>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -209,13 +336,12 @@
           <img src="./icon.svg" alt="" width="20" height="20" />
           <span>Ambient</span>
         </div>
-        <div class="footer-links">
-          <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://github.com/atayozcan/ambient/issues" target="_blank" rel="noopener">Issues</a>
-          <a href="https://github.com/atayozcan/ambient/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
-        </div>
         <div class="footer-meta">
-          Built with Tauri · Designed without telemetry
+          <a href="./impressum.html">Impressum</a>
+          &nbsp;·&nbsp;
+          <a href="./privacy.html">Privacy</a>
+          &nbsp;·&nbsp;
+          © 2026 Atay Özcan · No telemetry
         </div>
       </div>
     </footer>
