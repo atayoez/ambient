@@ -7,6 +7,30 @@ import {
   type PollinationsModel,
   type Settings,
 } from '../lib/types';
+import { InspectorSection } from './layout';
+
+const PROVIDER_OPTIONS: { value: GenProvider; label: string }[] = [
+  { value: 'pollinations', label: 'Pollinations (free, no key)' },
+  { value: 'openai', label: 'OpenAI DALL-E 3 (BYOK)' },
+];
+
+const RESOLUTION_OPTIONS: { value: GenResolution; label: string }[] = [
+  { value: 'auto', label: 'Auto (match your primary monitor)' },
+  { value: '1920x1080', label: '1920 × 1080 (FHD)' },
+  { value: '2560x1440', label: '2560 × 1440 (QHD)' },
+  { value: '3440x1440', label: '3440 × 1440 (ultrawide)' },
+  { value: '3840x2160', label: '3840 × 2160 (4K UHD)' },
+  { value: '5120x2880', label: '5120 × 2880 (5K)' },
+];
+
+const POLLINATIONS_MODELS: { value: PollinationsModel; label: string }[] = [
+  { value: 'flux', label: 'FLUX (default)' },
+  { value: 'flux-realism', label: 'FLUX Realism' },
+  { value: 'flux-anime', label: 'FLUX Anime' },
+  { value: 'flux-3d', label: 'FLUX 3D' },
+  { value: 'turbo', label: 'Turbo (faster, lower quality)' },
+  { value: 'sdxl', label: 'SDXL' },
+];
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -27,53 +51,53 @@ export default function SettingsView() {
 
   return (
     <div className="settings">
-      <section>
-        <h2>AI image generation</h2>
-        <label>
-          Provider
+      <InspectorSection title="AI image generation">
+        <label className="field">
+          <span>Provider</span>
           <select
             value={settings.genProvider}
             onChange={(e) => update({ genProvider: e.target.value as GenProvider })}
           >
-            <option value="pollinations">Pollinations (free, no key)</option>
-            <option value="openai">OpenAI DALL-E 3 (BYOK)</option>
+            {PROVIDER_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label>
-          Resolution
+        <label className="field">
+          <span>Resolution</span>
           <select
             value={settings.genResolution}
             onChange={(e) => update({ genResolution: e.target.value as GenResolution })}
           >
-            <option value="auto">Auto (match your primary monitor)</option>
-            <option value="1920x1080">1920 × 1080 (FHD)</option>
-            <option value="2560x1440">2560 × 1440 (QHD)</option>
-            <option value="3440x1440">3440 × 1440 (ultrawide)</option>
-            <option value="3840x2160">3840 × 2160 (4K UHD)</option>
-            <option value="5120x2880">5120 × 2880 (5K)</option>
+            {RESOLUTION_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </label>
 
         {settings.genProvider === 'pollinations' && (
           <>
-            <label>
-              Model
+            <label className="field">
+              <span>Model</span>
               <select
                 value={settings.pollinationsModel}
                 onChange={(e) =>
                   update({ pollinationsModel: e.target.value as PollinationsModel })
                 }
               >
-                <option value="flux">FLUX (default)</option>
-                <option value="flux-realism">FLUX Realism</option>
-                <option value="flux-anime">FLUX Anime</option>
-                <option value="flux-3d">FLUX 3D</option>
-                <option value="turbo">Turbo (faster, lower quality)</option>
-                <option value="sdxl">SDXL</option>
+                {POLLINATIONS_MODELS.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </label>
-            <p className="muted">
+            <p className="muted small">
               Free image generation via <code>pollinations.ai</code>. ~5–15s per image.
               Capped at ~2048/side.
             </p>
@@ -82,8 +106,8 @@ export default function SettingsView() {
 
         {settings.genProvider === 'openai' && (
           <>
-            <label>
-              OpenAI API key
+            <label className="field">
+              <span>OpenAI API key</span>
               <input
                 type="password"
                 value={settings.openaiKey}
@@ -91,22 +115,23 @@ export default function SettingsView() {
                 placeholder="sk-..."
               />
             </label>
-            <label>
-              Model
+            <label className="field">
+              <span>Model</span>
               <input
                 value={settings.openaiModel}
                 onChange={(e) => update({ openaiModel: e.target.value })}
                 placeholder="dall-e-3"
               />
             </label>
-            <p className="muted">HD quality, ~$0.08 per image, capped at 1792×1024.</p>
+            <p className="muted small">
+              HD quality, ~$0.08 per image, capped at 1792×1024.
+            </p>
           </>
         )}
-      </section>
+      </InspectorSection>
 
-      <section>
-        <h2>Rotation</h2>
-        <label className="row-label">
+      <InspectorSection title="Rotation">
+        <label className="row-toggle">
           <input
             type="checkbox"
             checked={settings.rotationEnabled}
@@ -114,24 +139,27 @@ export default function SettingsView() {
           />
           <span>Auto-rotate while the app is running</span>
         </label>
-        <label>
-          Interval (minutes)
+        <label className="field">
+          <span>Interval (minutes)</span>
           <input
             type="number"
             min={5}
             value={settings.rotationIntervalMinutes}
             onChange={(e) =>
               update({
-                rotationIntervalMinutes: Math.max(5, parseInt(e.target.value) || 60),
+                rotationIntervalMinutes: Math.max(
+                  5,
+                  Number.parseInt(e.target.value) || 60,
+                ),
               })
             }
           />
         </label>
-        <p className="muted">
+        <p className="muted small">
           v0 rotation only fires while Ambient is open. Background/tray rotation lands in
           v0.1. Source configuration moved to the <em>Sources</em> tab.
         </p>
-      </section>
+      </InspectorSection>
 
       {saved && <div className="save-toast">Saved</div>}
     </div>

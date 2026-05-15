@@ -3,12 +3,17 @@ import { useEffect, useState } from 'react';
 import { loadLibrary, saveLibrary } from '../lib/store';
 import type { Wallpaper } from '../lib/types';
 import { deleteWallpaper, setWallpaper } from '../lib/wallpaper';
+import { StatusInline } from './layout';
 
 export default function Library() {
   const [library, setLibrary] = useState<Wallpaper[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // Path of the wallpaper currently in the "are you sure?" delete state.
+  // Two-step confirmation avoids the click-once-destroy-immediately UX
+  // without pulling in a modal library.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
     loadLibrary().then(setLibrary);
@@ -30,6 +35,7 @@ export default function Library() {
   }
 
   async function removeFromLibrary(w: Wallpaper) {
+    setConfirmDelete(null);
     const next = library.filter((x) => x.path !== w.path);
     setLibrary(next);
     await saveLibrary(next);
@@ -44,8 +50,7 @@ export default function Library() {
     <div className="library">
       {(status || error) && (
         <div className="library-actions">
-          {status && <span className="status">{status}</span>}
-          {error && <span className="error">{error}</span>}
+          <StatusInline status={status} error={error} />
         </div>
       )}
 
@@ -57,23 +62,55 @@ export default function Library() {
             lands here for re-use.
           </div>
         )}
-        {library.map((w) => (
-          <div key={w.path} className="card">
-            <img src={convertFileSrc(w.path)} alt={w.title ?? ''} loading="lazy" />
-            <div className="card-actions">
-              <button onClick={() => applyExisting(w)} disabled={busy}>
-                Apply
+        {library.map((w) => {
+          const isConfirming = confirmDelete === w.path;
+          return (
+            <div key={w.path} className="card">
+              <button
+                type="button"
+                className="card-thumb"
+                onClick={() => applyExisting(w)}
+                disabled={busy}
+                aria-label={`Apply ${w.title ?? 'wallpaper'}`}
+              >
+                <img src={convertFileSrc(w.path)} alt={w.title ?? ''} loading="lazy" />
+                <span className="card-thumb-hint">Apply</span>
               </button>
-              <button onClick={() => removeFromLibrary(w)} className="danger">
-                Delete
-              </button>
+              <div className="card-actions">
+                {isConfirming ? (
+                  <>
+                    <button
+                      onClick={() => removeFromLibrary(w)}
+                      className="danger"
+                      // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
+                      autoFocus
+                    >
+                      Confirm delete
+                    </button>
+                    <button onClick={() => setConfirmDelete(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => applyExisting(w)} disabled={busy}>
+                      Apply
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(w.path)}
+                      className="danger-ghost"
+                      aria-label="Delete"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="card-meta">
+                {w.source}
+                {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
+              </div>
             </div>
-            <div className="card-meta">
-              {w.source}
-              {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

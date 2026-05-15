@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Ambient — wallpapers that move with you</title>
+    <meta name="description" content="A native desktop wallpaper studio. Pattern generators, curated sources, AI generation. macOS · Windows · Linux." />
+    <meta property="og:title" content="Ambient — wallpapers that move with you" />
+    <meta property="og:description" content="A native desktop wallpaper studio. Pattern generators, curated sources, AI generation." />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- Inline SVG filter: same turbulence-displacement glass refraction we
+         use in the app, so the marketing surfaces feel like the product. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <filter id="liquid-refract">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="3" />
+          <feDisplacementMap in="SourceGraphic" scale="6" />
+        </filter>
+      </defs>
+    </svg>
+
+    <header class="nav">
+      <a href="#top" class="brand">
+        <img src="./icon.svg" alt="" width="28" height="28" />
+        <span>Ambient</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section id="top" class="hero">
+        <div class="hero-aurora" aria-hidden="true"></div>
+        <div class="hero-stars" aria-hidden="true"></div>
+
+        <div class="hero-content">
+          <h1>
+            Wallpapers
+            <span class="gradient-text">that move with you.</span>
+          </h1>
+          <p class="hero-sub">
+            A native desktop wallpaper studio. Generate infinite patterns,
+            pull from curated photo sources, or write a prompt and ship pixel-perfect
+            wallpapers to your screen.
+          </p>
+          <div class="cta-row">
+            <a href="#download" class="btn btn-primary">Download free</a>
+            <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener" class="btn btn-ghost">
+              View on GitHub →
+            </a>
+          </div>
+          <div class="hero-meta">
+            <span class="dot"></span> macOS · Windows · Linux &nbsp;·&nbsp; MIT
+            licensed &nbsp;·&nbsp; no telemetry
+          </div>
+        </div>
+
+        <!-- Floating app preview card -->
+        <div class="hero-preview" aria-hidden="true">
+          <div class="preview-shell glass">
+            <div class="preview-titlebar">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+              <span class="preview-title">Ambient</span>
+            </div>
+            <div class="preview-body">
+              <div class="preview-canvas"></div>
+              <div class="preview-inspector">
+                <div class="ins-line"></div>
+                <div class="ins-line short"></div>
+                <div class="ins-line"></div>
+                <div class="ins-pill"></div>
+                <div class="ins-pill" style="width: 60%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="features">
+        <h2 class="section-eyebrow">What's in it</h2>
+        <div class="feature-grid">
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="11" cy="11" r="6" /><circle cx="21" cy="21" r="6" />
+              </svg>
+            </div>
+            <h3>Five pattern generators</h3>
+            <p>
+              Mesh gradients, geometric shapes, dot grids, stripes, and iOS-style
+              emoji wallpapers using Microsoft Fluent 3D. Re-rolls in milliseconds at
+              your screen's exact resolution.
+            </p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="7" width="22" height="16" rx="2" />
+                <path d="M5 18 L11 13 L17 18 L21 15 L27 19" />
+                <circle cx="22" cy="12" r="1.5" />
+              </svg>
+            </div>
+            <h3>Curated photo sources</h3>
+            <p>
+              One-click pulls from NASA APOD, Unsplash, and Pexels. Free, BYO key for
+              the search-driven providers. Cached locally so the preview is instant.
+            </p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 5 L19 13 L27 14 L21 19 L23 27 L16 23 L9 27 L11 19 L5 14 L13 13 Z" />
+              </svg>
+            </div>
+            <h3>AI generation</h3>
+            <p>
+              Write a prompt, hit ⌘↩, get a wallpaper applied. Free via Pollinations
+              (no key needed) or bring your OpenAI key for DALL-E 3.
+            </p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="6" width="9" height="9" rx="1.5" />
+                <rect x="18" y="6" width="9" height="9" rx="1.5" />
+                <rect x="5" y="19" width="9" height="9" rx="1.5" />
+                <rect x="18" y="19" width="9" height="9" rx="1.5" />
+              </svg>
+            </div>
+            <h3>Your own library</h3>
+            <p>
+              Every wallpaper you apply is saved locally. Re-apply with a click,
+              delete with a second click. Lives in <code>~/.local/share</code>;
+              never leaves your machine.
+            </p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 4 L26 9 L26 18 Q26 25 16 28 Q6 25 6 18 L6 9 Z" />
+              </svg>
+            </div>
+            <h3>Local, private, MIT</h3>
+            <p>
+              Built on Tauri + Rust + React. No telemetry, no accounts, no servers.
+              Source available on GitHub under MIT — fork it, ship it, sell it.
+            </p>
+          </article>
+
+          <article class="feature">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M6 16 L26 16" />
+                <path d="M6 10 L26 10" opacity="0.6" />
+                <path d="M6 22 L26 22" opacity="0.6" />
+                <circle cx="22" cy="16" r="2.5" fill="currentColor" />
+              </svg>
+            </div>
+            <h3>Designed like an Apple inspector</h3>
+            <p>
+              Liquid-glass surfaces, intrinsic-width sliders, sticky preview column.
+              Native Wayland on Linux, vibrancy on macOS, Mica on Windows.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="download" class="download">
+        <h2 class="section-eyebrow">Download</h2>
+        <p class="download-sub">v0.1 — pick your platform</p>
+        <div class="download-grid">
+          <a class="dl-card glass" href="https://github.com/atayozcan/ambient/releases/latest" target="_blank" rel="noopener">
+            <div class="dl-platform">macOS</div>
+            <div class="dl-meta">Apple Silicon · .dmg</div>
+          </a>
+          <a class="dl-card glass" href="https://github.com/atayozcan/ambient/releases/latest" target="_blank" rel="noopener">
+            <div class="dl-platform">Windows</div>
+            <div class="dl-meta">x64 · NSIS installer</div>
+          </a>
+          <a class="dl-card glass" href="https://github.com/atayozcan/ambient/releases/latest" target="_blank" rel="noopener">
+            <div class="dl-platform">Linux</div>
+            <div class="dl-meta">x86_64 · AppImage</div>
+          </a>
+        </div>
+        <p class="dl-note muted">
+          Flatpak (Flathub) is in flight. Builds are unsigned — see the README for
+          unblock steps on macOS Gatekeeper / Windows SmartScreen.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <div class="brand-sm">
+          <img src="./icon.svg" alt="" width="20" height="20" />
+          <span>Ambient</span>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/atayozcan/ambient/issues" target="_blank" rel="noopener">Issues</a>
+          <a href="https://github.com/atayozcan/ambient/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        </div>
+        <div class="footer-meta">
+          Built with Tauri · Designed without telemetry
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
