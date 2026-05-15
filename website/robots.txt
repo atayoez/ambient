@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /downloads/
+
+# Installer downloads are large and shouldn't be crawled — they're
+# served via R2 via /downloads/* and aren't useful for indexing.
+
+Sitemap: https://ambient.oezcan.me/sitemap.xml
