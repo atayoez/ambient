@@ -5,7 +5,7 @@ let _store: Store | null = null;
 
 async function getStore(): Promise<Store> {
   if (!_store) {
-    _store = await load('ambient.json', { autoSave: true });
+    _store = await load('ambient.json', { defaults: {}, autoSave: true });
   }
   return _store;
 }

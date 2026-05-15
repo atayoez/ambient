@@ -39,9 +39,7 @@ textarea,
   display: flex;
   flex-direction: column;
   height: 100%;
-  background:
-    linear-gradient(180deg, var(--bg-tint-top), var(--bg-tint-bottom)),
-    var(--bg-base);
+  background: var(--bg-base);
   /* Combined glass treatment: heavy gaussian blur + saturation boost for
      translucent vibrancy + SVG turbulence displacement for actual
      refraction of the backdrop (defined inline in index.html). Together
@@ -221,7 +219,6 @@ textarea,
 
 /* --- Glass tab-style buttons --- */
 .tab,
-.pattern-tab,
 .wc {
   -webkit-tap-highlight-color: transparent;
   appearance: none;
@@ -291,7 +288,7 @@ textarea,
 }
 
 .wc.close:hover {
-  background: var(--danger);
+  background: color-mix(in oklch, var(--danger) 88%, transparent);
   color: white;
 }
 
@@ -330,12 +327,12 @@ button {
     transform 80ms ease;
 }
 
-button:not(.tab):not(.pattern-tab):not(.wc):hover:not(:disabled) {
+button:not(.tab):not(.type-row):not(.segment):not(.wc):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
 
-button:not(.tab):not(.pattern-tab):not(.wc):active:not(:disabled) {
+button:not(.tab):not(.type-row):not(.segment):not(.wc):active:not(:disabled) {
   transform: translateY(1px);
 }
 
@@ -393,6 +390,9 @@ textarea:focus,
 select:focus {
   border-color: var(--accent);
   background: var(--surface-3);
+  /* OKLCH-mixed focus ring: stays perceptually uniform across the
+     light/dark accent values, unlike sRGB rgba() which would shift hue. */
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 25%, transparent);
 }
 
 select {
@@ -442,8 +442,100 @@ input[type='checkbox']:checked::after {
 }
 
 input[type='range'] {
+  --p: 50%;
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: var(--accent);
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+input[type='range']:focus {
+  outline: none;
+}
+
+/* Track — single rule per vendor (browsers ignore the whole selector list
+   if one prefix is unknown). The filled portion is painted via a gradient
+   driven by the --p CSS var set inline by the component. */
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(
+      90deg,
+      var(--accent) 0,
+      var(--accent) var(--p),
+      var(--surface-2) var(--p),
+      var(--surface-2) 100%
+    );
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 var(--highlight-edge);
+}
+
+input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 var(--highlight-edge);
+}
+
+input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, #ffffff, #e6e6ee);
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  margin-top: -6px; /* center on 6px track */
+  transition: transform 80ms ease;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, #ffffff, #e6e6ee);
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 80ms ease;
+}
+
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.1);
+}
+input[type='range']:hover::-moz-range-thumb,
+input[type='range']:focus-visible::-moz-range-thumb {
+  transform: scale(1.1);
+}
+
+input[type='range']:active::-webkit-slider-thumb {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 4px color-mix(in oklch, var(--accent) 25%, transparent);
+}
+input[type='range']:active::-moz-range-thumb {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 4px color-mix(in oklch, var(--accent) 25%, transparent);
 }
 
 /* --- Library --- */
@@ -513,9 +605,11 @@ input[type='range'] {
   font-weight: var(--fw-semibold);
 }
 
-/* --- Pages: Generate, Patterns, Settings --- */
+/* --- Tab content wrappers --- */
+.tab-page,
 .generate,
 .patterns,
+.sources,
 .settings {
   flex: 1;
   overflow-y: auto;
@@ -525,16 +619,14 @@ input[type='range'] {
   gap: 14px;
 }
 
-.generate {
-  max-width: 720px;
-}
-
 .settings {
   max-width: 720px;
   padding: 14px 18px;
 }
 
-.patterns {
+.patterns,
+.sources,
+.generate {
   padding-bottom: 18px;
 }
 
@@ -545,56 +637,57 @@ input[type='range'] {
   flex-wrap: wrap;
 }
 
-.prompt-field {
+/* Generic vertical label/input pair. Used inside inspector sections
+   so every form pattern (text input, password, textarea) reads the
+   same — eyebrow label on top, control below. */
+.field {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.prompt-field span {
   font-size: var(--fs-caption);
   color: var(--muted);
+}
+
+.field > span {
   text-transform: uppercase;
   letter-spacing: var(--tracking-eyebrow);
 }
 
-.prompt-field textarea {
+.inspector-section textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 96px;
+  width: 100%;
 }
 
-/* --- Preview surfaces (Patterns + Sources) --- */
+/* --- Preview surface (shared by Patterns + Sources) ---
+   Single styled frame that wraps either a <canvas>, <img>, or empty-state
+   <div>. Sized smaller than full-width to feel like a preview, not a
+   full-bleed canvas. Centered in its column. */
 .preview-wrap {
   position: relative;
   width: 100%;
-  align-self: stretch;
-}
-
-.pattern-preview {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  display: block;
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
-}
-
-.source-preview {
-  width: 100%;
-  max-width: 560px;
-  aspect-ratio: 16 / 9;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  display: block;
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
+  max-width: 520px;
   align-self: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-container);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
-  object-fit: cover;
 }
 
-.source-preview-empty {
+.preview-wrap > canvas,
+.preview-wrap > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.preview-empty {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -604,155 +697,234 @@ input[type='range'] {
   padding: 20px;
 }
 
-/* --- Pattern type overlay --- */
-.pattern-tabs-overlay {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%) translateY(6px);
-  opacity: 0;
-  transition: opacity var(--t-base) ease, transform var(--t-base) ease;
-  pointer-events: none;
+/* ============================================================
+   Tab layout — preview on the left, inspector panel on the
+   right, action bar across the bottom. Apple's standard
+   "document + inspector" arrangement (Pages, Keynote, iOS
+   wallpaper editor). Shared by Patterns / Sources / Generate.
+   All surfaces sit on the app glass — no nested cards, sections
+   are grouped by eyebrow + spacing.
+   ============================================================ */
+.tab-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 22px;
+  align-items: start;
 }
 
-.preview-wrap:hover .pattern-tabs-overlay,
-.preview-wrap:focus-within .pattern-tabs-overlay {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  pointer-events: auto;
+@media (max-width: 760px) {
+  .tab-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.pattern-tabs {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: var(--blur-overlay);
-  -webkit-backdrop-filter: var(--blur-overlay);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: var(--radius-container);
-  padding: 3px;
-  gap: 0;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    var(--shadow-overlay);
-}
-
-.pattern-tab-indicator {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 40px;
-  height: calc(100% - 6px);
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-inline);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
-    0 1px 4px rgba(0, 0, 0, 0.18);
-  transition: transform var(--t-pill) var(--ease-pill);
-  pointer-events: none;
-  transform: translateX(calc(var(--active-index, 0) * 40px));
-}
-
-.pattern-tab {
-  position: relative;
-  width: 40px;
-  height: 36px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  box-shadow: none;
-  cursor: pointer;
-  color: white;
-  z-index: 1;
-  border-radius: var(--radius-inline);
-  font: inherit;
-}
-
-.pattern-tab:hover,
-.pattern-tab:focus,
-.pattern-tab:focus-visible,
-.pattern-tab:active {
-  background: transparent;
-  outline: none;
-  box-shadow: none;
-  transform: none;
-}
-
-.pattern-tab-emoji {
-  font-size: 18px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 160ms var(--ease-pill);
-}
-
-.pattern-tab:hover:not(.active) .pattern-tab-emoji {
-  transform: scale(1.15);
-}
-
-.pattern-tab[data-label]::after {
-  content: attr(data-label);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  padding: 4px 10px;
-  border-radius: var(--radius-inline);
-  font-size: var(--fs-eyebrow);
-  color: white;
-  white-space: nowrap;
-  z-index: 10;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--t-tooltip) ease, transform var(--t-tooltip) ease;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-}
-
-.pattern-tab:hover::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.pattern-controls {
+.preview-col {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.preview-actions {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inspector-section h3 {
+  margin: 0;
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.inspector-section input:not([type='color']):not([type='range']),
+.inspector-section select {
+  width: 100%;
+}
+
+/* Slightly roomier padding for inputs that live in an inspector column —
+   they're already constrained to ~280px wide, so generous interior space
+   keeps them from feeling cramped. */
+.inspector-section input:not([type='color']):not([type='range']),
+.inspector-section textarea,
+.inspector-section select {
+  padding: 10px 12px;
+}
+
+.inspector-section .muted.small {
+  font-size: var(--fs-eyebrow);
+  margin: 0;
+  line-height: var(--lh-body);
+}
+
+/* Pattern type picker — vertical list of rows with emoji + name.
+   Always visible, replaces the hover-only overlay that was hard
+   to discover. */
+.type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-inline);
+  color: var(--text);
+  font-size: var(--fs-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
+}
+
+.type-row:hover:not(.active) {
+  background: var(--surface);
+}
+
+.type-row.active {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.type-emoji {
+  flex: 0 0 22px;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Wrapper for stacked name + optional description. min-width:0 lets the
+   single-line ellipsis on long labels actually kick in inside flex. */
+.type-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.type-name {
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-body);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-desc {
+  font-size: var(--fs-eyebrow);
+  color: var(--muted);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-check {
+  flex: 0 0 14px;
+  color: var(--accent);
+  font-size: var(--fs-body);
+  line-height: 1;
+  text-align: right;
+}
+
+/* Segmented control — 2-3 options, single-row pill with a sliding-active
+   state. Used for short toggle groups (theme mode, etc.). */
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  padding: 14px;
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
+  border-radius: var(--radius-inline);
+  padding: 2px;
+  gap: 2px;
 }
 
-.control-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.segmented .segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--t-fast) ease, color var(--t-fast) ease;
 }
 
-.control-group > label {
+.segmented .segment:hover:not(.active) {
+  color: var(--text);
+  background: transparent;
+}
+
+.segmented .segment.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.segment-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Inline horizontal slider rows — label on the left, slider centered,
+   value on the right. Apple Settings.app pattern. */
+.control-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.control-row + .control-row {
+  margin-top: 2px;
+}
+
+.control-label {
   font-size: var(--fs-caption);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.control-group > label .muted {
-  text-transform: none;
-  letter-spacing: 0;
+.control-value {
+  font-size: var(--fs-caption);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
+
 
 .colors-row {
   display: flex;
@@ -835,20 +1007,15 @@ input[type='range'] {
   color: var(--text);
 }
 
-.preset-btn.match {
-  border-style: dashed;
-}
-
-/* --- Settings / Sources section cards --- */
+/* --- Settings / Sources sections ---
+   No filled surface — sections sit directly on the app glass. Grouping
+   comes from the h2 eyebrow and spacing, per Apple's Liquid Glass
+   "avoid stacking materials" guidance. */
 .settings section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  padding: 14px;
+  padding: 4px 2px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
 }
 
 .settings h2 {
@@ -906,27 +1073,29 @@ input[type='range'] {
   bottom: 18px;
   right: 18px;
   z-index: 100;
-  background: rgba(110, 231, 163, 0.18);
+  background: color-mix(in oklch, var(--success) 18%, transparent);
   color: var(--success);
   padding: 5px 12px;
   border-radius: var(--radius-pill);
-  border: 1px solid rgba(110, 231, 163, 0.32);
+  border: 1px solid color-mix(in oklch, var(--success) 32%, transparent);
   font-size: var(--fs-eyebrow);
   pointer-events: none;
-  animation: save-in 200ms ease;
   box-shadow: var(--shadow-toast);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease, transform 200ms ease;
 }
 
-@keyframes save-in {
-  from {
+/* Entrance via @starting-style — fires once when the toast is inserted
+   into the DOM, transitioning from these values to the resting state above.
+   Cleaner than a @keyframes animation: the transition is reversible and
+   participates in the rest of the element's transitions naturally. */
+@starting-style {
+  .save-toast {
     opacity: 0;
     transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -967,8 +1136,6 @@ input[type='range'] {
   }
   /* Snap state transitions for the sliding pills instead of easing. */
   .tab-indicator,
-  .pattern-tab-indicator,
-  .pattern-tab-emoji,
   .save-toast {
     transition: none;
     animation: none;
@@ -991,16 +1158,10 @@ input[type='range'] {
   .save-toast::before {
     display: none;
   }
-  .tabs,
-  .pattern-tabs {
+  .tabs {
     background: rgba(15, 13, 26, 0.95);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-  }
-  .pattern-tab[data-label]::after {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    background: rgba(15, 13, 26, 0.95);
   }
   .save-toast {
     backdrop-filter: none;
@@ -1014,8 +1175,7 @@ input[type='range'] {
   .app {
     background: #fafaff;
   }
-  .tabs,
-  .pattern-tabs {
+  .tabs {
     background: rgba(252, 250, 255, 0.95);
   }
 }

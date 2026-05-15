@@ -44,9 +44,7 @@ export default function SettingsView() {
           Resolution
           <select
             value={settings.genResolution}
-            onChange={(e) =>
-              update({ genResolution: e.target.value as GenResolution })
-            }
+            onChange={(e) => update({ genResolution: e.target.value as GenResolution })}
           >
             <option value="auto">Auto (match your primary monitor)</option>
             <option value="1920x1080">1920 × 1080 (FHD)</option>
@@ -130,8 +128,8 @@ export default function SettingsView() {
           />
         </label>
         <p className="muted">
-          v0 rotation only fires while Ambient is open. Background/tray rotation lands in v0.1.
-          Source configuration moved to the <em>Sources</em> tab.
+          v0 rotation only fires while Ambient is open. Background/tray rotation lands in
+          v0.1. Source configuration moved to the <em>Sources</em> tab.
         </p>
       </section>
 

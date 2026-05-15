@@ -4,7 +4,9 @@ runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-  - org.freedesktop.Sdk.Extension.node22
+  # Stay on node20 — node22 + npm 11 reliably hits "Exit handler never called!"
+  # inside the flatpak-builder sandbox. node20 ships npm 10 which doesn't.
+  - org.freedesktop.Sdk.Extension.node20
 
 command: ambient
 
@@ -30,9 +32,15 @@ finish-args:
   - --filesystem=xdg-pictures:rw
 
 build-options:
-  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
   env:
     CARGO_HOME: /run/build/ambient/cargo
+    # Silence npm's interactive output — funding/audit notices write to a
+    # pipe the flatpak-builder sandbox sometimes closes early, which is
+    # what triggers the "Exit handler never called!" hang.
+    npm_config_fund: 'false'
+    npm_config_audit: 'false'
+    npm_config_progress: 'false'
 
 modules:
   - name: ambient
@@ -45,7 +53,7 @@ modules:
       #   flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
       #     src-tauri/Cargo.lock -o cargo-sources.json
       # Then reference them as additional 'sources' below.
-      - npm ci
+      - npm ci --no-fund --no-audit --no-progress
       - npm run build
       - cd src-tauri && cargo build --release --locked
       - install -Dm755 src-tauri/target/release/ambient /app/bin/ambient

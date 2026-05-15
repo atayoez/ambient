@@ -48,10 +48,13 @@
 
   /* Base + tinted background. The app sits on a blurred wallpaper,
    * so `--bg-base` is INTENTIONALLY translucent — the live wallpaper
-   * bleeds through the 40px backdrop-blur. */
-  --bg-base: rgba(15, 13, 26, 0.78);
-  --bg-tint-top: rgba(124, 92, 255, 0.06);   /* purple wash */
-  --bg-tint-bottom: rgba(236, 72, 153, 0.04); /* pink wash */
+   * bleeds through the 40px backdrop-blur. Per Apple's Liquid Glass
+   * guidance the material itself is achromatic; we deliberately don't
+   * tint it. Color comes from the wallpaper beneath and from the
+   * accent on interactive elements only. */
+  --bg-base: rgba(18, 18, 22, 0.72);
+  --bg-tint-top: transparent;
+  --bg-tint-bottom: transparent;
 
   /* Surfaces — layered translucent whites for elevation */
   --surface:   rgba(255, 255, 255, 0.04);
@@ -63,9 +66,11 @@
   --border-strong: rgba(255, 255, 255, 0.16);
   --highlight-edge: rgba(255, 255, 255, 0.18); /* inner-top sheen */
 
-  /* Foreground */
-  --text:  #f1ecff;   /* near-white with a faint lavender cast */
-  --muted: #a59cc4;   /* mauve grey */
+  /* Foreground — neutral, near-pure white. Apple system label colors
+   * are achromatic; tinting the foreground re-introduces the brand
+   * cast that the glass material is supposed to avoid. */
+  --text:  #f5f5f7;
+  --muted: #a1a1aa;
 
   /* Brand / semantic */
   --accent:        #b794f6;  /* lavender — primary action */
@@ -154,17 +159,17 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-base: rgba(252, 250, 255, 0.78);
-    --bg-tint-top: rgba(124, 92, 255, 0.04);
-    --bg-tint-bottom: rgba(236, 72, 153, 0.03);
+    --bg-base: rgba(250, 250, 252, 0.72);
+    --bg-tint-top: transparent;
+    --bg-tint-bottom: transparent;
     --surface:   rgba(255, 255, 255, 0.5);
     --surface-2: rgba(255, 255, 255, 0.7);
     --surface-3: rgba(255, 255, 255, 0.95);
     --border:        rgba(0, 0, 0, 0.08);
     --border-strong: rgba(0, 0, 0, 0.14);
     --highlight-edge: rgba(0, 0, 0, 0.04);
-    --text:  #1a1729;
-    --muted: #5e577a;
+    --text:  #1c1c1e;
+    --muted: #6e6e73;
     --accent:       #7c3aed;
     --accent-hover: #6d28d9;
     --accent-glow:  rgba(124, 58, 237, 0.25);

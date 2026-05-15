@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { useEffect, useRef, useState } from 'react';
 import { fetchRandomFromSource } from '../lib/sources';
-import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
 import { loadLibrary, loadSettings, saveLibrary, saveSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
@@ -10,6 +9,8 @@ import {
   type SourceKind,
   type Wallpaper,
 } from '../lib/types';
+import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
+import { InspectorSection, PreviewFrame, StatusInline, TabLayout } from './layout';
 
 function canFetch(s: Settings): boolean {
   switch (s.source) {
@@ -22,6 +23,12 @@ function canFetch(s: Settings): boolean {
   }
 }
 
+const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = [
+  { id: 'nasa-apod', name: 'NASA APOD', description: 'Free · one image per day' },
+  { id: 'unsplash', name: 'Unsplash', description: 'Free API key · search-driven' },
+  { id: 'pexels', name: 'Pexels', description: 'Free API key · search-driven' },
+];
+
 const CACHE_KEY = 'ambient-source-preview-cache';
 
 interface PreviewCacheEntry {
@@ -32,7 +39,21 @@ interface PreviewCacheEntry {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Temporal gives the always-correct local date. WebKit on Linux may lag
+  // behind on this proposal, so feature-detect and fall back to a manually
+  // composed local YYYY-MM-DD — `toISOString().slice(0,10)` would silently
+  // UTC-shift the value near midnight.
+  const T = (
+    globalThis as {
+      Temporal?: { Now: { plainDateISO: () => { toString: () => string } } };
+    }
+  ).Temporal;
+  if (T) return T.Now.plainDateISO().toString();
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function loadCache(): PreviewCacheEntry | null {
@@ -86,8 +107,6 @@ export default function Sources() {
       setSettings(s);
       prevSource.current = s.source;
 
-      // Restore from cache if the entry is still valid (file in library +
-      // NASA staleness rule).
       const cached = await reusableCache(loadCache(), s.source);
       if (cached) {
         setPreviewPath(cached.localPath);
@@ -123,7 +142,15 @@ export default function Sources() {
         });
         return;
       }
-      if (canFetch(settings)) void fetchNew(false, settings);
+      // No cache for the new source. Clear the stale preview from the
+      // previous source so the user isn't staring at a NASA image while
+      // configuring Unsplash.
+      if (!canFetch(settings)) {
+        setPreviewPath(null);
+        setPreviewMeta(null);
+        return;
+      }
+      void fetchNew(false, settings);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.source]);
@@ -207,122 +234,130 @@ export default function Sources() {
     }
   }
 
+  const emptyMessage = canFetch(settings)
+    ? 'Loading preview…'
+    : 'Add an API key below to see a preview from this source.';
+
   return (
-    <div className="settings">
-      {previewPath ? (
-        <img
-          src={convertFileSrc(previewPath)}
-          alt={previewMeta?.title ?? ''}
-          className="source-preview"
-        />
-      ) : (
-        <div className="source-preview source-preview-empty">
-          {canFetch(settings)
-            ? 'Loading preview…'
-            : 'Add an API key below to see a preview from this source.'}
-        </div>
-      )}
+    <div className="sources">
+      <TabLayout
+        preview={
+          <PreviewFrame empty={emptyMessage}>
+            {previewPath ? (
+              <img src={convertFileSrc(previewPath)} alt={previewMeta?.title ?? ''} />
+            ) : null}
+          </PreviewFrame>
+        }
+        inspector={
+          <>
+            <InspectorSection title="Source">
+              <div className="type-list" role="radiogroup" aria-label="Source">
+                {SOURCE_OPTIONS.map(({ id, name, description }) => (
+                  <button
+                    key={id}
+                    role="radio"
+                    aria-checked={settings.source === id}
+                    className={settings.source === id ? 'type-row active' : 'type-row'}
+                    onClick={() => update({ source: id })}
+                  >
+                    <span className="type-text">
+                      <span className="type-name">{name}</span>
+                      <span className="type-desc">{description}</span>
+                    </span>
+                    {settings.source === id && (
+                      <span className="type-check" aria-hidden="true">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="muted small">
+                NASA APOD caches one image per day. Unsplash and Pexels need a
+                free API key for unlimited search-driven variety.
+              </p>
+            </InspectorSection>
 
-      <section>
-        <h2>Source</h2>
-        <select
-          value={settings.source}
-          onChange={(e) => update({ source: e.target.value as SourceKind })}
-        >
-          <option value="nasa-apod">NASA APOD (free, no key, one image per day)</option>
-          <option value="unsplash">Unsplash</option>
-          <option value="pexels">Pexels</option>
-        </select>
-        <p className="muted">
-          NASA Astronomy Picture of the Day needs no key but only gives ~1 image / day —
-          we cache it so the preview is instant after the first fetch.
-          Unsplash and Pexels need a free API key in exchange for endless search-driven
-          variety.
-        </p>
-      </section>
+            {settings.source === 'nasa-apod' && (
+              <InspectorSection title="NASA (optional)">
+                <label className="field">
+                  <span>API key</span>
+                  <input
+                    type="password"
+                    value={settings.nasaApiKey}
+                    onChange={(e) => update({ nasaApiKey: e.target.value })}
+                    placeholder="leave blank to use shared DEMO_KEY"
+                  />
+                </label>
+                <p className="muted small">
+                  Without one, Ambient uses NASA's shared <code>DEMO_KEY</code>
+                  {' — '}rate-limited to 30/hr across the internet. Grab a free
+                  personal key at <code>api.nasa.gov</code> for 1000/hr.
+                </p>
+              </InspectorSection>
+            )}
 
-      {settings.source === 'nasa-apod' && (
-        <section>
-          <h2>NASA (optional)</h2>
-          <label>
-            API key
-            <input
-              type="password"
-              value={settings.nasaApiKey}
-              onChange={(e) => update({ nasaApiKey: e.target.value })}
-              placeholder="leave blank to use shared DEMO_KEY"
-            />
-          </label>
-          <p className="muted">
-            Optional. Without one, Ambient falls back to NASA's shared{' '}
-            <code>DEMO_KEY</code> — usually fine for normal use, but it's
-            rate-limited to 30 requests/hour and 50/day across the whole
-            internet. Grab a free personal key at <code>api.nasa.gov</code>{' '}
-            (~30 seconds, just needs an email) for an unlimited 1000/hr limit.
-          </p>
-        </section>
-      )}
+            {settings.source === 'unsplash' && (
+              <InspectorSection title="Unsplash">
+                <label className="field">
+                  <span>Access key</span>
+                  <input
+                    type="password"
+                    value={settings.unsplashKey}
+                    onChange={(e) => update({ unsplashKey: e.target.value })}
+                    placeholder="get one at unsplash.com/developers"
+                  />
+                </label>
+                <label className="field">
+                  <span>Topic / search query</span>
+                  <input
+                    value={settings.unsplashTopic}
+                    onChange={(e) => update({ unsplashTopic: e.target.value })}
+                    placeholder="nature"
+                  />
+                </label>
+              </InspectorSection>
+            )}
 
-      {settings.source === 'unsplash' && (
-        <section>
-          <h2>Unsplash</h2>
-          <label>
-            Access key
-            <input
-              type="password"
-              value={settings.unsplashKey}
-              onChange={(e) => update({ unsplashKey: e.target.value })}
-              placeholder="get one at unsplash.com/developers"
-            />
-          </label>
-          <label>
-            Topic / search query
-            <input
-              value={settings.unsplashTopic}
-              onChange={(e) => update({ unsplashTopic: e.target.value })}
-              placeholder="nature"
-            />
-          </label>
-        </section>
-      )}
-
-      {settings.source === 'pexels' && (
-        <section>
-          <h2>Pexels</h2>
-          <label>
-            API key
-            <input
-              type="password"
-              value={settings.pexelsKey}
-              onChange={(e) => update({ pexelsKey: e.target.value })}
-              placeholder="get one at pexels.com/api"
-            />
-          </label>
-          <label>
-            Search query
-            <input
-              value={settings.pexelsQuery}
-              onChange={(e) => update({ pexelsQuery: e.target.value })}
-              placeholder="mountains"
-            />
-          </label>
-        </section>
-      )}
-
-      <div className="row">
-        <button onClick={() => fetchNew(false)} disabled={busy || !canFetch(settings)}>
-          ↻ Re-fetch
-        </button>
-        <button
-          onClick={applyPreview}
-          disabled={busy || !previewPath}
-          className="primary"
-        >
-          {busy ? 'Working…' : 'Apply as wallpaper'}
-        </button>
-        {status && <span className="status">{status}</span>}
-        {error && <span className="error">{error}</span>}
-      </div>
+            {settings.source === 'pexels' && (
+              <InspectorSection title="Pexels">
+                <label className="field">
+                  <span>API key</span>
+                  <input
+                    type="password"
+                    value={settings.pexelsKey}
+                    onChange={(e) => update({ pexelsKey: e.target.value })}
+                    placeholder="get one at pexels.com/api"
+                  />
+                </label>
+                <label className="field">
+                  <span>Search query</span>
+                  <input
+                    value={settings.pexelsQuery}
+                    onChange={(e) => update({ pexelsQuery: e.target.value })}
+                    placeholder="mountains"
+                  />
+                </label>
+              </InspectorSection>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <button onClick={() => fetchNew(false)} disabled={busy || !canFetch(settings)}>
+              ↻ Re-fetch
+            </button>
+            <button
+              onClick={applyPreview}
+              disabled={busy || !previewPath}
+              className="primary"
+            >
+              {busy ? 'Working…' : 'Apply as wallpaper'}
+            </button>
+            <StatusInline status={status} error={error} />
+          </>
+        }
+      />
 
       {savedFlash && <div className="save-toast">Saved</div>}
     </div>

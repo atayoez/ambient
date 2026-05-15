@@ -32,6 +32,51 @@ export const DEFAULT_CONFIG: PatternConfig = {
   seed: Math.floor(Math.random() * 1_000_000),
 };
 
+// User-facing metadata for each pattern type — single source of truth used
+// by the type picker UI and by library entries.
+export const PATTERN_TYPES: { id: PatternType; emoji: string; name: string }[] = [
+  { id: 'mesh', emoji: '🎨', name: 'Mesh gradient' },
+  { id: 'geometric', emoji: '🔺', name: 'Geometric' },
+  { id: 'dots', emoji: '🔘', name: 'Dots' },
+  { id: 'stripes', emoji: '🦓', name: 'Stripes' },
+  { id: 'emoji', emoji: '😀', name: 'Emoji' },
+];
+
+// When the user switches pattern types we re-seed density/size into values
+// that look right for the new renderer — density=40 is fine for geometric
+// shapes but produces an overwhelming dot grid, etc.
+export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
+  mesh: {},
+  geometric: { density: 40, size: 60 },
+  dots: { density: 18, size: 28 },
+  stripes: { size: 60 },
+  emoji: { size: 90 },
+};
+
+// Per-type slider ranges + labels. Patterns that don't use a given control
+// omit it here, and the UI hides the slider so dragging always changes
+// something visible.
+export const SLIDER_RANGES: Partial<
+  Record<
+    PatternType,
+    {
+      density?: { min: number; max: number; label: string };
+      size?: { min: number; max: number };
+    }
+  >
+> = {
+  geometric: {
+    density: { min: 10, max: 200, label: 'Shape count' },
+    size: { min: 12, max: 120 },
+  },
+  dots: {
+    density: { min: 6, max: 60, label: 'Density' },
+    size: { min: 6, max: 80 },
+  },
+  stripes: { size: { min: 10, max: 140 } },
+  emoji: { size: { min: 40, max: 140 } },
+};
+
 export function seededRandom(seed: number): () => number {
   let s = seed >>> 0 || 1;
   return () => {
@@ -71,7 +116,10 @@ function preferHighQuality(ctx: CanvasRenderingContext2D): void {
 
 // --- SVG emoji loader (Noto Emoji from jsDelivr) ---------------------------
 
-type EmojiState = { kind: 'loaded'; img: HTMLImageElement } | { kind: 'pending'; promise: Promise<HTMLImageElement> } | { kind: 'failed' };
+type EmojiState =
+  | { kind: 'loaded'; img: HTMLImageElement }
+  | { kind: 'pending'; promise: Promise<HTMLImageElement> }
+  | { kind: 'failed' };
 
 const EMOJI_CACHE = new Map<string, EmojiState>();
 

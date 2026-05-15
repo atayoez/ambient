@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { deleteWallpaper, setWallpaper } from '../lib/wallpaper';
+import { useEffect, useState } from 'react';
 import { loadLibrary, saveLibrary } from '../lib/store';
 import type { Wallpaper } from '../lib/types';
+import { deleteWallpaper, setWallpaper } from '../lib/wallpaper';
 
 export default function Library() {
   const [library, setLibrary] = useState<Wallpaper[]>([]);

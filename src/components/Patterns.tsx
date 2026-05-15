@@ -1,44 +1,74 @@
-import { useEffect, useRef, useState } from 'react';
-import { primaryMonitor } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
-import { setWallpaper } from '../lib/wallpaper';
-import { loadLibrary, saveLibrary } from '../lib/store';
+import { primaryMonitor } from '@tauri-apps/api/window';
+import { useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_CONFIG,
-  PRESET_PALETTES,
-  preloadEmojis,
-  renderPattern,
+  PATTERN_TYPES,
   type PatternConfig,
   type PatternType,
+  PRESET_PALETTES,
+  SLIDER_RANGES,
+  TYPE_DEFAULTS,
+  preloadEmojis,
+  renderPattern,
 } from '../lib/patterns';
+import { loadLibrary, saveLibrary } from '../lib/store';
+import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
+import { setWallpaper } from '../lib/wallpaper';
+import {
+  ControlRow,
+  InspectorSection,
+  PreviewFrame,
+  Segmented,
+  StatusInline,
+  TabLayout,
+} from './layout';
 
-const PATTERN_INFO: { id: PatternType; emoji: string; name: string }[] = [
-  { id: 'mesh', emoji: '🎨', name: 'Mesh gradient' },
-  { id: 'geometric', emoji: '🔺', name: 'Geometric' },
-  { id: 'dots', emoji: '🔘', name: 'Dots' },
-  { id: 'stripes', emoji: '🦓', name: 'Stripes' },
-  { id: 'emoji', emoji: '😀', name: 'Emoji' },
-];
+// Fallback monitor size when neither the Tauri command nor the JS API can
+// give us the real resolution. Matches the smallest mainstream desktop size.
+const FALLBACK_WIDTH = 1920;
+const FALLBACK_HEIGHT = 1080;
 
-function pickInitialConfig(): PatternConfig {
-  const dark =
-    typeof window !== 'undefined' &&
-    window.matchMedia &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return {
-    ...DEFAULT_CONFIG,
-    colors: dark ? PRESET_PALETTES.Cosmic : PRESET_PALETTES.Pastel,
-    seed: Math.floor(Math.random() * 1_000_000),
-  };
+function randomSeed(): number {
+  return Math.floor(Math.random() * 1_000_000);
 }
 
+function paletteFor(dark: boolean): string[] {
+  return [...(dark ? PRESET_PALETTES.Cosmic : PRESET_PALETTES.Pastel)];
+}
+
+function pickInitialConfig(dark: boolean): PatternConfig {
+  return { ...DEFAULT_CONFIG, colors: paletteFor(dark), seed: randomSeed() };
+}
+
+const THEME_OPTIONS = [
+  { id: 'auto' as const, label: 'Auto', icon: '🌗' },
+  { id: 'light' as const, label: 'Light', icon: '☀' },
+  { id: 'dark' as const, label: 'Dark', icon: '🌙' },
+];
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 export default function Patterns() {
-  const [config, setConfig] = useState<PatternConfig>(() => pickInitialConfig());
+  const systemDark = useSystemDark();
+  const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
+  const [config, setConfig] = useState<PatternConfig>(() =>
+    pickInitialConfig(isDarkForMode('auto', systemDark)),
+  );
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [emojiVersion, setEmojiVersion] = useState(0);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Sync the palette to the resolved theme. Manual color edits via chips
+  // still apply, but flipping the theme mode or — in auto — the system
+  // color-scheme always wins, so the user can lock to Light/Dark to opt
+  // out of OS-driven changes.
+  const effectiveDark = isDarkForMode(themeMode, systemDark);
+  useEffect(() => {
+    setConfig((c) => ({ ...c, colors: paletteFor(effectiveDark) }));
+  }, [effectiveDark]);
 
   useEffect(() => {
     const canvas = previewRef.current;
@@ -69,8 +99,12 @@ export default function Patterns() {
     setConfig((c) => ({ ...c, ...p }));
   }
 
+  function setType(id: PatternType) {
+    patch({ type: id, ...TYPE_DEFAULTS[id] });
+  }
+
   function reroll() {
-    patch({ seed: Math.floor(Math.random() * 1_000_000) });
+    patch({ seed: randomSeed() });
   }
 
   function setColor(i: number, color: string) {
@@ -91,29 +125,27 @@ export default function Patterns() {
     patch({ colors: [...PRESET_PALETTES[name]] });
   }
 
-  function matchSystemTheme() {
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    patch({ colors: dark ? PRESET_PALETTES.Cosmic : PRESET_PALETTES.Pastel });
-  }
-
   async function apply() {
     if (busy) return;
     setBusy(true);
     setError(null);
     setStatus('Reading screen size…');
     try {
-      let w = 1920;
-      let h = 1080;
+      let w = FALLBACK_WIDTH;
+      let h = FALLBACK_HEIGHT;
       try {
-        const info = await invoke<{ width: number; height: number; scale: number; source: string }>(
-          'get_primary_monitor_pixels',
-        );
+        const info = await invoke<{
+          width: number;
+          height: number;
+          scale: number;
+          source: string;
+        }>('get_primary_monitor_pixels');
         w = info.width;
         h = info.height;
       } catch {
         const monitor = await primaryMonitor();
-        w = monitor?.size?.width ?? 1920;
-        h = monitor?.size?.height ?? 1080;
+        w = monitor?.size?.width ?? FALLBACK_WIDTH;
+        h = monitor?.size?.height ?? FALLBACK_HEIGHT;
       }
 
       if (config.type === 'emoji') {
@@ -121,6 +153,9 @@ export default function Patterns() {
         await preloadEmojis(config.emojis);
       }
 
+      // Emoji renders use raster assets, so super-sampling buys nothing
+      // and just slows the export down; everything else benefits from
+      // 2× SSAA before downscaling for crisper edges.
       const SS = config.type === 'emoji' ? 1 : 2;
       const canvas = document.createElement('canvas');
       canvas.width = w;
@@ -162,7 +197,7 @@ export default function Patterns() {
         filename: `pattern-${config.type}-${config.seed}.png`,
       });
 
-      const info = PATTERN_INFO.find((p) => p.id === config.type);
+      const info = PATTERN_TYPES.find((p) => p.id === config.type);
       const lib = await loadLibrary();
       await saveLibrary([
         {
@@ -186,149 +221,156 @@ export default function Patterns() {
     }
   }
 
-  const activeIndex = PATTERN_INFO.findIndex((p) => p.id === config.type);
+  const ranges = SLIDER_RANGES[config.type] ?? {};
+  const densityRange = ranges.density;
+  const sizeRange = ranges.size;
+  const hasFormSliders = densityRange || sizeRange || config.type === 'mesh';
 
   return (
     <div className="patterns">
-      <div className="preview-wrap">
-        <canvas ref={previewRef} className="pattern-preview" />
-        <div className="pattern-tabs-overlay">
-          <div
-            className="pattern-tabs"
-            style={{ ['--active-index' as string]: String(activeIndex) } as React.CSSProperties}
-          >
-            <div className="pattern-tab-indicator" />
-            {PATTERN_INFO.map(({ id, emoji, name }) => (
-              <button
-                key={id}
-                className={config.type === id ? 'pattern-tab active' : 'pattern-tab'}
-                onClick={() => patch({ type: id })}
-                data-label={name}
-                aria-label={name}
-              >
-                <span className="pattern-tab-emoji">{emoji}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="pattern-controls">
-        <div className="control-group">
-          <label>Colors</label>
-          <div className="colors-row">
-            {config.colors.map((c, i) => (
-              <div key={i} className="color-chip">
-                <input
-                  type="color"
-                  value={c}
-                  onChange={(e) => setColor(i, e.target.value)}
-                  aria-label={`color ${i + 1}`}
-                />
-                {config.colors.length > 2 && (
+      <TabLayout
+        preview={
+          <PreviewFrame>
+            <canvas ref={previewRef} />
+          </PreviewFrame>
+        }
+        inspector={
+          <>
+            <InspectorSection title="Pattern">
+              <div className="type-list" role="radiogroup" aria-label="Pattern type">
+                {PATTERN_TYPES.map(({ id, emoji, name }) => (
                   <button
-                    onClick={() => removeColor(i)}
-                    className="chip-remove"
-                    aria-label="remove color"
+                    key={id}
+                    role="radio"
+                    aria-checked={config.type === id}
+                    className={config.type === id ? 'type-row active' : 'type-row'}
+                    onClick={() => setType(id)}
                   >
-                    ×
+                    <span className="type-emoji" aria-hidden="true">
+                      {emoji}
+                    </span>
+                    <span className="type-text">
+                      <span className="type-name">{name}</span>
+                    </span>
+                    {config.type === id && (
+                      <span className="type-check" aria-hidden="true">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </InspectorSection>
+
+            <InspectorSection title="Palette">
+              <Segmented
+                options={THEME_OPTIONS}
+                value={themeMode}
+                onChange={setThemeMode}
+                ariaLabel="Theme mode"
+              />
+              <div className="colors-row">
+                {config.colors.map((c, i) => (
+                  <div key={i} className="color-chip">
+                    <input
+                      type="color"
+                      value={c}
+                      onChange={(e) => setColor(i, e.target.value)}
+                      aria-label={`color ${i + 1}`}
+                    />
+                    {config.colors.length > 2 && (
+                      <button
+                        onClick={() => removeColor(i)}
+                        className="chip-remove"
+                        aria-label="remove color"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {config.colors.length < 6 && (
+                  <button onClick={addColor} className="add-color" aria-label="add color">
+                    +
                   </button>
                 )}
               </div>
-            ))}
-            {config.colors.length < 6 && (
-              <button onClick={addColor} className="add-color" aria-label="add color">
-                +
-              </button>
+              <div className="presets-row">
+                {Object.keys(PRESET_PALETTES).map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => applyPreset(name)}
+                    className="preset-btn"
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </InspectorSection>
+
+            {hasFormSliders && (
+              <InspectorSection title="Form">
+                {densityRange && (
+                  <ControlRow
+                    label={densityRange.label}
+                    value={clamp(config.density, densityRange.min, densityRange.max)}
+                    min={densityRange.min}
+                    max={densityRange.max}
+                    onChange={(v) => patch({ density: v })}
+                  />
+                )}
+                {sizeRange && (
+                  <ControlRow
+                    label="Size"
+                    value={clamp(config.size, sizeRange.min, sizeRange.max)}
+                    suffix="px"
+                    min={sizeRange.min}
+                    max={sizeRange.max}
+                    onChange={(v) => patch({ size: v })}
+                  />
+                )}
+                <ControlRow
+                  label="Randomness"
+                  value={Math.round(config.randomness * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ randomness: v / 100 })}
+                />
+              </InspectorSection>
             )}
-          </div>
-          <div className="presets-row">
-            {Object.keys(PRESET_PALETTES).map((name) => (
-              <button
-                key={name}
-                onClick={() => applyPreset(name)}
-                className="preset-btn"
-              >
-                {name}
-              </button>
-            ))}
-            <button onClick={matchSystemTheme} className="preset-btn match">
-              Match system
+
+            {config.type === 'emoji' && (
+              <InspectorSection title="Emojis">
+                <input
+                  type="text"
+                  value={config.emojis.join('')}
+                  onChange={(e) =>
+                    patch({
+                      emojis: Array.from(e.target.value).filter((c) => c.trim()),
+                    })
+                  }
+                  placeholder="✨🌙⭐💫🪐"
+                />
+                <p className="muted small">
+                  Paste any string — rendered in Microsoft Fluent style.
+                </p>
+              </InspectorSection>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <button onClick={reroll} disabled={busy}>
+              ↻ Re-roll
             </button>
-          </div>
-        </div>
-
-        {config.type !== 'mesh' && (
-          <div className="control-group">
-            <label>
-              {config.type === 'dots' ? 'Density (dots / longest side)' : 'Amount'}{' '}
-              <span className="muted">{config.density}</span>
-            </label>
-            <input
-              type="range"
-              min={5}
-              max={config.type === 'dots' ? 80 : 400}
-              value={config.density}
-              onChange={(e) => patch({ density: +e.target.value })}
-            />
-          </div>
-        )}
-
-        <div className="control-group">
-          <label>
-            Size <span className="muted">{config.size}px</span>
-          </label>
-          <input
-            type="range"
-            min={8}
-            max={200}
-            value={config.size}
-            onChange={(e) => patch({ size: +e.target.value })}
-          />
-        </div>
-
-        <div className="control-group">
-          <label>
-            Randomness <span className="muted">{Math.round(config.randomness * 100)}%</span>
-          </label>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round(config.randomness * 100)}
-            onChange={(e) => patch({ randomness: +e.target.value / 100 })}
-          />
-        </div>
-
-        {config.type === 'emoji' && (
-          <div className="control-group">
-            <label>
-              Emojis <span className="muted">(paste any string — Microsoft Fluent style)</span>
-            </label>
-            <input
-              type="text"
-              value={config.emojis.join('')}
-              onChange={(e) =>
-                patch({
-                  emojis: Array.from(e.target.value).filter((c) => c.trim()),
-                })
-              }
-              placeholder="✨🌙⭐💫🪐"
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="row">
-        <button onClick={reroll} disabled={busy}>
-          ↻ Re-roll
-        </button>
-        <button onClick={apply} disabled={busy} className="primary">
-          {busy ? 'Working…' : 'Apply as wallpaper'}
-        </button>
-        {status && <span className="status">{status}</span>}
-        {error && <span className="error">{error}</span>}
-      </div>
+            <button onClick={apply} disabled={busy} className="primary">
+              {busy ? 'Working…' : 'Apply as wallpaper'}
+            </button>
+            <StatusInline status={status} error={error} />
+          </>
+        }
+      />
     </div>
   );
 }

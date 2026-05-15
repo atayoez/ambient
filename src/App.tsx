@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useEffect, useState } from 'react';
+import Generate from './components/Generate';
 import Library from './components/Library';
 import Patterns from './components/Patterns';
-import Sources from './components/Sources';
-import Generate from './components/Generate';
 import SettingsView from './components/Settings';
+import Sources from './components/Sources';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
 
@@ -93,7 +93,9 @@ export default function App() {
       <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
         <nav
           className="tabs"
-          style={{ ['--active-tab' as string]: String(activeTabIndex) } as React.CSSProperties}
+          style={
+            { ['--active-tab' as string]: String(activeTabIndex) } as React.CSSProperties
+          }
         >
           <div className="tab-indicator" />
           {TABS.map(({ id, label }) => (
@@ -109,18 +111,51 @@ export default function App() {
         <div className="window-controls">
           <button onClick={minimize} aria-label="Minimize" className="wc">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <line x1="2" y1="5" x2="8" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              <line
+                x1="2"
+                y1="5"
+                x2="8"
+                y2="5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
           <button onClick={toggleMaximize} aria-label="Toggle maximize" className="wc">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <rect x="2" y="2" width="6" height="6" stroke="currentColor" strokeWidth="1.2" fill="none" rx="0.5" />
+              <rect
+                x="2"
+                y="2"
+                width="6"
+                height="6"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                fill="none"
+                rx="0.5"
+              />
             </svg>
           </button>
           <button onClick={closeWindow} aria-label="Close" className="wc close">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <line x1="2.5" y1="2.5" x2="7.5" y2="7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              <line x1="7.5" y1="2.5" x2="2.5" y2="7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              <line
+                x1="2.5"
+                y1="2.5"
+                x2="7.5"
+                y2="7.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+              <line
+                x1="7.5"
+                y1="2.5"
+                x2="2.5"
+                y2="7.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         </div>

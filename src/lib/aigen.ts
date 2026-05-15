@@ -1,5 +1,5 @@
-import { fetch } from '@tauri-apps/plugin-http';
 import { primaryMonitor } from '@tauri-apps/api/window';
+import { fetch } from '@tauri-apps/plugin-http';
 import type { Settings } from './types';
 
 export interface GeneratedWallpaper {
@@ -24,9 +24,7 @@ export async function generateWallpaper(
   }
 }
 
-async function resolveDimensions(
-  settings: Settings,
-): Promise<{ w: number; h: number }> {
+async function resolveDimensions(settings: Settings): Promise<{ w: number; h: number }> {
   if (settings.genResolution !== 'auto') {
     const [w, h] = settings.genResolution.split('x').map(Number);
     return { w, h };

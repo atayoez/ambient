@@ -313,6 +313,18 @@ fn strip_ansi(s: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Prefer native Wayland over XWayland on Linux. webkit2gtk picks up
+    // GDK_BACKEND from the env, so this must be set before the tauri builder
+    // initializes GTK. The ",x11" fallback keeps things working if the user
+    // later logs into an X session.
+    #[cfg(target_os = "linux")]
+    {
+        let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        if session.eq_ignore_ascii_case("wayland") && std::env::var("GDK_BACKEND").is_err() {
+            std::env::set_var("GDK_BACKEND", "wayland,x11");
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())

@@ -1,17 +1,25 @@
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 import { generateWallpaper } from '../lib/aigen';
-import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
 import { loadLibrary, loadSettings, saveLibrary, saveSettings } from '../lib/store';
 import { DEFAULT_SETTINGS, type GenProvider, type Settings } from '../lib/types';
+import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
+import { InspectorSection, PreviewFrame, StatusInline, TabLayout } from './layout';
+
+const PROVIDER_OPTIONS: { id: GenProvider; name: string; description: string }[] = [
+  { id: 'pollinations', name: 'Pollinations', description: 'Free, no key required' },
+  { id: 'openai', name: 'OpenAI DALL-E 3', description: 'Bring your own API key' },
+];
+
+const DEFAULT_PROMPT = 'a calm misty mountain valley at dawn, painterly, soft light';
 
 export default function Generate() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [prompt, setPrompt] = useState(
-    'a calm misty mountain valley at dawn, painterly, soft light',
-  );
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -28,7 +36,9 @@ export default function Generate() {
     setBusy(true);
     setError(null);
     setStatus(
-      settings.genProvider === 'pollinations' ? 'Generating (5–15s)…' : 'Generating via OpenAI…',
+      settings.genProvider === 'pollinations'
+        ? 'Generating (5–15s)…'
+        : 'Generating via OpenAI…',
     );
     try {
       const current = await loadSettings();
@@ -48,6 +58,7 @@ export default function Generate() {
         },
         ...library,
       ]);
+      setLastResult(localPath);
       setStatus('Setting wallpaper…');
       await setWallpaper(localPath);
       setStatus('Applied — added to Library');
@@ -60,51 +71,75 @@ export default function Generate() {
     }
   }
 
+  const modelLine =
+    settings.genProvider === 'pollinations'
+      ? `Model: ${settings.pollinationsModel}`
+      : `Model: ${settings.openaiModel || 'dall-e-3'} HD · ~$0.08/image`;
+
+  const providerHint =
+    settings.genProvider === 'pollinations'
+      ? 'Pollinations.ai — free, anonymous, capped at ~2048/side.'
+      : 'OpenAI DALL-E 3 HD — set your API key in Settings.';
+
   return (
     <div className="generate">
-      <div className="row">
-        <label>
-          <span>Provider</span>
-          <select
-            value={settings.genProvider}
-            onChange={(e) => changeProvider(e.target.value as GenProvider)}
-            disabled={busy}
-          >
-            <option value="pollinations">Pollinations (free, no key)</option>
-            <option value="openai">OpenAI DALL-E 3 (BYOK)</option>
-          </select>
-        </label>
-        <span className="muted">
-          {settings.genProvider === 'pollinations'
-            ? `model: ${settings.pollinationsModel}`
-            : `model: ${settings.openaiModel || 'dall-e-3'} HD · ~$0.08/image`}
-        </span>
-      </div>
+      <TabLayout
+        preview={
+          <PreviewFrame empty="Type a prompt and hit Generate to see a result here.">
+            {lastResult ? <img src={convertFileSrc(lastResult)} alt={prompt} /> : null}
+          </PreviewFrame>
+        }
+        inspector={
+          <>
+            <InspectorSection title="Provider">
+              <div className="type-list" role="radiogroup" aria-label="Provider">
+                {PROVIDER_OPTIONS.map(({ id, name, description }) => (
+                  <button
+                    key={id}
+                    role="radio"
+                    aria-checked={settings.genProvider === id}
+                    className={
+                      settings.genProvider === id ? 'type-row active' : 'type-row'
+                    }
+                    onClick={() => changeProvider(id)}
+                    disabled={busy}
+                  >
+                    <span className="type-text">
+                      <span className="type-name">{name}</span>
+                      <span className="type-desc">{description}</span>
+                    </span>
+                    {settings.genProvider === id && (
+                      <span className="type-check" aria-hidden="true">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="muted small">{modelLine}</p>
+            </InspectorSection>
 
-      <label className="prompt-field">
-        <span>Prompt</span>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={5}
-          placeholder="describe the wallpaper you want…"
-          disabled={busy}
-        />
-      </label>
-
-      <div className="row">
-        <button onClick={go} disabled={busy || !prompt.trim()} className="primary">
-          {busy ? 'Working…' : 'Generate + apply'}
-        </button>
-        {status && <span className="status">{status}</span>}
-        {error && <span className="error">{error}</span>}
-      </div>
-
-      <p className="muted">
-        {settings.genProvider === 'pollinations'
-          ? 'Pollinations.ai — free, anonymous, capped at ~2048/side. For higher quality try OpenAI or the Patterns tab.'
-          : 'OpenAI DALL-E 3 HD — ~$0.08/image, capped at 1792×1024. Set your key in Settings.'}
-      </p>
+            <InspectorSection title="Prompt">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={5}
+                placeholder="describe the wallpaper you want…"
+                disabled={busy}
+              />
+              <p className="muted small">{providerHint}</p>
+            </InspectorSection>
+          </>
+        }
+        actions={
+          <>
+            <button onClick={go} disabled={busy || !prompt.trim()} className="primary">
+              {busy ? 'Working…' : 'Generate + apply'}
+            </button>
+            <StatusInline status={status} error={error} />
+          </>
+        }
+      />
     </div>
   );
 }

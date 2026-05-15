@@ -8,7 +8,9 @@ export interface FetchedWallpaper {
   title?: string;
 }
 
-export async function fetchRandomFromSource(settings: Settings): Promise<FetchedWallpaper> {
+export async function fetchRandomFromSource(
+  settings: Settings,
+): Promise<FetchedWallpaper> {
   switch (settings.source) {
     case 'nasa-apod':
       return nasaApod(settings.nasaApiKey);
@@ -21,7 +23,9 @@ export async function fetchRandomFromSource(settings: Settings): Promise<Fetched
 
 async function nasaApod(apiKey: string): Promise<FetchedWallpaper> {
   const key = apiKey.trim() || 'DEMO_KEY';
-  const res = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${encodeURIComponent(key)}`);
+  const res = await fetch(
+    `https://api.nasa.gov/planetary/apod?api_key=${encodeURIComponent(key)}`,
+  );
   if (res.status === 429) {
     throw new Error(
       key === 'DEMO_KEY'
