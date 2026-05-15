@@ -1,0 +1,19 @@
+{
+  // Cloudflare Workers Static Assets — serves the files under ./
+  // verbatim, no JS handler needed. Custom domain ambient.oezcan.me is
+  // attached via the `routes` block; that assumes oezcan.me is already
+  // a zone in this Cloudflare account (it is — same account also hosts
+  // the `homepage` worker).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ambient-site",
+  "compatibility_date": "2026-05-01",
+  "assets": {
+    "directory": "./"
+  },
+  "routes": [
+    {
+      "pattern": "ambient.oezcan.me",
+      "custom_domain": true
+    }
+  ]
+}
