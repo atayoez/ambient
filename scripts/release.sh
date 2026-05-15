@@ -59,6 +59,58 @@ export PATH="$HOME/.bun/bin:$PATH"
 
 echo "==> Releasing v$VERSION (was $CURRENT_VERSION)"
 
+# --- 0. Promote CHANGELOG's [Unreleased] section --------------------
+# The Unreleased section becomes the new v$VERSION section, and we
+# stash its body to a temp file so we can pass it as release notes to
+# `gh release create` later. If the section is empty, we still proceed
+# (the release notes will just be a one-liner).
+
+NOTES_FILE="$(mktemp -t ambient-notes-XXXXXX.md)"
+
+node --input-type=module -e "
+  import fs from 'node:fs';
+  const v = '$VERSION';
+  const date = new Date().toISOString().slice(0, 10);
+  let text = fs.readFileSync('./CHANGELOG.md', 'utf8');
+
+  // Capture [Unreleased] block up to the next '## [' header (or EOF).
+  const re = /## \[Unreleased\]\n([\s\S]*?)(?=\n## \[|\$)/;
+  const m = text.match(re);
+  if (!m) {
+    console.error('Could not find ## [Unreleased] in CHANGELOG.md');
+    process.exit(1);
+  }
+  const body = m[1].trim();
+
+  // Strip empty (### Added / Changed / Fixed with no entries below)
+  // sub-sections from the release notes — they're noise in the
+  // release page, but we keep them as scaffolding in the new
+  // [Unreleased] section so the next release has a template.
+  const cleanedNotes = body
+    .split(/\n(?=### )/)
+    .filter(s => s.split(/\n+/).slice(1).join('\n').trim().length > 0)
+    .join('\n')
+    .trim();
+
+  const notesForRelease = cleanedNotes.length > 0
+    ? cleanedNotes
+    : '_No changelog entries — see commit history._';
+  fs.writeFileSync('$NOTES_FILE', notesForRelease + '\n');
+
+  // Rewrite CHANGELOG.md: replace the [Unreleased] block with a fresh
+  // empty Unreleased + the promoted versioned section.
+  const promotedHeader = '## [' + v + '] — ' + date;
+  const promoted = body.length > 0
+    ? promotedHeader + '\n\n' + body + '\n'
+    : promotedHeader + '\n\n_No notable changes._\n';
+
+  const freshUnreleased = '## [Unreleased]\n\n### Added\n\n### Changed\n\n### Fixed\n\n' + promoted;
+
+  text = text.replace(re, freshUnreleased);
+  fs.writeFileSync('./CHANGELOG.md', text);
+  console.log('    CHANGELOG.md updated. Release notes saved to $NOTES_FILE');
+"
+
 # --- 1. Bump manifests ----------------------------------------------
 
 echo "==> Bumping version in manifests"
@@ -99,8 +151,9 @@ mv src-tauri/Cargo.toml.tmp src-tauri/Cargo.toml
 
 # --- 2. Commit + push ------------------------------------------------
 
-echo "==> Committing version bump"
-git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+echo "==> Committing version bump + CHANGELOG"
+git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock \
+        src-tauri/tauri.conf.json CHANGELOG.md
 git commit -m "Release v$VERSION"
 git push origin main
 
@@ -216,11 +269,24 @@ echo "==> Uploading new latest.json"
     --content-type=application/json --remote >/dev/null
 )
 
-# --- 8. Tag the release ---------------------------------------------
+# --- 8. Tag + GitHub release ----------------------------------------
 
 echo "==> Tagging v$VERSION"
 git tag -a "v$VERSION" -m "Release v$VERSION"
 git push origin "v$VERSION"
+
+echo "==> Creating GitHub release with installers attached"
+# Notes were collected from CHANGELOG.md's [Unreleased] section at the
+# top of this script and stashed to $NOTES_FILE. Repo is private, so
+# the release page is collaborator-visible only — serves as our internal
+# build archive.
+gh release create "v$VERSION" \
+  --title "v$VERSION" \
+  --notes-file "$NOTES_FILE" \
+  "$DMG#Ambient $VERSION (macOS Apple Silicon)" \
+  "$EXE#Ambient $VERSION (Windows x64)" \
+  "$REPO_ROOT/$APPIMAGE#Ambient $VERSION (Linux x86_64 AppImage)" \
+  >/dev/null
 
 # --- done ------------------------------------------------------------
 
@@ -232,3 +298,4 @@ echo "  Download:    https://ambient.oezcan.me/#download"
 echo "  Latest mac:  https://ambient.oezcan.me/downloads/latest/macos"
 echo "  Latest win:  https://ambient.oezcan.me/downloads/latest/windows"
 echo "  Latest nix:  https://ambient.oezcan.me/downloads/latest/linux"
+echo "  GH release:  $(gh release view "v$VERSION" --json url --jq .url 2>/dev/null || echo '(check gh release list)')"
