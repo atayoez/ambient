@@ -37,8 +37,8 @@
           body: 'Every wallpaper you apply is saved locally. Re-apply with a click, delete with a second click. Lives in <code>~/.local/share</code>; never leaves your machine.',
         },
         privacy: {
-          title: 'Local, private, MIT',
-          body: 'Built on Tauri + Rust + React. No telemetry, no accounts, no servers. Source available on GitHub under MIT — fork it, ship it, sell it.',
+          title: 'Local. Private. Yours.',
+          body: 'Built on Tauri + Rust + React. No telemetry, no accounts, no servers. Every wallpaper you make stays on your machine — nothing leaves the device without your say-so.',
         },
         design: {
           title: 'Designed like an Apple inspector',
@@ -57,7 +57,7 @@
         feat5: 'No subscription, no telemetry, no account required',
         buy: 'Buy for $15',
         fineprint:
-          'Open-source under MIT — you can also <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">build from source</a> if you\'d rather not pay. Buying gets you signed builds, auto-updates, and supports development.',
+          'Pay once. Get a signed, auto-updating build for every platform. Lifetime updates, no recurring fees.',
       },
       about: {
         eyebrow: 'The maker',
@@ -96,8 +96,8 @@
           body: 'Jedes angewendete Hintergrundbild wird lokal gespeichert. Mit einem Klick erneut anwenden, mit einem zweiten löschen. Liegt unter <code>~/.local/share</code>; verlässt dein Gerät nie.',
         },
         privacy: {
-          title: 'Lokal, privat, MIT',
-          body: 'Auf Tauri + Rust + React aufgebaut. Keine Telemetrie, keine Accounts, keine Server. Quellcode auf GitHub unter MIT — forken, ausliefern, weiterverkaufen.',
+          title: 'Lokal. Privat. Deins.',
+          body: 'Auf Tauri + Rust + React aufgebaut. Keine Telemetrie, keine Accounts, keine Server. Jedes Hintergrundbild bleibt auf deinem Rechner — nichts verlässt das Gerät ohne dein OK.',
         },
         design: {
           title: 'Wie ein Apple-Inspector entworfen',
@@ -116,7 +116,7 @@
         feat5: 'Kein Abo, keine Telemetrie, kein Account nötig',
         buy: 'Für 15 $ kaufen',
         fineprint:
-          'Open Source unter MIT — du kannst auch <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">selbst aus dem Quellcode bauen</a>, wenn du nicht bezahlen willst. Kaufen bekommt dir signierte Builds, Auto-Updates und unterstützt die Entwicklung.',
+          'Einmal zahlen. Signierter, automatisch aktualisierender Build für jede Plattform. Lebenslange Updates, keine wiederkehrenden Gebühren.',
       },
       about: {
         eyebrow: 'Der Macher',
@@ -155,8 +155,8 @@
           body: 'Uyguladığın her duvar kağıdı yerel olarak kaydedilir. Tek tıkla yeniden uygula, iki tıkla sil. <code>~/.local/share</code> altında durur; cihazından asla çıkmaz.',
         },
         privacy: {
-          title: 'Yerel, özel, MIT',
-          body: 'Tauri + Rust + React üzerine kurulu. Telemetri yok, hesap yok, sunucu yok. Kaynak kodu GitHub\'da MIT lisansıyla — forkla, dağıt, sat.',
+          title: 'Yerel. Özel. Senin.',
+          body: 'Tauri + Rust + React üzerine kurulu. Telemetri yok, hesap yok, sunucu yok. Yaptığın her duvar kağıdı cihazında kalır — onayın olmadan hiçbir şey dışarı çıkmaz.',
         },
         design: {
           title: 'Apple inspector\'ı gibi tasarlandı',
@@ -175,7 +175,7 @@
         feat5: 'Abonelik yok, telemetri yok, hesap gerekmez',
         buy: '15 $\'a satın al',
         fineprint:
-          'MIT lisansıyla açık kaynak — ödemek istemiyorsan <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">kaynaktan kendin de derleyebilirsin</a>. Satın almak, imzalı sürümler, otomatik güncellemeler ve geliştirmeye destek sağlar.',
+          'Bir kez öde. Her platform için imzalı, otomatik güncellenen bir sürüm al. Ömür boyu güncelleme, tekrar eden ücret yok.',
       },
       about: {
         eyebrow: 'Yapımcı',
