@@ -724,6 +724,22 @@ input[type='range']:active::-moz-range-thumb {
   align-items: center;
   gap: 14px;
   min-width: 0;
+  /* Stick to the top of the tab's scroll container so the preview +
+     action buttons stay visible while the inspector column scrolls.
+     align-self:start (inherited from the grid's align-items) keeps the
+     column at its content height — required for sticky to engage. */
+  position: sticky;
+  top: 0;
+  align-self: start;
+}
+
+/* In single-column (narrow window) mode the preview stacks above the
+   inspector, so sticky would let inspector text scroll behind it.
+   Drop back to static positioning there. */
+@media (max-width: 760px) {
+  .preview-col {
+    position: static;
+  }
 }
 
 .preview-actions {
