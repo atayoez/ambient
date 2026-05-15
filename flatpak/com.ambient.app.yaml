@@ -1,7 +1,11 @@
 id: com.ambient.app
-runtime: org.freedesktop.Platform
-runtime-version: '24.08'
-sdk: org.freedesktop.Sdk
+# GNOME runtime (not freedesktop) because Tauri 2 / wry links against
+# javascriptcoregtk-4.1 + webkit2gtk-4.1, which the freedesktop Platform
+# does not ship. GNOME 46 is built on freedesktop 24.08 underneath, so
+# the freedesktop SDK extensions below remain version-compatible.
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
   # Stay on node20 — node22 + npm 11 reliably hits "Exit handler never called!"

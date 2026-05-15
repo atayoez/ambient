@@ -103,9 +103,12 @@ jobs:
           sudo apt install -y flatpak flatpak-builder
           flatpak remote-add --if-not-exists --user flathub \
             https://flathub.org/repo/flathub.flatpakrepo
+          # GNOME 46 = freedesktop 24.08 underneath, so the freedesktop
+          # SDK extensions (rust-stable / node20) at //24.08 are the
+          # right pair to use here.
           flatpak install --user -y --noninteractive flathub \
-            org.freedesktop.Platform//24.08 \
-            org.freedesktop.Sdk//24.08 \
+            org.gnome.Platform//46 \
+            org.gnome.Sdk//46 \
             org.freedesktop.Sdk.Extension.rust-stable//24.08 \
             org.freedesktop.Sdk.Extension.node20//24.08
 
