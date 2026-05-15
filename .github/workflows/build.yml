@@ -1,14 +1,12 @@
 # Cross-platform CI for Ambient.
 #
 # - check: fast TypeScript + Biome pass on Ubuntu. Gates the build.
-# - build: produces a real installer (.AppImage / .dmg / .msi) on each
-#   target platform and uploads it as an artifact. Catches issues that
-#   only surface during the Rust/Tauri bundling step (missing
-#   permissions, platform-specific code paths, wallpaper crate quirks).
+# - build-tauri: macOS .dmg and Windows .exe/.msi via tauri-action.
+# - build-flatpak: Linux .flatpak via flatpak-builder against the
+#   project's existing manifest. Native AppImage/.deb intentionally
+#   dropped — flatpak is the only Linux ship target.
 #
-# Triggered on push to main and on PRs. Builds aren't blocking on PRs by
-# design — the check job is enough to gate merges; the heavier build
-# matrix is for when you actually want to download an installer.
+# Triggered on push to main and on PRs.
 
 name: Build
 
@@ -39,17 +37,13 @@ jobs:
       - name: Biome check
         run: bun run lint
 
-  build:
+  build-tauri:
     name: Build (${{ matrix.platform }})
     needs: check
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
-            artifact-glob: |
-              src-tauri/target/release/bundle/appimage/*.AppImage
-              src-tauri/target/release/bundle/deb/*.deb
           - platform: macos-latest
             artifact-glob: |
               src-tauri/target/release/bundle/dmg/*.dmg
@@ -75,20 +69,6 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      # webkit2gtk-4.1 and the indicator/svg libs Tauri needs at link time.
-      # libsoup-3.0 is required by webkit2gtk-4.1 on Ubuntu 22.04+.
-      - name: Install Linux build dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libsoup-3.0-dev \
-            patchelf
-
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
@@ -103,3 +83,50 @@ jobs:
           name: ambient-${{ matrix.platform }}
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
+
+  build-flatpak:
+    name: Build (flatpak)
+    needs: check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # flatpak-builder + the freedesktop SDK extensions the manifest
+      # depends on (rust-stable + node20). Pulled from Flathub.
+      - name: Install flatpak + flatpak-builder
+        run: |
+          sudo apt update
+          sudo apt install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub \
+            org.freedesktop.Platform//24.08 \
+            org.freedesktop.Sdk//24.08 \
+            org.freedesktop.Sdk.Extension.rust-stable//24.08 \
+            org.freedesktop.Sdk.Extension.node20//24.08
+
+      # Cache the .flatpak-builder/cache so cargo + npm deps survive
+      # between runs; otherwise every CI is a full cold rebuild.
+      - name: Cache flatpak-builder dir
+        uses: actions/cache@v4
+        with:
+          path: |
+            .flatpak-builder
+          key: flatpak-${{ runner.os }}-${{ hashFiles('flatpak/com.ambient.app.yaml', 'src-tauri/Cargo.lock', 'package.json') }}
+          restore-keys: |
+            flatpak-${{ runner.os }}-
+
+      - name: Build flatpak
+        run: |
+          flatpak-builder --user --force-clean \
+            --repo=repo \
+            build-dir \
+            flatpak/com.ambient.app.yaml
+          flatpak build-bundle repo ambient.flatpak com.ambient.app
+
+      - name: Upload flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ambient-flatpak
+          path: ambient.flatpak
+          if-no-files-found: error

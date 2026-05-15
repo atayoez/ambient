@@ -53,7 +53,11 @@ modules:
       #   flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
       #     src-tauri/Cargo.lock -o cargo-sources.json
       # Then reference them as additional 'sources' below.
-      - npm ci --no-fund --no-audit --no-progress
+      #
+      # Dev/CI uses `npm install` (no `--ci`) because the repo ships only
+      # bun.lock; npm regenerates its own lockfile at build time.
+      # Flathub will require a vendored package-lock.json anyway.
+      - npm install --no-fund --no-audit --no-progress
       - npm run build
       - cd src-tauri && cargo build --release --locked
       - install -Dm755 src-tauri/target/release/ambient /app/bin/ambient
