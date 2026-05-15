@@ -1,8 +1,54 @@
+# Search crawlers (Googlebot, Bingbot, DuckDuckBot, etc.) — welcome.
+# /downloads/* are installer binaries; nothing to index there.
 User-agent: *
 Allow: /
 Disallow: /downloads/
 
-# Installer downloads are large and shouldn't be crawled — they're
-# served via R2 via /downloads/* and aren't useful for indexing.
+# Content signals (Cloudflare RFC). Marketing content is meant to be
+# found via search, but not ingested into AI training corpora or used
+# as input context for AI assistants without a separate license.
+Content-Signal: search=yes, ai-train=no, ai-input=no
+
+# AI training crawlers — blocked. These are distinct from the regular
+# search crawlers above (Google-Extended != Googlebot, Applebot-Extended
+# != Applebot). Search indexing stays unaffected.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: ByteSpider
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
 
 Sitemap: https://ambient.oezcan.me/sitemap.xml

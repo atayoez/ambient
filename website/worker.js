@@ -25,7 +25,21 @@ export default {
     }
 
     // Everything else falls through to the static assets directory.
-    return env.ASSETS.fetch(request);
+    // Wrap to inject Link response headers (RFC 8288) advertising the
+    // sitemap + license to bots and discovery agents without HTML
+    // parsing.
+    const res = await env.ASSETS.fetch(request);
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      const headers = new Headers(res.headers);
+      headers.append('link', '</sitemap.xml>; rel="sitemap"; type="application/xml"');
+      headers.append('link', '<https://ambient.oezcan.me/>; rel="canonical"');
+      return new Response(res.body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers,
+      });
+    }
+    return res;
   },
 };
 
