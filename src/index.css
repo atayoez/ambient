@@ -1148,6 +1148,72 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-inline);
 }
 
+/* --- Update banner — thin bar above tab content when newer release exists --- */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin: 12px 14px 0;
+  background: color-mix(in oklch, var(--accent) 14%, var(--surface));
+  border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--border));
+  border-radius: var(--radius-inline);
+  font-size: var(--fs-caption);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--highlight-edge);
+}
+
+.update-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.update-banner-message {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-banner-link,
+.update-banner-dismiss {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-medium);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
+}
+
+.update-banner-link:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.update-banner-dismiss {
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--muted);
+  border: none;
+}
+
+.update-banner-dismiss:hover {
+  color: var(--text);
+}
+
 /* --- License gate (full tab, shown when no license stored) --- */
 .license-gate {
   display: flex;

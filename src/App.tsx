@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useState } from 'react';
@@ -8,7 +9,9 @@ import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
 import SettingsView from './components/Settings';
 import Sources from './components/Sources';
+import UpdateBanner from './components/UpdateBanner';
 import { type LicenseInfo, loadLicense, validateLicense } from './lib/license';
+import { checkForUpdate, type UpdateInfo } from './lib/updater';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
 
@@ -29,6 +32,28 @@ export default function App() {
   const [license, setLicense] = useState<LicenseInfo | null>(null);
   const [licenseLoaded, setLicenseLoaded] = useState(false);
   const [revokedMsg, setRevokedMsg] = useState<string | undefined>(undefined);
+
+  // Update check fires after the licence gate is cleared. Cheap HTTP
+  // GET to /downloads/latest.json on the marketing site; throttled to
+  // once every 6h via localStorage.
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    if (!license) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const current = await getVersion();
+        const info = await checkForUpdate(current);
+        if (!cancelled && info) setUpdateInfo(info);
+      } catch {
+        // Update check is best-effort. Don't surface failures.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [license]);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,15 +258,20 @@ export default function App() {
             }}
           />
         ) : (
-          // key={tab} re-mounts on tab switch so a captured error in one
-          // tab doesn't persist across tabs.
-          <ErrorBoundary key={tab}>
-            {tab === 'patterns' && <Patterns />}
-            {tab === 'sources' && <Sources />}
-            {tab === 'library' && <Library />}
-            {tab === 'generate' && <Generate />}
-            {tab === 'settings' && <SettingsView />}
-          </ErrorBoundary>
+          <>
+            {updateInfo && (
+              <UpdateBanner info={updateInfo} onDismiss={() => setUpdateInfo(null)} />
+            )}
+            {/* key={tab} re-mounts on tab switch so a captured error in
+                one tab doesn't persist across tabs. */}
+            <ErrorBoundary key={tab}>
+              {tab === 'patterns' && <Patterns />}
+              {tab === 'sources' && <Sources />}
+              {tab === 'library' && <Library />}
+              {tab === 'generate' && <Generate />}
+              {tab === 'settings' && <SettingsView />}
+            </ErrorBoundary>
+          </>
         )}
       </main>
     </div>

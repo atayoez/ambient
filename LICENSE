@@ -1,21 +1,34 @@
-MIT License
+Ambient — Proprietary License
 
-Copyright (c) 2026 Ambient contributors
+Copyright (c) 2026 Atay Özcan. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software and its source code are proprietary. They may not be
+copied, modified, distributed, or sublicensed without prior written
+permission from the copyright holder.
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+End-user usage rights are granted exclusively via license keys
+purchased from <https://ambient.oezcan.me>. Each license key permits
+installation and use of the compiled software on personal devices
+owned or operated by the licensee. License keys are non-transferable.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+
+---
+
+Historical open-source distribution
+
+Versions of this software publicly distributed under the MIT License
+between the project's first public commit and 2026-05-15 (commit
+9cada15 and all preceding commits) remain available to recipients
+under the terms of the MIT License attached to those specific
+historical snapshots. The MIT grant is irrevocable for the public
+commits to which it was attached.
+
+All commits, builds, and modifications subsequent to 2026-05-15 are
+subject to the proprietary terms stated above. The LICENSE file in
+each historical commit reflects the licensing terms that applied to
+that commit at the time of its public distribution.

@@ -40,6 +40,7 @@
       <nav class="nav-links">
         <a href="#features" data-i18n="nav.features">Features</a>
         <a href="#pricing" data-i18n="nav.pricing">Pricing</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
         <a href="#about" data-i18n="nav.about">About</a>
       </nav>
       <div class="settings-bar">
@@ -284,7 +285,32 @@
         </div>
       </section>
 
-      <script src="./i18n.js"></script>
+      <section id="download" class="download">
+        <h2 class="section-eyebrow" data-i18n="download.eyebrow">Download</h2>
+        <p class="download-sub" data-i18n="download.sub">
+          The app's free to download. A license key (sent by email after
+          purchase) unlocks it past the activation screen.
+        </p>
+        <div class="download-grid">
+          <a class="dl-card glass" href="/downloads/Ambient_0.1.0_aarch64.dmg" download>
+            <div class="dl-platform">macOS</div>
+            <div class="dl-meta">Apple Silicon · .dmg · 6.4 MB</div>
+          </a>
+          <a class="dl-card glass" href="/downloads/Ambient_0.1.0_x64-setup.exe" download>
+            <div class="dl-platform">Windows</div>
+            <div class="dl-meta">x64 · NSIS installer · 3.8 MB</div>
+          </a>
+          <a class="dl-card glass" href="/downloads/Ambient_0.1.0_x86_64.AppImage" download>
+            <div class="dl-platform">Linux</div>
+            <div class="dl-meta">x86_64 · AppImage · 98 MB</div>
+          </a>
+        </div>
+        <p class="dl-note muted" data-i18n="download.note">
+          Builds are currently unsigned — macOS Gatekeeper and Windows
+          SmartScreen will show a "from the internet" warning the first time.
+          Right-click → Open (macOS) or More info → Run anyway (Windows).
+        </p>
+      </section>
 
       <section id="about" class="about">
         <div class="about-card glass">
@@ -341,5 +367,6 @@
         </div>
       </div>
     </footer>
+    <script src="./i18n.js"></script>
   </body>
 </html>

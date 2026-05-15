@@ -1,15 +1,23 @@
 {
-  // Cloudflare Workers Static Assets — serves the files under ./
-  // verbatim, no JS handler needed. Custom domain ambient.oezcan.me is
-  // attached via the `routes` block; that assumes oezcan.me is already
-  // a zone in this Cloudflare account (it is — same account also hosts
-  // the `homepage` worker).
+  // Cloudflare Worker for ambient.oezcan.me.
+  // Static assets under ./ are served by env.ASSETS; a fetch handler in
+  // worker.js routes /downloads/* through the R2 bucket bound at
+  // env.DOWNLOADS. Custom domain attached via the `routes` block —
+  // oezcan.me is already a zone in this Cloudflare account.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ambient-site",
   "compatibility_date": "2026-05-01",
+  "main": "./worker.js",
   "assets": {
-    "directory": "./"
+    "directory": "./",
+    "binding": "ASSETS"
   },
+  "r2_buckets": [
+    {
+      "binding": "DOWNLOADS",
+      "bucket_name": "ambient-releases"
+    }
+  ],
   "routes": [
     {
       "pattern": "ambient.oezcan.me",

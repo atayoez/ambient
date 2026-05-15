@@ -8,7 +8,7 @@
   /* eslint-disable @stylistic/quotes */
   var I18N = {
     en: {
-      nav: { features: 'Features', pricing: 'Pricing', about: 'About' },
+      nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       theme: { auto: 'Auto', dark: 'Dark', light: 'Light' },
       hero: {
         title: 'Wallpapers',
@@ -59,6 +59,11 @@
         fineprint:
           'Pay once. Get a signed, auto-updating build for every platform. Lifetime updates, no recurring fees.',
       },
+      download: {
+        eyebrow: 'Download',
+        sub: "The app's free to download. A license key (sent by email after purchase) unlocks it past the activation screen.",
+        note: 'Builds are currently unsigned — macOS Gatekeeper and Windows SmartScreen will show a "from the internet" warning the first time. Right-click → Open (macOS) or More info → Run anyway (Windows).',
+      },
       about: {
         eyebrow: 'The maker',
         role: 'Computer science student · building things on the internet',
@@ -67,7 +72,7 @@
     },
 
     de: {
-      nav: { features: 'Funktionen', pricing: 'Preis', about: 'Über' },
+      nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       theme: { auto: 'Auto', dark: 'Dunkel', light: 'Hell' },
       hero: {
         title: 'Hintergrundbilder,',
@@ -118,6 +123,11 @@
         fineprint:
           'Einmal zahlen. Signierter, automatisch aktualisierender Build für jede Plattform. Lebenslange Updates, keine wiederkehrenden Gebühren.',
       },
+      download: {
+        eyebrow: 'Download',
+        sub: 'Die App ist kostenlos zum Download. Ein Lizenzschlüssel (nach dem Kauf per E-Mail) schaltet sie hinter dem Aktivierungs-Bildschirm frei.',
+        note: 'Die Builds sind aktuell unsigniert — macOS Gatekeeper und Windows SmartScreen zeigen beim ersten Öffnen eine „aus dem Internet"-Warnung. Rechtsklick → Öffnen (macOS) oder Weitere Informationen → Trotzdem ausführen (Windows).',
+      },
       about: {
         eyebrow: 'Der Macher',
         role: 'Informatikstudent · baut Dinge im Internet',
@@ -126,7 +136,7 @@
     },
 
     tr: {
-      nav: { features: 'Özellikler', pricing: 'Fiyat', about: 'Hakkımda' },
+      nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       theme: { auto: 'Otomatik', dark: 'Koyu', light: 'Açık' },
       hero: {
         title: 'Seninle hareket eden',
@@ -176,6 +186,11 @@
         buy: '15 $\'a satın al',
         fineprint:
           'Bir kez öde. Her platform için imzalı, otomatik güncellenen bir sürüm al. Ömür boyu güncelleme, tekrar eden ücret yok.',
+      },
+      download: {
+        eyebrow: 'İndir',
+        sub: 'Uygulamayı indirmek ücretsiz. Satın aldıktan sonra e-postayla gönderilen lisans anahtarı, etkinleştirme ekranını açar.',
+        note: 'Sürümler şu anda imzasız — macOS Gatekeeper ve Windows SmartScreen ilk açılışta "internetten" uyarısı gösterir. Sağ tık → Aç (macOS) veya Daha fazla bilgi → Yine de çalıştır (Windows).',
       },
       about: {
         eyebrow: 'Yapımcı',
