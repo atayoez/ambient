@@ -15,10 +15,24 @@
         <span>Ambient</span>
       </a>
       <nav class="nav-links">
-        <a href="./#features">Features</a>
-        <a href="./#pricing">Pricing</a>
-        <a href="./#about">About</a>
+        <a href="./#features" data-i18n="nav.features">Features</a>
+        <a href="./#pricing" data-i18n="nav.pricing">Pricing</a>
+        <a href="./#about" data-i18n="nav.about">About</a>
       </nav>
+      <div class="settings-bar">
+        <select id="lang-switcher" aria-label="Language">
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
+          <option value="tr">Türkçe</option>
+        </select>
+        <button id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5" />
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </svg>
+          <span class="theme-label" data-i18n="theme.auto">Auto</span>
+        </button>
+      </div>
     </header>
 
     <main class="legal-page">
@@ -136,5 +150,6 @@
         </div>
       </div>
     </footer>
+    <script src="./i18n.js"></script>
   </body>
 </html>

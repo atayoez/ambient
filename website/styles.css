@@ -126,6 +126,84 @@ code {
   color: var(--text);
 }
 
+/* --- Settings (language + theme toggle in the top-right of the nav) --- */
+.settings-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#lang-switcher {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 6px 28px 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpolyline points='2,4 5,7 8,4' fill='none' stroke='%23a1a1aa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px 10px;
+  transition: border-color var(--t-base) ease, background-color var(--t-base) ease;
+}
+
+#lang-switcher:hover,
+#lang-switcher:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+#lang-switcher option {
+  color: #1a1a1a;
+  background: #f5f5f7;
+}
+
+#theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  cursor: pointer;
+  transition: border-color var(--t-base) ease, background-color var(--t-base) ease;
+}
+
+#theme-toggle:hover,
+#theme-toggle:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+#theme-toggle .theme-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .nav-links {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
+  }
+  .settings-bar {
+    margin-left: auto;
+  }
+}
+
 /* ============================================================ */
 /* Hero                                                           */
 /* ============================================================ */
@@ -990,4 +1068,148 @@ footer {
     transition: none;
     transform: none !important;
   }
+}
+
+/* ============================================================ */
+/* Light theme — toggled via .theme-light on <html>              */
+/* ============================================================ */
+/* Mirrors the achromatic Liquid Glass principle in light mode:  */
+/* near-white background, neutral text, deeper purple accent for */
+/* contrast against light surfaces.                              */
+
+:root.theme-light {
+  color-scheme: light;
+  --cosmic-bg: #f7f5fb;
+  --surface: rgba(255, 255, 255, 0.5);
+  --surface-2: rgba(255, 255, 255, 0.7);
+  --surface-3: rgba(255, 255, 255, 0.92);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --highlight-edge: rgba(0, 0, 0, 0.04);
+  --text: #1c1c1e;
+  --muted: #5e5e63;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+}
+
+.theme-light body {
+  background: var(--cosmic-bg);
+  color: var(--text);
+}
+
+.theme-light .nav {
+  background: rgba(247, 245, 251, 0.7);
+  border-bottom-color: var(--border);
+}
+
+.theme-light .gradient-text,
+.theme-light .price-number {
+  /* Same Cosmic palette but starting darker so it reads against white. */
+  background: linear-gradient(
+    100deg,
+    #5b21b6 0%,
+    #be185d 45%,
+    #c2410c 75%,
+    #92400e 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+.theme-light .hero-aurora {
+  background:
+    radial-gradient(ellipse 800px 500px at 20% 30%, rgba(124, 58, 237, 0.18), transparent 60%),
+    radial-gradient(ellipse 700px 400px at 80% 60%, rgba(236, 72, 153, 0.16), transparent 60%),
+    radial-gradient(ellipse 600px 350px at 50% 80%, rgba(251, 146, 60, 0.12), transparent 60%);
+}
+
+/* Stars look bad on light. Fade them out. */
+.theme-light .hero-stars {
+  display: none;
+}
+
+.theme-light .preview-canvas {
+  /* Keep the dark wallpaper "screenshot" — the preview-shell still has
+     a dark titlebar tone so the canvas matching its color is fine. */
+  filter: brightness(0.95);
+}
+
+.theme-light .glass {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: var(--border);
+  box-shadow:
+    0 16px 48px rgba(124, 58, 237, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.theme-light .preview-titlebar {
+  background: rgba(255, 255, 255, 0.4);
+  border-bottom-color: var(--border);
+}
+
+.theme-light .preview-titlebar .dot {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .feature {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.theme-light .ins-line,
+.theme-light .ins-pill {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.theme-light .btn-ghost {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--text);
+}
+
+.theme-light .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--border-strong);
+}
+
+.theme-light .btn-primary {
+  /* Brighten the primary so it still pops against light bg */
+  box-shadow:
+    0 8px 24px rgba(124, 58, 237, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.theme-light .about-aurora,
+.theme-light .price-card-aurora {
+  background:
+    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(124, 58, 237, 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 40%, rgba(236, 72, 153, 0.12), transparent 60%);
+}
+
+.theme-light #lang-switcher,
+.theme-light #theme-toggle {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.theme-light #lang-switcher {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpolyline points='2,4 5,7 8,4' fill='none' stroke='%235e5e63' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.theme-light #lang-switcher option {
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+.theme-light footer {
+  border-top-color: var(--border);
+}
+
+.theme-light .price-features .check {
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+.theme-light .legal-page a {
+  color: var(--accent);
+}
+
+.theme-light .trial-form input {
+  background: rgba(255, 255, 255, 0.7);
 }
