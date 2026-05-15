@@ -10,6 +10,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // /downloads/latest/{platform} → 302 to whatever the manifest currently
+    // points at. Lets the homepage hardcode platform-keyed URLs once and
+    // never touch them again across releases.
+    const latestMatch = url.pathname.match(
+      /^\/downloads\/latest\/(macos|windows|linux)\/?$/,
+    );
+    if (latestMatch) {
+      return redirectToLatest(env.DOWNLOADS, latestMatch[1]);
+    }
+
     if (url.pathname.startsWith('/downloads/')) {
       return serveFromR2(env.DOWNLOADS, url.pathname.slice('/downloads/'.length));
     }
@@ -18,6 +28,32 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+async function redirectToLatest(bucket, platform) {
+  const manifest = await bucket.get('latest.json');
+  if (!manifest) {
+    return new Response('No release manifest', { status: 503 });
+  }
+  let data;
+  try {
+    data = JSON.parse(await manifest.text());
+  } catch {
+    return new Response('Corrupt release manifest', { status: 500 });
+  }
+  const target = data?.downloads?.[platform];
+  if (!target) {
+    return new Response('Platform not in manifest', { status: 404 });
+  }
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: target,
+      // The alias itself shouldn't be cached for long — point users at the
+      // current version, not yesterday's.
+      'cache-control': 'public, max-age=60',
+    },
+  });
+}
 
 async function serveFromR2(bucket, key) {
   if (!key) {

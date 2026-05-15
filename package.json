@@ -11,7 +11,8 @@
     "tauri:dev": "tauri dev",
     "flatpak:build": "flatpak-builder --user --install --force-clean build-dir flatpak/com.ambient.app.yaml",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "release": "./scripts/release.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
