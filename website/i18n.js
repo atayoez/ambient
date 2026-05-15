@@ -8,13 +8,18 @@
   /* eslint-disable @stylistic/quotes */
   var I18N = {
     en: {
-      nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
+      nav: { demo: 'Demo', features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       theme: { auto: 'Auto', dark: 'Dark', light: 'Light' },
+      demo: {
+        eyebrow: 'Sneak peek',
+        sub: 'Click between the tabs. The Patterns tab actually re-rolls each design in your browser — same algorithm as the real app.',
+      },
       hero: {
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A native desktop wallpaper studio. Generate infinite patterns, pull from curated photo sources, or write a prompt and ship pixel-perfect wallpapers to your screen.",
         ctaBuy: 'Buy for $15',
+        ctaDemo: 'Try the demo →',
         ctaFeatures: "See what's in it →",
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
       },
@@ -72,13 +77,18 @@
     },
 
     de: {
-      nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
+      nav: { demo: 'Demo', features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       theme: { auto: 'Auto', dark: 'Dunkel', light: 'Hell' },
+      demo: {
+        eyebrow: 'Vorschau',
+        sub: 'Klick durch die Tabs. Der Patterns-Tab erzeugt jedes Design live im Browser — derselbe Algorithmus wie in der echten App.',
+      },
       hero: {
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Ein natives Desktop-Studio für Hintergrundbilder. Erzeuge unendlich viele Muster, hole dir Bilder aus kuratierten Quellen, oder schreibe einen Prompt und liefere pixelgenaue Hintergrundbilder direkt auf deinen Bildschirm.',
         ctaBuy: 'Für 15 $ kaufen',
+        ctaDemo: 'Demo ausprobieren →',
         ctaFeatures: 'Was drin steckt →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>15 $ einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
       },
@@ -136,13 +146,18 @@
     },
 
     tr: {
-      nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
+      nav: { demo: 'Demo', features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       theme: { auto: 'Otomatik', dark: 'Koyu', light: 'Açık' },
+      demo: {
+        eyebrow: 'Ön izleme',
+        sub: 'Tablar arasında geçiş yap. Patterns sekmesi tasarımları tarayıcında gerçek zamanlı üretir — gerçek uygulamadaki aynı algoritma.',
+      },
       hero: {
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Yerel bir masaüstü duvar kağıdı stüdyosu. Sonsuz desenler oluştur, seçili fotoğraf kaynaklarından çek veya bir komut yazıp piksel mükemmel duvar kağıtlarını doğrudan ekranına gönder.',
         ctaBuy: '15 $\'a satın al',
+        ctaDemo: 'Demoyu dene →',
         ctaFeatures: 'İçinde neler var →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>15 $ tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
       },

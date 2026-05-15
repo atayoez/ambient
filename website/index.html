@@ -38,6 +38,7 @@
         <span>Ambient</span>
       </a>
       <nav class="nav-links">
+        <a href="#demo" data-i18n="nav.demo">Demo</a>
         <a href="#features" data-i18n="nav.features">Features</a>
         <a href="#pricing" data-i18n="nav.pricing">Pricing</a>
         <a href="#download" data-i18n="nav.download">Download</a>
@@ -81,7 +82,7 @@
     </header>
 
     <main>
-      <section id="top" class="hero">
+      <section id="top" class="hero hero-center">
         <div class="hero-aurora" aria-hidden="true"></div>
         <div class="hero-stars" aria-hidden="true"></div>
 
@@ -101,32 +102,202 @@
               class="btn btn-primary"
               data-i18n="hero.ctaBuy"
             >Buy for $15</a>
-            <a href="#features" class="btn btn-ghost" data-i18n="hero.ctaFeatures">See what's in it →</a>
+            <a href="#demo" class="btn btn-ghost" data-i18n="hero.ctaDemo">Try the demo →</a>
           </div>
           <div class="hero-meta">
             <span class="dot"></span>
             <span data-i18n-html="hero.meta">macOS · Windows · Linux &nbsp;·&nbsp; <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry</span>
           </div>
         </div>
+      </section>
 
-        <!-- Floating app preview card -->
-        <div class="hero-preview" aria-hidden="true">
-          <div class="preview-shell glass">
-            <div class="preview-titlebar">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-              <span class="preview-title">Ambient</span>
+      <!-- Interactive sneak-peek: same chrome + Inspector layout as the real
+           app, with the Patterns canvas re-rendered live in JS. Click any
+           tab to switch contexts. -->
+      <section id="demo" class="demo">
+        <h2 class="section-eyebrow" data-i18n="demo.eyebrow">Sneak peek</h2>
+        <p class="demo-sub" data-i18n="demo.sub">
+          Click between the tabs. The Patterns tab actually re-rolls each
+          design in your browser — same algorithm as the real app.
+        </p>
+
+        <div class="demo-frame glass">
+          <header class="demo-titlebar">
+            <nav class="demo-tabs" role="tablist">
+              <button class="demo-tab active" data-tab="patterns" role="tab" type="button">Patterns</button>
+              <button class="demo-tab" data-tab="sources"   role="tab" type="button">Sources</button>
+              <button class="demo-tab" data-tab="library"   role="tab" type="button">Library</button>
+              <button class="demo-tab" data-tab="generate"  role="tab" type="button">Generate</button>
+              <button class="demo-tab" data-tab="settings"  role="tab" type="button">Settings</button>
+            </nav>
+            <div class="demo-traffic">
+              <span class="demo-dot red" aria-hidden="true"></span>
+              <span class="demo-dot yellow" aria-hidden="true"></span>
+              <span class="demo-dot green" aria-hidden="true"></span>
             </div>
-            <div class="preview-body">
-              <div class="preview-canvas"></div>
-              <div class="preview-inspector">
-                <div class="ins-line"></div>
-                <div class="ins-line short"></div>
-                <div class="ins-line"></div>
-                <div class="ins-pill"></div>
-                <div class="ins-pill" style="width: 60%"></div>
+          </header>
+
+          <!-- Patterns tab: live canvas + inspector -->
+          <div class="demo-tab-panel active" data-panel="patterns">
+            <div class="demo-grid">
+              <div class="demo-preview-col">
+                <div class="demo-preview-wrap">
+                  <canvas id="demo-canvas" width="640" height="360"></canvas>
+                </div>
+                <div class="demo-actions">
+                  <button id="demo-reroll" type="button">↻ Re-roll</button>
+                  <button id="demo-apply" type="button" class="primary">Apply as wallpaper</button>
+                </div>
               </div>
+              <aside class="demo-inspector">
+                <section class="demo-section">
+                  <h4>Pattern</h4>
+                  <div class="demo-type-list" id="demo-type-list">
+                    <button class="demo-type-row active" data-type="mesh" type="button">
+                      <span class="demo-type-emoji">🎨</span>
+                      <span class="demo-type-name">Mesh gradient</span>
+                    </button>
+                    <button class="demo-type-row" data-type="geometric" type="button">
+                      <span class="demo-type-emoji">🔺</span>
+                      <span class="demo-type-name">Geometric</span>
+                    </button>
+                    <button class="demo-type-row" data-type="dots" type="button">
+                      <span class="demo-type-emoji">🔘</span>
+                      <span class="demo-type-name">Dots</span>
+                    </button>
+                    <button class="demo-type-row" data-type="stripes" type="button">
+                      <span class="demo-type-emoji">🦓</span>
+                      <span class="demo-type-name">Stripes</span>
+                    </button>
+                  </div>
+                </section>
+                <section class="demo-section">
+                  <h4>Palette</h4>
+                  <div class="demo-presets" id="demo-presets">
+                    <button data-palette="cosmic" type="button" class="active">Cosmic</button>
+                    <button data-palette="sunset" type="button">Sunset</button>
+                    <button data-palette="ocean" type="button">Ocean</button>
+                    <button data-palette="pastel" type="button">Pastel</button>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </div>
+
+          <!-- Sources tab: mock NASA APOD preview -->
+          <div class="demo-tab-panel" data-panel="sources">
+            <div class="demo-grid">
+              <div class="demo-preview-col">
+                <div class="demo-preview-wrap">
+                  <div class="demo-stock-photo demo-stock-space" aria-label="Stock photo of a nebula"></div>
+                </div>
+                <div class="demo-actions">
+                  <button type="button">↻ Re-fetch</button>
+                  <button type="button" class="primary">Apply as wallpaper</button>
+                </div>
+              </div>
+              <aside class="demo-inspector">
+                <section class="demo-section">
+                  <h4>Source</h4>
+                  <div class="demo-type-list">
+                    <button class="demo-type-row active" type="button">
+                      <span class="demo-type-text">
+                        <span class="demo-type-name">NASA APOD</span>
+                        <span class="demo-type-desc">Free · one image per day</span>
+                      </span>
+                    </button>
+                    <button class="demo-type-row" type="button">
+                      <span class="demo-type-text">
+                        <span class="demo-type-name">Unsplash</span>
+                        <span class="demo-type-desc">Free API key · search-driven</span>
+                      </span>
+                    </button>
+                    <button class="demo-type-row" type="button">
+                      <span class="demo-type-text">
+                        <span class="demo-type-name">Pexels</span>
+                        <span class="demo-type-desc">Free API key · search-driven</span>
+                      </span>
+                    </button>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </div>
+
+          <!-- Library tab: thumbnail grid -->
+          <div class="demo-tab-panel" data-panel="library">
+            <div class="demo-library-grid">
+              <div class="demo-thumb demo-thumb-1"></div>
+              <div class="demo-thumb demo-thumb-2"></div>
+              <div class="demo-thumb demo-thumb-3"></div>
+              <div class="demo-thumb demo-thumb-4"></div>
+              <div class="demo-thumb demo-thumb-5"></div>
+              <div class="demo-thumb demo-thumb-6"></div>
+            </div>
+          </div>
+
+          <!-- Generate tab: prompt + AI image preview -->
+          <div class="demo-tab-panel" data-panel="generate">
+            <div class="demo-grid">
+              <div class="demo-preview-col">
+                <div class="demo-preview-wrap">
+                  <div class="demo-stock-photo demo-stock-ai" aria-label="AI-generated landscape"></div>
+                </div>
+                <div class="demo-actions">
+                  <button type="button" class="primary">Generate + apply</button>
+                </div>
+              </div>
+              <aside class="demo-inspector">
+                <section class="demo-section">
+                  <h4>Provider</h4>
+                  <div class="demo-type-list">
+                    <button class="demo-type-row active" type="button">
+                      <span class="demo-type-text">
+                        <span class="demo-type-name">Pollinations</span>
+                        <span class="demo-type-desc">Free, no key required</span>
+                      </span>
+                    </button>
+                    <button class="demo-type-row" type="button">
+                      <span class="demo-type-text">
+                        <span class="demo-type-name">OpenAI DALL-E 3</span>
+                        <span class="demo-type-desc">Bring your own API key</span>
+                      </span>
+                    </button>
+                  </div>
+                </section>
+                <section class="demo-section">
+                  <h4>Prompt</h4>
+                  <textarea readonly class="demo-prompt">a calm misty mountain valley at dawn, painterly, soft light</textarea>
+                </section>
+              </aside>
+            </div>
+          </div>
+
+          <!-- Settings tab: a few mock controls -->
+          <div class="demo-tab-panel" data-panel="settings">
+            <div class="demo-settings">
+              <section class="demo-section">
+                <h4>AI image generation</h4>
+                <label class="demo-field">
+                  <span>Provider</span>
+                  <select disabled><option>Pollinations (free, no key)</option></select>
+                </label>
+                <label class="demo-field">
+                  <span>Resolution</span>
+                  <select disabled><option>Auto (match your primary monitor)</option></select>
+                </label>
+              </section>
+              <section class="demo-section">
+                <h4>Rotation</h4>
+                <label class="demo-toggle">
+                  <input type="checkbox" disabled />
+                  <span>Auto-rotate while the app is running</span>
+                </label>
+                <label class="demo-field">
+                  <span>Interval (minutes)</span>
+                  <input type="number" value="60" disabled />
+                </label>
+              </section>
             </div>
           </div>
         </div>
@@ -368,5 +539,6 @@
       </div>
     </footer>
     <script src="./i18n.js"></script>
+    <script src="./demo.js"></script>
   </body>
 </html>
