@@ -64,8 +64,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # rust-cache restore occasionally flakes mid-extract on Windows
+      # runners; don't fail the whole job because of a cache miss/restore
+      # error — the build will just rebuild from scratch this run.
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
+        continue-on-error: true
         with:
           workspaces: './src-tauri -> target'
 

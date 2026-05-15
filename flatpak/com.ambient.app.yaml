@@ -32,6 +32,12 @@ finish-args:
   - --filesystem=xdg-pictures:rw
 
 build-options:
+  # Explicitly share the host network during the build phase. Local
+  # flatpak-builder usually does this by default, but CI runners (and
+  # newer flatpak-builder versions) may sandbox DNS, which makes
+  # `npm install` fail with EAI_AGAIN on registry.npmjs.org.
+  build-args:
+    - --share=network
   append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
   env:
     CARGO_HOME: /run/build/ambient/cargo
@@ -41,6 +47,11 @@ build-options:
     npm_config_fund: 'false'
     npm_config_audit: 'false'
     npm_config_progress: 'false'
+    # Retry transient DNS / registry errors instead of bailing on the
+    # first hiccup; --fetch-retries default is 2 with a short backoff.
+    npm_config_fetch_retries: '5'
+    npm_config_fetch_retry_mintimeout: '20000'
+    npm_config_fetch_timeout: '300000'
 
 modules:
   - name: ambient
