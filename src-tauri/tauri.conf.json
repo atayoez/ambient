@@ -40,7 +40,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["appimage"],
+    "targets": ["appimage", "deb", "dmg", "nsis"],
     "category": "Utility",
     "shortDescription": "Wallpaper generator with patterns, emoji, and AI",
     "longDescription": "Linux wallpaper generator. Create dynamic patterns with colors and emoji, pull from curated sources (NASA APOD, Unsplash, Pexels), or generate via AI — all rendered at your exact screen resolution.",

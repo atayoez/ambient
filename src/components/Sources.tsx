@@ -279,8 +279,8 @@ export default function Sources() {
                 ))}
               </div>
               <p className="muted small">
-                NASA APOD caches one image per day. Unsplash and Pexels need a
-                free API key for unlimited search-driven variety.
+                NASA APOD caches one image per day. Unsplash and Pexels need a free API
+                key for unlimited search-driven variety.
               </p>
             </InspectorSection>
 
@@ -297,8 +297,8 @@ export default function Sources() {
                 </label>
                 <p className="muted small">
                   Without one, Ambient uses NASA's shared <code>DEMO_KEY</code>
-                  {' — '}rate-limited to 30/hr across the internet. Grab a free
-                  personal key at <code>api.nasa.gov</code> for 1000/hr.
+                  {' — '}rate-limited to 30/hr across the internet. Grab a free personal
+                  key at <code>api.nasa.gov</code> for 1000/hr.
                 </p>
               </InspectorSection>
             )}
@@ -350,7 +350,10 @@ export default function Sources() {
         }
         actions={
           <>
-            <button onClick={() => fetchNew(false)} disabled={busy || !canFetch(settings)}>
+            <button
+              onClick={() => fetchNew(false)}
+              disabled={busy || !canFetch(settings)}
+            >
               ↻ Re-fetch
             </button>
             <button

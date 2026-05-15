@@ -16,7 +16,10 @@ const DEFAULT_PROMPT = 'a calm misty mountain valley at dawn, painterly, soft li
 
 export default function Generate() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [prompt, setPrompt] = usePersistedState<string>('generate.prompt', DEFAULT_PROMPT);
+  const [prompt, setPrompt] = usePersistedState<string>(
+    'generate.prompt',
+    DEFAULT_PROMPT,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);

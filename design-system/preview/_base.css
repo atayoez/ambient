@@ -1,7 +1,8 @@
 /* Base shared by every preview card. Loaded via <link> from each card HTML. */
-@import url('../colors_and_type.css');
+@import url("../colors_and_type.css");
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background: transparent;
@@ -21,11 +22,9 @@ html, body {
   min-height: 100%;
   padding: 22px;
   background:
-    linear-gradient(180deg, var(--bg-tint-top), var(--bg-tint-bottom)),
-    var(--bg-base),
+    linear-gradient(180deg, var(--bg-tint-top), var(--bg-tint-bottom)), var(--bg-base),
     radial-gradient(circle at 20% 15%, #4c1d95 0%, transparent 45%),
-    radial-gradient(circle at 80% 90%, #be185d 0%, transparent 45%),
-    #0a0815;
+    radial-gradient(circle at 80% 90%, #be185d 0%, transparent 45%), #0a0815;
   background-color: #0a0815;
   backdrop-filter: var(--blur-window);
   -webkit-backdrop-filter: var(--blur-window);
@@ -34,9 +33,22 @@ html, body {
 }
 
 /* Most cards have a 1–2 column grid */
-.row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
-.col { display: flex; flex-direction: column; gap: 10px; }
-.stack { display: flex; flex-direction: column; gap: 8px; }
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 .label {
   font-size: 10px;
@@ -46,7 +58,8 @@ html, body {
   font-weight: 500;
 }
 
-.code, .mono {
+.code,
+.mono {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--muted);

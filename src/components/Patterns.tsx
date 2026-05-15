@@ -8,10 +8,10 @@ import {
   type PatternConfig,
   type PatternType,
   PRESET_PALETTES,
-  SLIDER_RANGES,
-  TYPE_DEFAULTS,
   preloadEmojis,
   renderPattern,
+  SLIDER_RANGES,
+  TYPE_DEFAULTS,
 } from '../lib/patterns';
 import { loadLibrary, saveLibrary } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
