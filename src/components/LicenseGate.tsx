@@ -49,7 +49,7 @@ export default function LicenseGate({ revokedMessage, onActivated }: Props) {
             type="text"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="polar_lk_…"
+            placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
             autoComplete="off"
             spellCheck={false}
             // biome-ignore lint/a11y/noAutofocus: this input is the only interactive element on the gate; focusing it is the intended UX
