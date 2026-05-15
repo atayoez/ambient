@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import Library from './components/Library';
+import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
 import SettingsView from './components/Settings';
 import Sources from './components/Sources';
+import { type LicenseInfo, loadLicense, validateLicense } from './lib/license';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
 
@@ -20,6 +22,40 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('patterns');
+
+  // License gate: load the stored license, then validate in the
+  // background. Until both checks finish we show a tiny splash so we
+  // don't flash the gate to legitimate users with valid licenses.
+  const [license, setLicense] = useState<LicenseInfo | null>(null);
+  const [licenseLoaded, setLicenseLoaded] = useState(false);
+  const [revokedMsg, setRevokedMsg] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await loadLicense();
+      if (cancelled) return;
+      if (!stored) {
+        setLicenseLoaded(true);
+        return;
+      }
+      // Show the app immediately on the cached license; revalidate in
+      // the background. If validation explicitly rejects, kick back to
+      // the gate. Transient (network) failures are ignored — see
+      // lib/license.ts for the policy.
+      setLicense(stored);
+      setLicenseLoaded(true);
+      const result = await validateLicense(stored);
+      if (cancelled) return;
+      if (!result.valid && !result.transient) {
+        setLicense(null);
+        setRevokedMsg(result.message ?? 'Your license is no longer valid.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const unsub = listen('rotate-now', () => setTab('sources'));
@@ -108,23 +144,29 @@ export default function App() {
   return (
     <div className="app">
       <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
-        <nav
-          className="tabs"
-          style={
-            { ['--active-tab' as string]: String(activeTabIndex) } as React.CSSProperties
-          }
-        >
-          <div className="tab-indicator" />
-          {TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              className={tab === id ? 'tab active' : 'tab'}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        {license ? (
+          <nav
+            className="tabs"
+            style={
+              {
+                ['--active-tab' as string]: String(activeTabIndex),
+              } as React.CSSProperties
+            }
+          >
+            <div className="tab-indicator" />
+            {TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                className={tab === id ? 'tab active' : 'tab'}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <div className="tabs-placeholder" />
+        )}
         <div className="window-controls">
           <button onClick={minimize} aria-label="Minimize" className="wc">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
@@ -178,15 +220,29 @@ export default function App() {
         </div>
       </header>
       <main className="content">
-        {/* key={tab} re-mounts on tab switch so a captured error in one
-            tab doesn't persist across tabs. */}
-        <ErrorBoundary key={tab}>
-          {tab === 'patterns' && <Patterns />}
-          {tab === 'sources' && <Sources />}
-          {tab === 'library' && <Library />}
-          {tab === 'generate' && <Generate />}
-          {tab === 'settings' && <SettingsView />}
-        </ErrorBoundary>
+        {!licenseLoaded ? (
+          // Briefly empty while loadLicense() finishes — usually a
+          // single frame on warm disk cache.
+          <div className="splash" />
+        ) : !license ? (
+          <LicenseGate
+            revokedMessage={revokedMsg}
+            onActivated={(info) => {
+              setLicense(info);
+              setRevokedMsg(undefined);
+            }}
+          />
+        ) : (
+          // key={tab} re-mounts on tab switch so a captured error in one
+          // tab doesn't persist across tabs.
+          <ErrorBoundary key={tab}>
+            {tab === 'patterns' && <Patterns />}
+            {tab === 'sources' && <Sources />}
+            {tab === 'library' && <Library />}
+            {tab === 'generate' && <Generate />}
+            {tab === 'settings' && <SettingsView />}
+          </ErrorBoundary>
+        )}
       </main>
     </div>
   );

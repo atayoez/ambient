@@ -40,7 +40,6 @@
       <nav class="nav-links">
         <a href="#features" data-i18n="nav.features">Features</a>
         <a href="#pricing" data-i18n="nav.pricing">Pricing</a>
-        <a href="#trial" data-i18n="nav.trial">Trial</a>
         <a href="#about" data-i18n="nav.about">About</a>
       </nav>
       <div class="settings-bar">
@@ -96,7 +95,11 @@
             wallpapers to your screen.
           </p>
           <div class="cta-row">
-            <a href="#pricing" class="btn btn-primary" data-i18n="hero.ctaTrial">Start 7-day free trial</a>
+            <a
+              href="https://buy.polar.sh/polar_cl_75gvIOjYXSFARfkY2VQnh8qbmXVxWxXNXjdGp3mDH8j"
+              class="btn btn-primary"
+              data-i18n="hero.ctaBuy"
+            >Buy for $15</a>
             <a href="#features" class="btn btn-ghost" data-i18n="hero.ctaFeatures">See what's in it →</a>
           </div>
           <div class="hero-meta">
@@ -262,11 +265,14 @@
           </ul>
 
           <div class="price-cta-row">
-            <a class="btn btn-primary btn-large" href="https://polar.sh/atayozcan/ambient/checkout" target="_blank" rel="noopener" data-i18n="pricing.buy">
+            <a
+              class="btn btn-primary btn-large"
+              href="https://buy.polar.sh/polar_cl_75gvIOjYXSFARfkY2VQnh8qbmXVxWxXNXjdGp3mDH8j"
+              target="_blank"
+              rel="noopener"
+              data-i18n="pricing.buy"
+            >
               Buy for $15
-            </a>
-            <a class="btn btn-ghost btn-large" href="#trial" data-i18n="pricing.tryFree">
-              Try free for 7 days
             </a>
           </div>
 
@@ -274,33 +280,6 @@
             Open-source under MIT — you can also <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">build from source</a> if you'd rather not pay. Buying gets you signed builds, auto-updates, and supports development.
           </p>
         </div>
-      </section>
-
-      <section id="trial" class="trial">
-        <h2 class="section-eyebrow" data-i18n="trial.eyebrow">Free 7-day trial</h2>
-        <p class="trial-sub" data-i18n="trial.sub">
-          No credit card. No nags. Just your email so we can send the license file.
-        </p>
-
-        <form class="trial-form" id="trial-form">
-          <input
-            type="email"
-            name="email"
-            placeholder="you@example.com"
-            required
-            autocomplete="email"
-            data-i18n-placeholder="trial.emailPlaceholder"
-            aria-label="Email address"
-          />
-          <button type="submit" class="btn btn-primary" data-i18n="trial.submit">Email me a trial</button>
-        </form>
-
-        <p class="trial-note muted" data-i18n="trial.note">
-          You'll get an instant download link and a 7-day license file. After
-          the trial, the app keeps your library intact but locks the apply
-          button until you enter a paid license key.
-        </p>
-        <p class="trial-status" id="trial-status" hidden></p>
       </section>
 
       <script src="./i18n.js"></script>

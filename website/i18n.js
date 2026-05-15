@@ -8,13 +8,13 @@
   /* eslint-disable @stylistic/quotes */
   var I18N = {
     en: {
-      nav: { features: 'Features', pricing: 'Pricing', trial: 'Trial', about: 'About' },
+      nav: { features: 'Features', pricing: 'Pricing', about: 'About' },
       theme: { auto: 'Auto', dark: 'Dark', light: 'Light' },
       hero: {
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A native desktop wallpaper studio. Generate infinite patterns, pull from curated photo sources, or write a prompt and ship pixel-perfect wallpapers to your screen.",
-        ctaTrial: 'Start 7-day free trial',
+        ctaBuy: 'Buy for $15',
         ctaFeatures: "See what's in it →",
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
       },
@@ -56,19 +56,8 @@
         feat4: 'Use on every Mac/PC you own — no per-device cap',
         feat5: 'No subscription, no telemetry, no account required',
         buy: 'Buy for $15',
-        tryFree: 'Try free for 7 days',
         fineprint:
           'Open-source under MIT — you can also <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">build from source</a> if you\'d rather not pay. Buying gets you signed builds, auto-updates, and supports development.',
-      },
-      trial: {
-        eyebrow: 'Free 7-day trial',
-        sub: 'No credit card. No nags. Just your email so we can send the license file.',
-        emailPlaceholder: 'you@example.com',
-        submit: 'Email me a trial',
-        note: "You'll get an instant download link and a 7-day license file. After the trial, the app keeps your library intact but locks the apply button until you enter a paid license key.",
-        status: "Thanks — opening your mail client. We'll send your trial license shortly.",
-        mailSubject: 'Ambient trial request',
-        mailBody: 'Hi Atay, please send me a 7-day trial license for Ambient.\n\nEmail: {email}\n',
       },
       about: {
         eyebrow: 'The maker',
@@ -78,13 +67,13 @@
     },
 
     de: {
-      nav: { features: 'Funktionen', pricing: 'Preis', trial: 'Testen', about: 'Über' },
+      nav: { features: 'Funktionen', pricing: 'Preis', about: 'Über' },
       theme: { auto: 'Auto', dark: 'Dunkel', light: 'Hell' },
       hero: {
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Ein natives Desktop-Studio für Hintergrundbilder. Erzeuge unendlich viele Muster, hole dir Bilder aus kuratierten Quellen, oder schreibe einen Prompt und liefere pixelgenaue Hintergrundbilder direkt auf deinen Bildschirm.',
-        ctaTrial: '7 Tage kostenlos testen',
+        ctaBuy: 'Für 15 $ kaufen',
         ctaFeatures: 'Was drin steckt →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>15 $ einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
       },
@@ -126,19 +115,8 @@
         feat4: 'Nutzbar auf allen deinen Macs/PCs — kein Gerätelimit',
         feat5: 'Kein Abo, keine Telemetrie, kein Account nötig',
         buy: 'Für 15 $ kaufen',
-        tryFree: '7 Tage kostenlos testen',
         fineprint:
           'Open Source unter MIT — du kannst auch <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">selbst aus dem Quellcode bauen</a>, wenn du nicht bezahlen willst. Kaufen bekommt dir signierte Builds, Auto-Updates und unterstützt die Entwicklung.',
-      },
-      trial: {
-        eyebrow: 'Kostenlose 7-Tage-Testversion',
-        sub: 'Keine Kreditkarte. Kein Drängeln. Nur deine E-Mail, damit wir die Lizenzdatei schicken können.',
-        emailPlaceholder: 'du@beispiel.de',
-        submit: 'Testlizenz per E-Mail',
-        note: 'Du bekommst sofort einen Download-Link und eine 7-Tage-Lizenzdatei. Nach Ablauf bleibt deine Bibliothek erhalten, der „Anwenden"-Button wird aber gesperrt, bis du einen bezahlten Lizenzschlüssel eingibst.',
-        status: 'Danke — wir öffnen dein E-Mail-Programm. Du bekommst gleich deine Testlizenz.',
-        mailSubject: 'Ambient Testlizenz angefragt',
-        mailBody: 'Hi Atay, bitte schick mir eine 7-Tage-Testlizenz für Ambient.\n\nE-Mail: {email}\n',
       },
       about: {
         eyebrow: 'Der Macher',
@@ -148,13 +126,13 @@
     },
 
     tr: {
-      nav: { features: 'Özellikler', pricing: 'Fiyat', trial: 'Deneme', about: 'Hakkımda' },
+      nav: { features: 'Özellikler', pricing: 'Fiyat', about: 'Hakkımda' },
       theme: { auto: 'Otomatik', dark: 'Koyu', light: 'Açık' },
       hero: {
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Yerel bir masaüstü duvar kağıdı stüdyosu. Sonsuz desenler oluştur, seçili fotoğraf kaynaklarından çek veya bir komut yazıp piksel mükemmel duvar kağıtlarını doğrudan ekranına gönder.',
-        ctaTrial: '7 günlük ücretsiz deneme',
+        ctaBuy: '15 $\'a satın al',
         ctaFeatures: 'İçinde neler var →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>15 $ tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
       },
@@ -196,19 +174,8 @@
         feat4: 'Sahip olduğun her Mac/PC\'de kullan — cihaz sınırı yok',
         feat5: 'Abonelik yok, telemetri yok, hesap gerekmez',
         buy: '15 $\'a satın al',
-        tryFree: '7 gün ücretsiz dene',
         fineprint:
           'MIT lisansıyla açık kaynak — ödemek istemiyorsan <a href="https://github.com/atayozcan/ambient" target="_blank" rel="noopener">kaynaktan kendin de derleyebilirsin</a>. Satın almak, imzalı sürümler, otomatik güncellemeler ve geliştirmeye destek sağlar.',
-      },
-      trial: {
-        eyebrow: 'Ücretsiz 7 günlük deneme',
-        sub: 'Kredi kartı yok. Bıktırma yok. Lisans dosyasını gönderebilmemiz için sadece e-postan.',
-        emailPlaceholder: 'sen@ornek.com',
-        submit: 'Deneme lisansını e-posta ile gönder',
-        note: 'Anında bir indirme bağlantısı ve 7 günlük lisans dosyası alırsın. Deneme sonrası kütüphanen olduğu gibi kalır ancak ücretli bir lisans anahtarı girene kadar uygula düğmesi kilitlenir.',
-        status: 'Teşekkürler — e-posta uygulaman açılıyor. Deneme lisansını kısa süre içinde göndereceğim.',
-        mailSubject: 'Ambient deneme talebi',
-        mailBody: 'Merhaba Atay, lütfen Ambient için 7 günlük bir deneme lisansı gönder.\n\nE-posta: {email}\n',
       },
       about: {
         eyebrow: 'Yapımcı',
@@ -247,26 +214,22 @@
 
     document.documentElement.lang = lang;
 
-    // text nodes
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n'));
       if (typeof v === 'string') el.textContent = v;
     });
 
-    // html nodes (links etc.)
     document.querySelectorAll('[data-i18n-html]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n-html'));
       if (typeof v === 'string') el.innerHTML = v;
     });
 
-    // input placeholders
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n-placeholder'));
       if (typeof v === 'string') el.placeholder = v;
     });
 
-    // theme label is special — its text depends on both current language
-    // AND current theme value.
+    // theme label depends on both current language AND current theme.
     updateThemeButton();
 
     localStorage.setItem('ambient.lang', lang);
@@ -301,26 +264,6 @@
     applyTheme(next);
   }
 
-  // --- Trial form (mailto fallback until backend ships) -------------
-  function wireTrialForm() {
-    var form = document.getElementById('trial-form');
-    var status = document.getElementById('trial-status');
-    if (!form) return;
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var email = form.querySelector('input[name="email"]').value.trim();
-      if (!email) return;
-      var dict = I18N[currentLang] || I18N.en;
-      status.hidden = false;
-      status.textContent = dict.trial.status;
-      var subj = encodeURIComponent(dict.trial.mailSubject);
-      var body = encodeURIComponent(dict.trial.mailBody.replace('{email}', email));
-      window.location.href =
-        'mailto:atay@oezcan.me?subject=' + subj + '&body=' + body;
-    });
-  }
-
-  // --- Bootstrapping ------------------------------------------------
   document.addEventListener('DOMContentLoaded', function () {
     applyLanguage(currentLang);
     applyTheme(currentTheme);
@@ -330,7 +273,5 @@
 
     var themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) themeBtn.addEventListener('click', cycleTheme);
-
-    wireTrialForm();
   });
 })();

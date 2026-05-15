@@ -1148,6 +1148,132 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-inline);
 }
 
+/* --- License gate (full tab, shown when no license stored) --- */
+.license-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px;
+}
+
+.license-card {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 460px;
+  padding: 40px 36px 32px;
+  border-radius: var(--radius-container);
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow:
+    var(--shadow-window),
+    inset 0 1px 0 var(--highlight-edge);
+  overflow: hidden;
+}
+
+.license-card-aurora {
+  position: absolute;
+  inset: -40% -10% auto -10%;
+  height: 70%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 60% at 30% 40%, rgba(124, 92, 255, 0.32), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 75% 30%, rgba(236, 72, 153, 0.24), transparent 60%);
+  filter: blur(36px);
+  pointer-events: none;
+}
+
+.license-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  display: block;
+  margin: 0 auto 20px;
+}
+
+.license-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+
+.license-sub {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.license-banner {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  background: color-mix(in oklch, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--danger) 32%, transparent);
+  border-radius: var(--radius-inline);
+  color: var(--text);
+  font-size: var(--fs-caption);
+}
+
+.license-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.license-form input {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.license-form button {
+  width: 100%;
+  padding: 12px;
+  font-size: var(--fs-body);
+}
+
+.license-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: var(--fs-caption);
+}
+
+.license-footer {
+  margin: 22px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  line-height: var(--lh-body);
+}
+
+.license-footer a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.license-footer a:hover {
+  text-decoration-color: var(--accent);
+}
+
+/* Empty placeholder where the tabs nav would normally sit — keeps the
+   titlebar height stable so the window controls don't jump when the
+   license gate transitions to/from the tabs view. */
+.tabs-placeholder {
+  flex: 1;
+  height: 28px;
+}
+
+.splash {
+  flex: 1;
+}
+
 /* --- ErrorBoundary panel --- */
 .error-panel {
   display: flex;
