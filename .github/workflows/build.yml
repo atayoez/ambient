@@ -88,52 +88,24 @@ jobs:
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
 
+  # Flatpak builds are slow (~30 min cold) because of the GNOME runtime
+  # download + cargo cold compile. Restrict to tagged releases and
+  # manual dispatch — every-push flatpak builds would make merges
+  # painful for no benefit (the macOS+Windows jobs already prove the
+  # frontend + Rust code compiles).
   build-flatpak:
     name: Build (flatpak)
     needs: check
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-46
+      options: --privileged
     steps:
       - uses: actions/checkout@v4
 
-      # flatpak-builder + the freedesktop SDK extensions the manifest
-      # depends on (rust-stable + node20). Pulled from Flathub.
-      - name: Install flatpak + flatpak-builder
-        run: |
-          sudo apt update
-          sudo apt install -y flatpak flatpak-builder
-          flatpak remote-add --if-not-exists --user flathub \
-            https://flathub.org/repo/flathub.flatpakrepo
-          # GNOME 46 = freedesktop 24.08 underneath, so the freedesktop
-          # SDK extensions (rust-stable / node20) at //24.08 are the
-          # right pair to use here.
-          flatpak install --user -y --noninteractive flathub \
-            org.gnome.Platform//46 \
-            org.gnome.Sdk//46 \
-            org.freedesktop.Sdk.Extension.rust-stable//24.08 \
-            org.freedesktop.Sdk.Extension.node20//24.08
-
-      # Cache the .flatpak-builder/cache so cargo + npm deps survive
-      # between runs; otherwise every CI is a full cold rebuild.
-      - name: Cache flatpak-builder dir
-        uses: actions/cache@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          path: |
-            .flatpak-builder
-          key: flatpak-${{ runner.os }}-${{ hashFiles('flatpak/com.ambient.app.yaml', 'src-tauri/Cargo.lock', 'package.json') }}
-          restore-keys: |
-            flatpak-${{ runner.os }}-
-
-      - name: Build flatpak
-        run: |
-          flatpak-builder --user --force-clean \
-            --repo=repo \
-            build-dir \
-            flatpak/com.ambient.app.yaml
-          flatpak build-bundle repo ambient.flatpak com.ambient.app
-
-      - name: Upload flatpak artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ambient-flatpak
-          path: ambient.flatpak
-          if-no-files-found: error
+          bundle: ambient.flatpak
+          manifest-path: flatpak/com.ambient.app.yaml
+          cache-key: flatpak-${{ hashFiles('flatpak/com.ambient.app.yaml', 'src-tauri/Cargo.lock', 'package.json') }}
