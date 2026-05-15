@@ -25,7 +25,9 @@
         { "url": "https://api.nasa.gov/*" },
         { "url": "https://api.unsplash.com/*" },
         { "url": "https://api.pexels.com/*" },
-        { "url": "https://api.openai.com/*" }
+        { "url": "https://api.openai.com/*" },
+        { "url": "https://api.polar.sh/*" },
+        { "url": "https://ambient.oezcan.me/*" }
       ]
     }
   ]

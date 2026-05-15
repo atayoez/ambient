@@ -60,17 +60,14 @@ export async function activateLicense(rawKey: string): Promise<LicenseInfo> {
   const key = rawKey.trim();
   if (!key) throw new Error('License key is empty.');
 
-  const res = await fetch(
-    `${POLAR_BASE}/v1/customer-portal/license-keys/validate`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        key,
-        organization_id: POLAR_ORG_ID,
-      }),
-    },
-  );
+  const res = await fetch(`${POLAR_BASE}/v1/customer-portal/license-keys/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key,
+      organization_id: POLAR_ORG_ID,
+    }),
+  });
 
   if (!res.ok) {
     const body = await safeJson(res);
@@ -98,17 +95,14 @@ export async function validateLicense(
   }
 
   try {
-    const res = await fetch(
-      `${POLAR_BASE}/v1/customer-portal/license-keys/validate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key: info.key,
-          organization_id: POLAR_ORG_ID,
-        }),
-      },
-    );
+    const res = await fetch(`${POLAR_BASE}/v1/customer-portal/license-keys/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: info.key,
+        organization_id: POLAR_ORG_ID,
+      }),
+    });
     if (res.ok) {
       info.lastValidated = Date.now();
       await saveKey(STORE_KEY, info);
