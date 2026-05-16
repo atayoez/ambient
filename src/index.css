@@ -301,7 +301,9 @@ button:not(.tab):not(.segment):not(.wc):hover:not(:disabled) {
 
 button:not(.tab):not(.segment):not(.wc):focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 35%, transparent);
+  /* No accent glow ring — selection outlines are reserved for the
+     bottom .tabs pill (via .tab-indicator). Border-color hover/active
+     state is enough to indicate keyboard focus here. */
 }
 
 button:not(.tab):not(.segment):not(.wc):active:not(:disabled) {
@@ -335,7 +337,16 @@ button.danger:hover:not(:disabled) {
   border-color: var(--danger);
 }
 
-/* --- Form elements --- */
+/* --- Form elements ---
+   All form inputs share the glass-pill style introduced on the bottom
+   .tabs nav: low-alpha white tint for the backdrop-filter to land on,
+   subtle white border, full pill border-radius, drop-shadow + inset
+   top-sheen. Horizontal padding stays at 20px so text isn't clipped by
+   the rounded ends. The selection-style focus ring (accent-colored
+   3px glow) was deliberately removed from these — only the .tabs pill
+   shows an explicit selection indicator (its inner .tab-indicator).
+   Focus is still indicated via the border-color shift to var(--accent),
+   so keyboard navigation remains visible without the loud glow. */
 input[type='text'],
 input[type='password'],
 input[type='number'],
@@ -344,15 +355,21 @@ textarea,
 select {
   appearance: none;
   -webkit-appearance: none;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 8px 20px;
   color: var(--text);
   font: inherit;
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: border-color var(--t-fast) ease, background var(--t-fast) ease;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 var(--highlight-edge);
+  transition:
+    border-color var(--t-fast) ease,
+    background var(--t-fast) ease;
 }
 
 input[type='text']:focus,
@@ -362,33 +379,15 @@ input[type='search']:focus,
 textarea:focus,
 select:focus {
   border-color: var(--accent);
-  background: var(--surface-3);
-  /* OKLCH-mixed focus ring: stays perceptually uniform across the
-     light/dark accent values, unlike sRGB rgba() which would shift hue. */
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 25%, transparent);
 }
 
 select {
   /* No chevron — the user can tell it's a dropdown from cursor: pointer
-     + the hover state. Padding stays symmetric so the displayed value
-     reads centered in the closed state.
-     Glass-pill style mirrors the bottom .tabs pill: low-alpha tint for
-     the backdrop-filter to land on, subtle white border, full pill
-     border-radius, and the same float-depth drop-shadow as the tab
-     pill. Wider horizontal padding (20px) keeps the text from being
-     clipped by the rounded ends of the pill. */
+     + the hover state. Pill geometry + glass material come from the
+     shared rule above; only the select-specific bits live here. */
   text-align: center;
   text-align-last: center;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  border-color: rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  padding: 8px 20px;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 var(--highlight-edge);
 }
 
 /* Options inside the dropdown popup are OS-rendered — center where the
@@ -398,18 +397,29 @@ select option {
 }
 
 input[type='checkbox'] {
+  /* Mini glass-pill — 18x18 square gets the same low-alpha tint + white
+     border + soft drop-shadow as the bigger pill surfaces, with a
+     gentle 6px radius (full circle felt too iOS-toggle-y for a single
+     boolean). Checked state still flips to the accent fill below. */
   appearance: none;
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
   margin: 0;
-  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 var(--highlight-edge);
+  transition:
+    background var(--t-fast) ease,
+    border-color var(--t-fast) ease;
 }
 
 input[type='checkbox']:hover {
@@ -455,6 +465,8 @@ input[type='range']:focus {
    if one prefix is unknown). The filled portion is painted via a gradient
    driven by the --p CSS var set inline by the component. */
 input[type='range']::-webkit-slider-runnable-track {
+  /* Track unfilled portion uses the glass tint; filled portion stays
+     accent so the slider's level is still readable at a glance. */
   height: 6px;
   border-radius: var(--radius-pill);
   background:
@@ -462,18 +474,18 @@ input[type='range']::-webkit-slider-runnable-track {
       90deg,
       var(--accent) 0,
       var(--accent) var(--p),
-      var(--surface-2) var(--p),
-      var(--surface-2) 100%
+      rgba(255, 255, 255, 0.06) var(--p),
+      rgba(255, 255, 255, 0.06) 100%
     );
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 var(--highlight-edge);
 }
 
 input[type='range']::-moz-range-track {
   height: 6px;
   border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -519,12 +531,11 @@ input[type='range']:focus-visible::-moz-range-thumb {
   transform: scale(1.1);
 }
 
-input[type='range']:active::-webkit-slider-thumb {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 0 0 4px color-mix(in oklch, var(--accent) 25%, transparent);
-}
+/* The earlier :active::-webkit-slider-thumb rule added a 4px accent
+   halo around the thumb during drag — that's a "selection outline" by
+   the user's terminology and now gone everywhere except the bottom
+   .tabs pill. The hover/focus-visible thumb scale-up (above) is enough
+   to confirm the drag is active. */
 input[type='range']:active::-moz-range-thumb {
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.3),
@@ -1030,14 +1041,20 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .color-chip input[type='color'] {
+  /* Glass-pill border on the swatch; the chip IS the picked color so
+     `background` stays transparent (the native color input renders the
+     value), but the border + drop-shadow + radius match the other
+     glass-pill surfaces. */
   width: 100%;
   height: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-inline);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
   padding: 0;
   background: transparent;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .chip-remove {
@@ -1196,18 +1213,19 @@ button.primary.icon-btn {
   font-size: var(--fs-caption);
 }
 
-/* --- Keyboard focus rings ---
-   Apple-style: invisible during mouse use, prominent on Tab. Built on
-   :focus-visible so it never appears on click. The accent halo matches
-   the slider's active state for visual consistency. */
+/* Selection outline (the 3px accent halo) used to land here on
+   keyboard focus for segments, preset chips, color swatches, etc.
+   It's been removed across the app — the bottom .tabs pill is the
+   only surface with a deliberate selection indicator now (its
+   .tab-indicator). For these other surfaces, keyboard users have to
+   rely on the underlying element's hover/border-color state. Worth
+   revisiting if accessibility becomes a concern. */
 .segment:focus-visible,
 .preset-btn:focus-visible,
 .color-chip input[type='color']:focus-visible,
 .add-color:focus-visible,
 .chip-remove:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 35%, transparent);
-  border-radius: var(--radius-inline);
 }
 
 /* --- Update banner — thin bar above tab content when newer release exists --- */
