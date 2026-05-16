@@ -134,13 +134,11 @@ textarea,
   left: 50%;
   display: inline-flex;
   align-items: center;
-  /* Transparent pill — no dark tint. The backdrop-filter blur is kept
-     so whatever's behind reads as a glass-frosted band, and the border
-     + shadow still outline the pill shape so it doesn't dissolve into
-     the background entirely. */
+  /* Fully transparent pill — no dark tint AND no backdrop-blur, so
+     content behind (library card images, preview canvases) shows
+     through unobscured. The border + shadow + the inner tab-indicator
+     pill still outline the shape so the user has something to aim at. */
   background: transparent;
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--radius-pill);
   padding: 3px;
@@ -149,14 +147,7 @@ textarea,
     0 12px 32px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 var(--highlight-edge);
   z-index: 50;
-  /* translateX(-50%) centers; the perspective + tilt that follows
-     applies cursor-tracked parallax to the pill itself. Order matters —
-     translateX must come first so centering survives the rotation. */
-  transform:
-    translateX(-50%)
-    perspective(1200px)
-    rotateX(calc(var(--tilt-x, 0deg) * 0.5))
-    rotateY(calc(var(--tilt-y, 0deg) * 0.5));
+  transform: translateX(-50%);
 }
 
 .tab-indicator {
@@ -780,12 +771,6 @@ input[type='range']:active::-moz-range-thumb {
   background: var(--surface);
   box-shadow: inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
-  /* See note on .tabs — relocated cursor-tilt from .app to internal
-     glass surfaces. */
-  transform:
-    perspective(1600px)
-    rotateX(calc(var(--tilt-x, 0deg) * 0.5))
-    rotateY(calc(var(--tilt-y, 0deg) * 0.5));
 }
 
 .preview-wrap > canvas,
@@ -1296,12 +1281,6 @@ button.primary.icon-btn {
     var(--shadow-window),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
-  /* See note on .tabs — relocated cursor-tilt from .app to internal
-     glass surfaces. */
-  transform:
-    perspective(1400px)
-    rotateX(calc(var(--tilt-x, 0deg) * 0.5))
-    rotateY(calc(var(--tilt-y, 0deg) * 0.5));
 }
 
 .license-card-aurora {

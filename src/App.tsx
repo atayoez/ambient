@@ -197,40 +197,11 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Subtle 3D tilt on inner glass surfaces (.tabs, .preview-wrap,
-  // .license-card) driven by cursor offset from window center. The
-  // listener used to also feed window-level --mouse-x / --mouse-y for
-  // titlebar / save-toast specular highlights and a per-card hover
-  // spotlight; both were removed pending future revisit (see
-  // [[feature-hover-spotlight-removed]] for design context). Only tilt
-  // survives. RAF-throttled, gated on the user's reduced-motion pref.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let raf = 0;
-    function onMove(e: MouseEvent) {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        const root = document.documentElement;
-        // Tilt: cursor offset from window center, normalized to [-1, 1],
-        // then mapped to a max ~1.5deg rotation in each axis. Sign is
-        // inverted on X so the tilt "leans away" from the cursor,
-        // matching how a real plane catching light would behave.
-        const cx = window.innerWidth / 2;
-        const cy = window.innerHeight / 2;
-        const dx = (e.clientX - cx) / cx;
-        const dy = (e.clientY - cy) / cy;
-        root.style.setProperty('--tilt-x', `${-dy * 1.5}deg`);
-        root.style.setProperty('--tilt-y', `${dx * 1.5}deg`);
-        raf = 0;
-      });
-    }
-    window.addEventListener('mousemove', onMove, { passive: true });
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
+  // Cursor-driven parallax tilt + per-card hover spotlight + per-surface
+  // specular highlights used to live here. All removed pending future
+  // revisit — user feedback was that chrome motion read as "too much
+  // animation". See [[feedback-minimal-chrome-motion]] for the design
+  // context.
 
   function onTitlebarMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return;
