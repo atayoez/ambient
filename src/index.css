@@ -1130,7 +1130,7 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .add-color,
-.emoji-row input.add-emoji {
+.emoji-row .add-emoji {
   width: 38px;
   height: 38px;
   background: transparent;
@@ -1141,25 +1141,99 @@ input[type='range']:active::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   line-height: 0;
-  /* Both the shared input rule and the .inspector-section width:100%
-     override need to be neutralised so the add-emoji slot stays a
-     38×38 chip rather than a full-width pill. */
   padding: 0;
   font-size: 22px;
-  text-align: center;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-  outline: none;
 }
 
 .add-color:hover:not(:disabled),
-.emoji-row input.add-emoji:hover,
-.emoji-row input.add-emoji:focus {
+.emoji-row .add-emoji:hover,
+.emoji-row .add-emoji:focus,
+.emoji-row .add-emoji[aria-expanded='true'] {
   border-style: solid;
   color: var(--accent);
   border-color: var(--accent);
   background: var(--surface);
+}
+
+/* Wraps the "+" trigger so the popover positions absolute relative to it. */
+.emoji-picker-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Popover anchored above the "+" trigger. 8px gap below, 320px max height
+   with overflow-y so the grid scrolls if categories grow. Glass-pill
+   material matches the rest of the chrome; z-index 100 keeps it above
+   inspector content but below the bottom tab pill (z-index 50 — wait,
+   actually we want above the tab pill too, so 100 wins). */
+.emoji-picker {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 296px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: rgba(30, 30, 36, 0.92);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-container);
+  padding: 10px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 var(--highlight-edge);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  .emoji-picker {
+    background: rgba(250, 250, 252, 0.95);
+  }
+}
+
+.emoji-picker-cat-title {
+  margin: 0 0 4px;
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+
+.emoji-picker-item {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-inline);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: background var(--t-fast) ease;
+}
+
+.emoji-picker-item:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+@media (prefers-color-scheme: light) {
+  .emoji-picker-item:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
 }
 
 .presets-row {

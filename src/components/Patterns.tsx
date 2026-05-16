@@ -17,6 +17,7 @@ import {
 import { mutateLibrary } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
 import { setWallpaper } from '../lib/wallpaper';
+import EmojiPicker from './EmojiPicker';
 import {
   AutoThemeIcon,
   CheckIcon,
@@ -84,6 +85,30 @@ export default function Patterns() {
   const [error, setError] = useState<string | null>(null);
   const [emojiVersion, setEmojiVersion] = useState(0);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Emoji picker popover state. The wrap ref scopes the click-outside
+  // handler — any click NOT inside the wrap (button + popover) closes
+  // the picker. Escape also closes.
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const emojiPickerWrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!emojiPickerOpen) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (!emojiPickerWrapRef.current?.contains(e.target as Node)) {
+        setEmojiPickerOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setEmojiPickerOpen(false);
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [emojiPickerOpen]);
 
   // Defer the config used by the renderer so high-frequency slider input
   // doesn't trigger a render per pixel of drag — React schedules the
@@ -394,30 +419,22 @@ export default function Patterns() {
                       )}
                     </div>
                   ))}
-                  {/* Inline add-emoji slot. Typing or pasting an emoji
-                      fires onChange, splits into code points, appends
-                      non-ASCII characters to the chip list, and clears
-                      the input. On macOS Cmd+Ctrl+Space / Windows
-                      Win+. / Linux compose-key emoji picker, the OS
-                      inserts the picked emoji here and it lands in
-                      the list immediately. */}
-                  <input
-                    type="text"
-                    className="add-emoji"
-                    placeholder="+"
-                    aria-label="Add emoji"
-                    onChange={(e) => {
-                      const incoming = Array.from(e.target.value).filter(
-                        (c) => c.trim() && (c.codePointAt(0) ?? 0) > 127,
-                      );
-                      if (incoming.length === 0) {
-                        e.target.value = '';
-                        return;
-                      }
-                      patch({ emojis: [...config.emojis, ...incoming] });
-                      e.target.value = '';
-                    }}
-                  />
+                  <div className="emoji-picker-wrap" ref={emojiPickerWrapRef}>
+                    <button
+                      type="button"
+                      className="add-emoji"
+                      aria-label="Add emoji"
+                      aria-expanded={emojiPickerOpen}
+                      onClick={() => setEmojiPickerOpen((o) => !o)}
+                    >
+                      +
+                    </button>
+                    {emojiPickerOpen && (
+                      <EmojiPicker
+                        onPick={(emoji) => patch({ emojis: [...config.emojis, emoji] })}
+                      />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="colors-row">
