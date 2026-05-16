@@ -1,4 +1,5 @@
 mod desktop;
+mod integrate;
 mod library;
 mod monitor;
 
@@ -38,6 +39,12 @@ pub fn run() {
             monitor::get_primary_monitor_pixels,
         ])
         .setup(|app| {
+            // Self-integrate when launched from an AppImage on Linux —
+            // copies the running .AppImage into ~/.local/bin and writes
+            // a .desktop entry so the launcher picks it up. No-op on
+            // macOS / Windows.
+            integrate::integrate_if_needed();
+
             #[cfg(desktop)]
             {
                 let show_i =
