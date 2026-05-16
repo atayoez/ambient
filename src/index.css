@@ -591,16 +591,12 @@ input[type='range']:active::-moz-range-thumb {
    Centered with a sensible max-width so it doesn't span the entire 1280px
    library width on big monitors. */
 .library-controls {
+  /* Just centering + width; the inner .inspector-section now carries
+     the visual tile (bg + border + radius + drop-shadow), so the outer
+     wrapper would only be nesting tile-in-tile if we kept its chrome. */
   align-self: center;
   width: 100%;
   max-width: 480px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  padding: 12px 16px;
-  box-shadow:
-    0 3px 8px rgba(0, 0, 0, 0.10),
-    inset 0 1px 0 var(--highlight-edge);
 }
 
 .library-grid {
@@ -919,9 +915,21 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .inspector-section {
+  /* Each section in the inspector is now a tile: same bg + border +
+     radius + drop-shadow recipe as .preview-wrap / .library-controls /
+     .card. The h3 eyebrow inside stays muted to read as a label, not a
+     card title. Padding insets the contents so the chips / sliders /
+     segmented controls don't kiss the tile edge. */
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  padding: 14px 16px;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .inspector-section h3 {
@@ -1057,6 +1065,9 @@ input[type='range']:active::-moz-range-thumb {
    Drops in place of the color-chip row when type='emoji'. Wider than a
    color chip so the glyph reads at the same scale Patterns renders it. */
 .emoji-chip {
+  /* Same pill geometry + drop-shadow as the color chips, so the two
+     chip flavors read as a single family. The drop-shadow lifts each
+     chip slightly off the inspector tile underneath. */
   position: relative;
   width: 38px;
   height: 38px;
@@ -1067,9 +1078,12 @@ input[type='range']:active::-moz-range-thumb {
   line-height: 1;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
+  border-radius: var(--radius-pill);
   user-select: none;
   -webkit-user-select: none;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .color-chip {
