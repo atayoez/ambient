@@ -62,7 +62,7 @@ interface InspectorSectionProps {
 
 export function InspectorSection({ title, children }: InspectorSectionProps) {
   return (
-    <section className="inspector-section">
+    <section className="inspector-section has-spotlight">
       <h3>{title}</h3>
       {children}
     </section>

@@ -235,13 +235,16 @@ export default function App() {
         // the cursor target and stamp its card-local cursor coords. The
         // CSS for .has-spotlight reads these locals (shadowing the :root
         // ones inside the card) to anchor the radial-gradient ::before
-        // at the cursor.
+        // at the cursor. scrollLeft / scrollTop are added so the gradient
+        // tracks correctly inside scroll containers like .library (the
+        // ::before is absolute-positioned and scrolls with content, so
+        // its content-space coords need the scroll offset added).
         const target = e.target as HTMLElement | null;
         const spotEl = target?.closest('.has-spotlight') as HTMLElement | null;
         if (spotEl) {
           const rect = spotEl.getBoundingClientRect();
-          spotEl.style.setProperty('--mouse-x', `${x - rect.left}px`);
-          spotEl.style.setProperty('--mouse-y', `${y - rect.top}px`);
+          spotEl.style.setProperty('--mouse-x', `${x - rect.left + spotEl.scrollLeft}px`);
+          spotEl.style.setProperty('--mouse-y', `${y - rect.top + spotEl.scrollTop}px`);
         }
 
         raf = 0;
@@ -296,7 +299,7 @@ export default function App() {
 
   return (
     <div className="app" data-maximized={isMaximized || undefined}>
-      <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
+      <header className="titlebar has-spotlight" onMouseDown={onTitlebarMouseDown}>
         <div className="titlebar-drag" />
         <div className="window-controls">
           <button onClick={minimize} aria-label="Minimize" className="wc">
@@ -375,7 +378,7 @@ export default function App() {
         // bottom-center of the window. Outside <main> so it doesn't
         // participate in tab-content scroll, and gated on `license` so the
         // gate screen isn't littered with non-functional nav.
-        <nav className="tabs" ref={tabsContainerRef}>
+        <nav className="tabs has-spotlight" ref={tabsContainerRef}>
           <div className="tab-indicator" />
           {TABS.map(({ id, label }, idx) => (
             <button

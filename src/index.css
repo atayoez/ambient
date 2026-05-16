@@ -148,46 +148,16 @@ textarea,
   flex: 1;
 }
 
-/* Per-surface specular for the titlebar — soft horizontal highlight band
-   that follows the cursor when it's anywhere in the window. Stays
-   pointer-events: none so drag/click still works through it. */
-.titlebar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse 200px 60px at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(255, 255, 255, 0.06) 0%,
-    rgba(255, 255, 255, 0.02) 40%,
-    transparent 70%
-  );
-  z-index: 0;
-}
-
 .titlebar > * {
   position: relative;
   z-index: 1;
 }
 
-/* Save toast is a smaller glass surface — give it a faint highlight too
-   so it reads as the same material as everything else. */
+/* Save toast uses isolation so its hover spotlight stays contained within
+   its own stacking context, instead of poking through the toast's
+   semi-transparent background. */
 .save-toast {
   isolation: isolate;
-}
-
-.save-toast::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: radial-gradient(
-    ellipse 100px 40px at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(255, 255, 255, 0.08) 0%,
-    transparent 60%
-  );
-  z-index: -1;
 }
 
 /* Floating bottom tab pill — sits over the content area, blurred-glass
@@ -1567,8 +1537,6 @@ button.primary.icon-btn {
   .app {
     transform: none;
   }
-  .titlebar::before,
-  .save-toast::before,
   .has-spotlight::before {
     display: none;
   }
@@ -1591,8 +1559,6 @@ button.primary.icon-btn {
     -webkit-backdrop-filter: none;
     transform: none;
   }
-  .titlebar::before,
-  .save-toast::before,
   .has-spotlight::before {
     display: none;
   }
