@@ -83,65 +83,13 @@ textarea,
   box-shadow: none;
 }
 
-/* Liquid-glass enhancements — specular dome + slow shimmer band.
-   Pure CSS approximation of Apple's Liquid Glass; not 1:1 (that requires
-   Metal-level compositor shaders) but visually closer than flat
-   backdrop-filter alone. Pseudo-elements sit between the background and
-   foreground content; we lift content with z-index so it stays interactive. */
-.app::before,
-.app::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  z-index: 0;
-}
-
-.app::before {
-  /* Specular highlight — tracks the cursor when motion is allowed,
-     otherwise falls back to a static top-left dome. Mouse coords are
-     pushed onto :root by an App.tsx RAF-throttled listener as
-     --mouse-x / --mouse-y px values. The fallback origin (18% 0%) is
-     where an off-screen light source would naturally hit a real dome. */
-  background: radial-gradient(
-    ellipse 520px 380px at var(--mouse-x, 18%) var(--mouse-y, 0%),
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 35%,
-    transparent 65%
-  );
-}
-
-.app::after {
-  /* Slow chromatic shimmer — sweeps a faint white band diagonally across
-     the surface over ~14s. Mix-blend-mode overlay tints rather than
-     paints, so it picks up the underlying gradient tones. */
-  background: linear-gradient(
-    115deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.025) 47%,
-    rgba(255, 255, 255, 0.045) 50%,
-    rgba(255, 255, 255, 0.025) 53%,
-    transparent 70%
-  );
-  background-size: 220% 100%;
-  mix-blend-mode: overlay;
-  animation: liquid-shimmer 14s linear infinite;
-}
-
-.app > * {
-  position: relative;
-  z-index: 1;
-}
-
-@keyframes liquid-shimmer {
-  0% {
-    background-position: 240% 0;
-  }
-  100% {
-    background-position: -140% 0;
-  }
-}
+/* The cursor-following specular highlight (.app::before) and slow
+   diagonal shimmer band (.app::after) used to live here. Both were
+   removed — the background is now achromatic and static, and the
+   visual interest moves to the per-preview ImageBleed halos. The
+   per-surface specular on .titlebar::before / .save-toast::before
+   stays because those track the cursor over small chrome elements,
+   not over the window background. */
 
 /* --- Custom titlebar — drag region + window controls only. Tab nav
    moved to a floating bottom pill (Liquid Glass / iOS style); see the
