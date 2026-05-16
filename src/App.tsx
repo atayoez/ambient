@@ -11,9 +11,10 @@ import Sources from './components/Sources';
 import UpdateBanner from './components/UpdateBanner';
 import { type LicenseInfo, loadLicense, validateLicense } from './lib/license';
 import { rotateNow } from './lib/rotation';
-import { loadSettings } from './lib/store';
+import { loadSettings, saveSettings } from './lib/store';
 import type { RotationSource } from './lib/types';
 import { checkForUpdate, type UpdateInfo } from './lib/updater';
+import { setWallpaper } from './lib/wallpaper';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate';
 
@@ -59,6 +60,18 @@ export default function App() {
   const [rotationCfg, setRotationCfg] = useState<{
     source: RotationSource;
     intervalMinutes: number;
+  } | null>(null);
+
+  // Theme-follow background feature: when enabled, the app listens for
+  // system prefers-color-scheme changes and reapplies whatever
+  // wallpaper was last applied in the new mode. The two slots are
+  // populated passively — every wallpaper apply (Sources fetch,
+  // Library pick, Patterns apply, Generate result) captures into the
+  // slot for the current system theme.
+  const [themeFollowCfg, setThemeFollowCfg] = useState<{
+    enabled: boolean;
+    lightPath: string | null;
+    darkPath: string | null;
   } | null>(null);
 
   // License gate: load the stored license, then validate in the
@@ -118,9 +131,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Load rotation config on mount, and re-load whenever Settings.tsx
-    // saves a change. Without this the auto-rotate interval below would
-    // be stuck on whatever values existed at app start.
+    // Load all background-feature settings on mount and re-load
+    // whenever any tab dispatches 'ambient-settings-changed'.
+    // Without this the auto-rotate interval + theme-follow listeners
+    // below would be stuck on whatever values existed at app start.
     let cancelled = false;
     async function reload() {
       const s = await loadSettings();
@@ -128,6 +142,11 @@ export default function App() {
       setRotationCfg({
         source: s.rotationSource,
         intervalMinutes: s.rotationIntervalMinutes,
+      });
+      setThemeFollowCfg({
+        enabled: s.themeFollow,
+        lightPath: s.themeFollowLightPath,
+        darkPath: s.themeFollowDarkPath,
       });
     }
     void reload();
@@ -153,6 +172,46 @@ export default function App() {
     }, ms);
     return () => clearInterval(id);
   }, [rotationCfg?.source, rotationCfg?.intervalMinutes]);
+
+  useEffect(() => {
+    // Theme-follow: reapply the matching slot whenever the system
+    // prefers-color-scheme flips. Listener is gated on the toggle so
+    // it doesn't do anything when the feature is off. The check runs
+    // even if the app is hidden to tray — Tauri keeps the WebView
+    // alive, so the matchMedia listener still fires.
+    if (!themeFollowCfg?.enabled) return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    function onChange() {
+      const path = mql.matches ? themeFollowCfg?.darkPath : themeFollowCfg?.lightPath;
+      if (path) void setWallpaper(path);
+    }
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [themeFollowCfg]);
+
+  useEffect(() => {
+    // Theme-follow slot capture: every wallpaper apply (dispatched via
+    // the 'ambient-wallpaper-applied' event from lib/wallpaper.ts)
+    // stamps its path into the slot matching the current system
+    // theme. Listener is gated so we don't churn settings writes when
+    // the feature is off.
+    if (!themeFollowCfg?.enabled) return;
+    function onApplied(e: Event) {
+      const path = (e as CustomEvent<string>).detail;
+      if (!path) return;
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      void (async () => {
+        const s = await loadSettings();
+        const next = { ...s };
+        if (dark) next.themeFollowDarkPath = path;
+        else next.themeFollowLightPath = path;
+        await saveSettings(next);
+        window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+      })();
+    }
+    window.addEventListener('ambient-wallpaper-applied', onApplied);
+    return () => window.removeEventListener('ambient-wallpaper-applied', onApplied);
+  }, [themeFollowCfg?.enabled]);
 
   useEffect(() => {
     const win = getCurrentWindow();

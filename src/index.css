@@ -1183,6 +1183,10 @@ input[type='range']:active::-moz-range-thumb {
    click-outside flow via the wrap ref in Patterns.tsx (DOM nesting
    still works under position: fixed). */
 .emoji-picker {
+  /* Same glass recipe as the bottom .tabs pill: low-alpha white tint
+     so the backdrop-filter blur has something to bind to, subtle white
+     border, float-depth drop-shadow + inset top-sheen. Reads as part
+     of the same family of glass surfaces. */
   position: fixed;
   bottom: 92px;
   left: 50%;
@@ -1190,7 +1194,7 @@ input[type='range']:active::-moz-range-thumb {
   width: min(360px, calc(100vw - 32px));
   max-height: min(360px, calc(100vh - 180px));
   overflow-y: auto;
-  background: rgba(30, 30, 36, 0.92);
+  background: rgba(255, 255, 255, 0.06);
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1203,12 +1207,6 @@ input[type='range']:active::-moz-range-thumb {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-@media (prefers-color-scheme: light) {
-  .emoji-picker {
-    background: rgba(250, 250, 252, 0.95);
-  }
 }
 
 .emoji-picker-cat-title {

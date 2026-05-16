@@ -11,6 +11,7 @@ import {
 import { TrashIcon, XIcon } from './Icons';
 import { InspectorSection, StatusInline } from './layout';
 import RotationControl from './RotationControl';
+import ThemeFollowControl from './ThemeFollowControl';
 
 function readLastApplied(): string | null {
   try {
@@ -138,6 +139,11 @@ export default function Library() {
             label="Shuffle saved wallpapers"
             otherInUseHint="Sources auto-rotate is on — this will replace it."
           />
+        </InspectorSection>
+      </div>
+      <div className="library-controls">
+        <InspectorSection title="System theme">
+          <ThemeFollowControl />
         </InspectorSection>
       </div>
 

@@ -33,6 +33,15 @@ export interface Settings {
   openaiModel: string;
   rotationSource: RotationSource;
   rotationIntervalMinutes: number;
+  /** When true, App.tsx listens for `prefers-color-scheme` changes and
+   * reapplies whichever wallpaper was last applied in the new mode
+   * (themeFollowLightPath / themeFollowDarkPath). The two slots get
+   * populated automatically: every time a wallpaper is applied while
+   * the app is running, the slot for the current system theme
+   * captures its path. */
+  themeFollow: boolean;
+  themeFollowLightPath: string | null;
+  themeFollowDarkPath: string | null;
 }
 
 export interface Wallpaper {
@@ -56,4 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openaiModel: 'dall-e-3',
   rotationSource: 'off',
   rotationIntervalMinutes: 60,
+  themeFollow: false,
+  themeFollowLightPath: null,
+  themeFollowDarkPath: null,
 };
