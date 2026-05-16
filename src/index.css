@@ -1079,10 +1079,11 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .color-chip input[type='color'] {
-  /* Glass-pill border on the swatch; the chip IS the picked color so
-     `background` stays transparent (the native color input renders the
-     value), but the border + drop-shadow + radius match the other
-     glass-pill surfaces. */
+  /* Pill-shaped color swatch. The native color input has internal
+     padding around its swatch (~4px) and an inner border by default —
+     both have to be overridden via the WebKit pseudo-elements below
+     so the picked color reaches the pill's edge instead of sitting in
+     a bordered well. */
   width: 100%;
   height: 100%;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1090,9 +1091,24 @@ input[type='range']:active::-moz-range-thumb {
   padding: 0;
   background: transparent;
   cursor: pointer;
+  overflow: hidden;
   box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.12),
     inset 0 1px 0 var(--highlight-edge);
+}
+
+.color-chip input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-chip input[type='color']::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-pill);
+}
+
+.color-chip input[type='color']::-moz-color-swatch {
+  border: none;
+  border-radius: var(--radius-pill);
 }
 
 .chip-remove {

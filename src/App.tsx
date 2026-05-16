@@ -3,6 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
+import { ImageIcon, LayoutGridIcon, PaletteIcon, WandIcon } from './components/Icons';
 import Library from './components/Library';
 import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
@@ -16,15 +17,15 @@ import { checkForUpdate, type UpdateInfo } from './lib/updater';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate';
 
-// Tabs display a representative emoji glyph (rendered native, big) in
-// the bottom pill. `label` stays as the accessible name + the tooltip
-// text + the page-title H1 above each tab's content; the emoji is just
-// the visual surface inside the pill.
-const TABS: { id: Tab; label: string; emoji: string }[] = [
-  { id: 'patterns', label: 'Patterns', emoji: '🎨' },
-  { id: 'sources', label: 'Sources', emoji: '🌌' },
-  { id: 'generate', label: 'Generate', emoji: '✨' },
-  { id: 'library', label: 'Library', emoji: '🖼️' },
+// Tabs display an SVG icon (rendered big) in the bottom pill. `label`
+// stays as the accessible name + the tooltip text + the page-title H1
+// above each tab's content; the icon is just the visual surface inside
+// the pill.
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: 'patterns', label: 'Patterns', icon: <PaletteIcon size={24} /> },
+  { id: 'sources', label: 'Sources', icon: <ImageIcon size={24} /> },
+  { id: 'generate', label: 'Generate', icon: <WandIcon size={24} /> },
+  { id: 'library', label: 'Library', icon: <LayoutGridIcon size={24} /> },
 ];
 
 // Run a rotation and announce the result on the window. Sources.tsx
@@ -341,7 +342,7 @@ export default function App() {
           ref={tabsContainerRef}
         >
           <div className="tab-indicator" />
-          {TABS.map(({ id, label, emoji }, idx) => (
+          {TABS.map(({ id, label, icon }, idx) => (
             <button
               key={id}
               ref={(el) => {
@@ -352,7 +353,7 @@ export default function App() {
               aria-label={label}
               title={label}
             >
-              <span aria-hidden="true">{emoji}</span>
+              <span aria-hidden="true">{icon}</span>
             </button>
           ))}
         </nav>

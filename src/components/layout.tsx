@@ -108,7 +108,10 @@ export function StatusInline({ status, error }: StatusInlineProps) {
 interface SegmentedOption<T extends string> {
   id: T;
   label: string;
-  icon?: string;
+  /** Optional icon (SVG ReactNode). When provided, the option renders
+   * the icon ONLY — the `label` becomes the button's aria-label + title
+   * for screen readers and hover-tooltips. */
+  icon?: ReactNode;
 }
 
 interface SegmentedProps<T extends string> {
@@ -134,15 +137,18 @@ export function Segmented<T extends string>({
           type="button"
           role="radio"
           aria-checked={value === id}
+          aria-label={icon ? label : undefined}
+          title={icon ? label : undefined}
           className={value === id ? 'segment active' : 'segment'}
           onClick={() => onChange(id)}
         >
-          {icon && (
+          {icon ? (
             <span className="segment-icon" aria-hidden="true">
               {icon}
             </span>
+          ) : (
+            <span>{label}</span>
           )}
-          <span>{label}</span>
         </button>
       ))}
     </div>

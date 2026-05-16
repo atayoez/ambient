@@ -17,7 +17,15 @@ import {
 import { mutateLibrary } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
 import { setWallpaper } from '../lib/wallpaper';
-import { CheckIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
+import {
+  AutoThemeIcon,
+  CheckIcon,
+  MoonIcon,
+  PlusIcon,
+  ShuffleIcon,
+  SunIcon,
+  XIcon,
+} from './Icons';
 import {
   ControlRow,
   InspectorSection,
@@ -54,9 +62,9 @@ function pickInitialConfig(dark: boolean): PatternConfig {
 }
 
 const THEME_OPTIONS = [
-  { id: 'auto' as const, label: 'Auto', icon: '🌗' },
-  { id: 'light' as const, label: 'Light', icon: '☀' },
-  { id: 'dark' as const, label: 'Dark', icon: '🌙' },
+  { id: 'auto' as const, label: 'Auto', icon: <AutoThemeIcon size={16} /> },
+  { id: 'light' as const, label: 'Light', icon: <SunIcon size={16} /> },
+  { id: 'dark' as const, label: 'Dark', icon: <MoonIcon size={16} /> },
 ];
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

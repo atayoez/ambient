@@ -124,3 +124,71 @@ export function PlusIcon({ size = 14, className, style }: IconProps) {
     </SvgRoot>
   );
 }
+
+export function SunIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </SvgRoot>
+  );
+}
+
+export function MoonIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </SvgRoot>
+  );
+}
+
+export function AutoThemeIcon({ size = 14, className, style }: IconProps) {
+  // Half-filled circle (Lucide's Contrast). Reads as "half day, half
+  // night" — the canonical "follow system theme" indicator.
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none" />
+    </SvgRoot>
+  );
+}
+
+export function PaletteIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <circle cx="13.5" cy="6.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="17.5" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="8.5" cy="7.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="6.5" cy="12.5" r="0.6" fill="currentColor" stroke="none" />
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+    </SvgRoot>
+  );
+}
+
+export function ImageIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </SvgRoot>
+  );
+}
+
+export function LayoutGridIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <rect width="7" height="7" x="3" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" />
+      <rect width="7" height="7" x="3" y="14" rx="1" />
+    </SvgRoot>
+  );
+}
