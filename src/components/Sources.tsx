@@ -318,7 +318,6 @@ export default function Sources() {
   return (
     <div className="sources">
       <TabLayout
-        title="Sources"
         preview={
           <PreviewFrame empty={emptyMessage}>
             {previewPath ? (

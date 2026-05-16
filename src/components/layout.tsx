@@ -7,17 +7,18 @@ import type { CSSProperties, ReactNode } from 'react';
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 interface TabLayoutProps {
-  title?: string;
   preview: ReactNode;
   inspector: ReactNode;
   actions: ReactNode;
 }
 
-export function TabLayout({ title, preview, inspector, actions }: TabLayoutProps) {
+export function TabLayout({ preview, inspector, actions }: TabLayoutProps) {
+  // Tab titles moved to the window titlebar — see App.tsx. TabLayout
+  // no longer renders an h1; it just lays out the preview / inspector
+  // / actions grid for whichever tab's mounted.
   return (
     <div className="tab-grid">
       <div className="preview-col">
-        {title && <h1 className="page-title">{title}</h1>}
         {preview}
         <div className="preview-actions">{actions}</div>
       </div>

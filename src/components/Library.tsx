@@ -131,7 +131,6 @@ export default function Library() {
 
   return (
     <div className="library">
-      <h1 className="page-title">Library</h1>
       <div className="library-controls">
         <InspectorSection title="Shuffle">
           <RotationControl

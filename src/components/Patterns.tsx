@@ -353,7 +353,6 @@ export default function Patterns() {
   return (
     <div className="patterns">
       <TabLayout
-        title="Patterns"
         preview={
           <PreviewFrame>
             <canvas ref={previewRef} />

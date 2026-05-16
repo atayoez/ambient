@@ -143,7 +143,6 @@ export default function Generate() {
   return (
     <div className="generate">
       <TabLayout
-        title="Generate"
         preview={
           <PreviewFrame empty="Type a prompt and hit Generate to see a result here.">
             {lastResult ? <img src={convertFileSrc(lastResult)} alt={prompt} /> : null}

@@ -319,6 +319,11 @@ export default function App() {
     <div className="app" data-maximized={isMaximized || undefined}>
       <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
         <div className="titlebar-drag" />
+        {license && (
+          <h1 className="titlebar-title" aria-live="polite">
+            {TABS[activeTabIndex]?.label ?? ''}
+          </h1>
+        )}
         <div className="window-controls">
           <button onClick={minimize} aria-label="Minimize" className="wc">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
