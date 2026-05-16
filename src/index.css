@@ -185,23 +185,31 @@ textarea,
 }
 
 .tab {
+  /* Each tab renders a big emoji glyph (🎨 🌌 ✨ 🖼️). The font-size
+     bump from --fs-caption to 22px is what makes the emoji read as a
+     proper nav target instead of a tiny chip. line-height: 1 keeps the
+     emoji vertically centered without expanding the pill's height. */
   position: relative;
-  min-width: 70px;
+  min-width: 56px;
   height: 28px;
-  padding: 0 14px;
+  padding: 0 12px;
   background: transparent;
   border: none;
   outline: none;
   box-shadow: none;
   color: var(--muted);
   font: inherit;
-  font-size: var(--fs-caption);
+  font-size: 22px;
+  line-height: 1;
   font-weight: var(--fw-medium);
   cursor: pointer;
   border-radius: var(--radius-inline);
   z-index: 1;
   transition: color var(--t-base) ease;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tab:hover,
@@ -379,6 +387,14 @@ input[type='search']:focus,
 textarea:focus,
 select:focus {
   border-color: var(--accent);
+}
+
+/* Textareas are tall and growable, so the full pill radius clipped
+   their text at the rounded ends — especially once a user dragged to
+   expand them. Step down to the container radius (12px) so the corners
+   stay rounded but don't crowd the writing area. */
+textarea {
+  border-radius: var(--radius-container);
 }
 
 select {

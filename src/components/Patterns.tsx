@@ -398,10 +398,6 @@ export default function Patterns() {
                     }
                     placeholder="✨🌙⭐💫🪐"
                   />
-                  <p className="muted small">
-                    Click × on a chip to remove, or paste a new emoji string above.
-                    Rendered in Microsoft Fluent style.
-                  </p>
                 </>
               ) : (
                 <div className="colors-row">

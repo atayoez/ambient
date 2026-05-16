@@ -16,11 +16,15 @@ import { checkForUpdate, type UpdateInfo } from './lib/updater';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate';
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'patterns', label: 'Patterns' },
-  { id: 'sources', label: 'Sources' },
-  { id: 'generate', label: 'Generate' },
-  { id: 'library', label: 'Library' },
+// Tabs display a representative emoji glyph (rendered native, big) in
+// the bottom pill. `label` stays as the accessible name + the tooltip
+// text + the page-title H1 above each tab's content; the emoji is just
+// the visual surface inside the pill.
+const TABS: { id: Tab; label: string; emoji: string }[] = [
+  { id: 'patterns', label: 'Patterns', emoji: '🎨' },
+  { id: 'sources', label: 'Sources', emoji: '🌌' },
+  { id: 'generate', label: 'Generate', emoji: '✨' },
+  { id: 'library', label: 'Library', emoji: '🖼️' },
 ];
 
 // Run a rotation and announce the result on the window. Sources.tsx
@@ -326,7 +330,7 @@ export default function App() {
         // gate screen isn't littered with non-functional nav.
         <nav className="tabs" ref={tabsContainerRef}>
           <div className="tab-indicator" />
-          {TABS.map(({ id, label }, idx) => (
+          {TABS.map(({ id, label, emoji }, idx) => (
             <button
               key={id}
               ref={(el) => {
@@ -334,8 +338,10 @@ export default function App() {
               }}
               className={tab === id ? 'tab active' : 'tab'}
               onClick={() => setTab(id)}
+              aria-label={label}
+              title={label}
             >
-              {label}
+              <span aria-hidden="true">{emoji}</span>
             </button>
           ))}
         </nav>
