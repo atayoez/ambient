@@ -55,35 +55,16 @@ textarea,
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* Opaque base + three layered radial-gradient bleeds driven by
-     --bleed-c-{0,1,2}. Patterns.tsx pushes its config.colors onto
-     :root so the window background picks up the active palette;
-     other tabs fall back to subtle achromatic grays defined in
-     design-system/colors_and_type.css.
-     Replaces the previous backdrop-filter + SVG turbulence chain —
-     the live blur of the desktop wallpaper was a constant per-frame
-     GPU cost (much worse on integrated graphics + WebKitGTK), and the
-     SVG-filter path on macOS was the heaviest part of it. The window
-     is still Tauri-transparent so the rounded corners + drop shadow
-     read as a shaped panel, but everything inside the panel paints
-     against an opaque surface now. */
-  background:
-    radial-gradient(
-      ellipse 90% 70% at 100% 0%,
-      color-mix(in srgb, var(--bleed-c-0) 38%, transparent) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      ellipse 85% 75% at 0% 100%,
-      color-mix(in srgb, var(--bleed-c-1) 32%, transparent) 0%,
-      transparent 65%
-    ),
-    radial-gradient(
-      ellipse 65% 65% at 100% 100%,
-      color-mix(in srgb, var(--bleed-c-2) 28%, transparent) 0%,
-      transparent 70%
-    ),
-    var(--bg-base);
+  /* Opaque surface — the panel's interior. The Tauri window is still
+     `transparent: true` so the rounded-corner + drop-shadow shape
+     reads as a floating window, but the WebView paints against this
+     solid color rather than re-blurring the desktop wallpaper every
+     frame. Saves the constant GPU cost the old
+     `backdrop-filter: blur(...) [url(#liquid-refract)]` chain incurred.
+     Per-image edge bleed (when a preview is showing) lives locally
+     around each <img> / <canvas> via the ImageBleed component; the
+     window background itself stays achromatic. */
+  background: var(--bg-base);
   border-radius: var(--radius-window);
   border: 1px solid var(--border-strong);
   box-shadow:
