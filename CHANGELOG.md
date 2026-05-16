@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.3.0] — 2026-05-16
+
+### Added
 - "Follow system theme" toggle in Library: when on, the desktop
   wallpaper auto-switches whenever the OS flips between light and
   dark mode. The two slots populate passively — whatever wallpaper
