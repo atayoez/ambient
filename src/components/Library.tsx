@@ -104,9 +104,7 @@ const LibraryCard = memo(
               onClick={() => onRequestDelete(w.path)}
               className="danger-ghost icon-btn"
               aria-label="Delete"
-              title={
-                isCurrent ? 'Currently applied — switch wallpaper first' : 'Delete'
-              }
+              title={isCurrent ? 'Currently applied — switch wallpaper first' : 'Delete'}
               disabled={isCurrent || busy}
             >
               <TrashIcon />

@@ -33,7 +33,9 @@ export interface UpdateInfo {
 
 /** Returns the new UpdateInfo if a newer version is available AND the
  *  user hasn't dismissed it. Returns null otherwise. */
-export async function checkForUpdate(_currentVersion: string): Promise<UpdateInfo | null> {
+export async function checkForUpdate(
+  _currentVersion: string,
+): Promise<UpdateInfo | null> {
   const last = Number(localStorage.getItem(LAST_CHECK_KEY) || '0');
   if (Number.isFinite(last) && Date.now() - last < CHECK_THROTTLE_MS) {
     return null;
@@ -42,7 +44,7 @@ export async function checkForUpdate(_currentVersion: string): Promise<UpdateInf
   try {
     const update = await check();
     localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
-    if (!update || !update.available) return null;
+    if (!update?.available) return null;
 
     const dismissed = localStorage.getItem(DISMISSED_KEY);
     if (dismissed === update.version) return null;

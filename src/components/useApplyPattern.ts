@@ -3,9 +3,9 @@
 // as wallpaper. Owns busy / status / error so the Patterns component
 // stays declarative.
 
-import { useCallback, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { primaryMonitor } from '@tauri-apps/api/window';
+import { useCallback, useRef, useState } from 'react';
 import {
   PATTERN_TYPES,
   type PatternConfig,

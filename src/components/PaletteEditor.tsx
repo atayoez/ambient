@@ -5,9 +5,9 @@
 // escape-to-close behaviour is colocated with the trigger.
 
 import { useEffect, useRef, useState } from 'react';
+import type { PatternType } from '../lib/patterns';
 import EmojiPicker from './EmojiPicker';
 import { PlusIcon, XIcon } from './Icons';
-import type { PatternType } from '../lib/patterns';
 
 interface PaletteEditorProps {
   type: PatternType;

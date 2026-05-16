@@ -13,13 +13,7 @@ import {
   TYPE_DEFAULTS,
 } from '../lib/patterns';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
-import {
-  AutoThemeIcon,
-  CheckIcon,
-  MoonIcon,
-  ShuffleIcon,
-  SunIcon,
-} from './Icons';
+import { AutoThemeIcon, CheckIcon, MoonIcon, ShuffleIcon, SunIcon } from './Icons';
 import {
   ControlRow,
   InspectorSection,

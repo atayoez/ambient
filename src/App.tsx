@@ -146,15 +146,10 @@ export default function App() {
           // single frame on warm disk cache.
           <div className="splash" />
         ) : !license ? (
-          <LicenseGate
-            revokedMessage={revokedMsg}
-            onActivated={onActivated}
-          />
+          <LicenseGate revokedMessage={revokedMsg} onActivated={onActivated} />
         ) : (
           <>
-            {updateInfo && (
-              <UpdateBanner info={updateInfo} onDismiss={dismissUpdate} />
-            )}
+            {updateInfo && <UpdateBanner info={updateInfo} onDismiss={dismissUpdate} />}
             {TABS.map((t) => {
               // Lazy on first visit, sticky after — preserves draft
               // state across tab switches. display:contents makes the
@@ -165,9 +160,7 @@ export default function App() {
               return (
                 <div
                   key={t.id}
-                  style={
-                    tab === t.id ? { display: 'contents' } : { display: 'none' }
-                  }
+                  style={tab === t.id ? { display: 'contents' } : { display: 'none' }}
                 >
                   <ErrorBoundary>
                     {t.id === 'patterns' && <Patterns />}
