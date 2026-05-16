@@ -299,7 +299,7 @@ export default function App() {
 
   return (
     <div className="app" data-maximized={isMaximized || undefined}>
-      <header className="titlebar has-spotlight" onMouseDown={onTitlebarMouseDown}>
+      <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
         <div className="titlebar-drag" />
         <div className="window-controls">
           <button onClick={minimize} aria-label="Minimize" className="wc">
