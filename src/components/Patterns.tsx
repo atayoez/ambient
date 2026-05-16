@@ -88,13 +88,6 @@ export default function Patterns() {
   // current config.
   const renderRef = useRef<() => void>(() => {});
 
-  // Bleed source for the PreviewFrame halo — a downscaled JPEG data URL
-  // derived from the rendered preview canvas. Updated at the end of each
-  // useLayoutEffect render below. The scratch canvas is reused across
-  // renders to avoid per-frame allocation pressure.
-  const [bleedSrc, setBleedSrc] = useState<string | null>(null);
-  const scratchRef = useRef<HTMLCanvasElement | null>(null);
-
   // Re-apply the active preset's variant when the resolved theme flips.
   // Custom palettes (where the user manually edited a chip and
   // colorPresetId got cleared) survive the swap unchanged.
@@ -127,24 +120,6 @@ export default function Patterns() {
       canvas.width = Math.round(rect.width * dpr);
       canvas.height = Math.round(rect.height * dpr);
       renderPattern(ctx, canvas.width, canvas.height, deferredConfig);
-
-      // Update the bleed thumbnail. drawImage downscales the main canvas
-      // into a tiny scratch (128×72 — heavy CSS blur in ImageBleed means
-      // pixel detail is invisible) and toDataURL serializes it as a JPEG
-      // data URI. The scratch canvas is reused across renders. The whole
-      // op runs in single-digit ms even on integrated graphics, and only
-      // fires when deferredConfig changes (already debounced).
-      if (!scratchRef.current) {
-        scratchRef.current = document.createElement('canvas');
-        scratchRef.current.width = 128;
-        scratchRef.current.height = 72;
-      }
-      const scratch = scratchRef.current;
-      const sctx = scratch.getContext('2d');
-      if (sctx) {
-        sctx.drawImage(canvas, 0, 0, scratch.width, scratch.height);
-        setBleedSrc(scratch.toDataURL('image/jpeg', 0.5));
-      }
     };
     renderRef.current();
   }, [deferredConfig, emojiVersion]);
@@ -348,7 +323,7 @@ export default function Patterns() {
       <TabLayout
         title="Patterns"
         preview={
-          <PreviewFrame bleedSrc={bleedSrc}>
+          <PreviewFrame>
             <canvas ref={previewRef} />
           </PreviewFrame>
         }

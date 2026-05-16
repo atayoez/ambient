@@ -3,7 +3,6 @@
 // a vertical inspector with eyebrow-headed sections on the right, and
 // a single action bar across the bottom.
 import type { CSSProperties, ReactNode } from 'react';
-import ImageBleed from './ImageBleed/ImageBleed';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -30,25 +29,13 @@ export function TabLayout({ title, preview, inspector, actions }: TabLayoutProps
 interface PreviewFrameProps {
   children?: ReactNode;
   empty?: ReactNode;
-  /** Optional image URL whose colors bleed outward from the preview's
-   * edges as a soft halo. For canvas-based previews (Patterns), derive
-   * via a downscaled canvas.toDataURL(). When null/empty the preview
-   * renders without a halo. */
-  bleedSrc?: string | null;
 }
 
-export function PreviewFrame({ children, empty, bleedSrc }: PreviewFrameProps) {
-  const inner = (
+export function PreviewFrame({ children, empty }: PreviewFrameProps) {
+  return (
     <div className="preview-wrap">
       {children ?? (empty != null && <div className="preview-empty">{empty}</div>)}
     </div>
-  );
-  return bleedSrc ? (
-    <ImageBleed bleedSrc={bleedSrc} className="preview-bleed-wrapper">
-      {inner}
-    </ImageBleed>
-  ) : (
-    inner
   );
 }
 
