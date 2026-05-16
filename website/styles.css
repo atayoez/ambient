@@ -1,10 +1,10 @@
 /*
  * Ambient marketing site.
  *
- * Mirrors the app's design tokens verbatim — same Cosmic palette,
- * same liquid-glass surfaces, same SF/system stack. This is intentional:
- * the site should feel like an extension of the product, not a
- * separate brand layer.
+ * Mirrors the app's design tokens verbatim — achromatic Liquid Glass,
+ * surfaces stay neutral, colour comes from the wallpaper screenshots
+ * themselves. Lavender / cosmic accents are out app-side, so they're
+ * out site-side too.
  */
 
 :root {
@@ -14,15 +14,9 @@
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Cosmic palette */
-  --cosmic-bg: #0a0814;
-  --cosmic-1: #0c0a1f;
-  --cosmic-2: #7c5cff;
-  --cosmic-3: #ec4899;
-  --cosmic-4: #fbbf24;
-  --cosmic-5: #f1ecff;
+  /* Achromatic Liquid Glass — mirrors design-system/colors_and_type.css. */
+  --bg-base: rgb(18, 18, 22);
 
-  /* Achromatic surfaces — same Liquid Glass tokens as the app */
   --surface: rgba(255, 255, 255, 0.04);
   --surface-2: rgba(255, 255, 255, 0.08);
   --surface-3: rgba(255, 255, 255, 0.14);
@@ -32,18 +26,30 @@
 
   --text: #f5f5f7;
   --muted: #a1a1aa;
-  --accent: #b794f6;
-  --accent-hover: #d6bcff;
+
+  /* Accent: near-opaque white on dark, near-opaque black on light. The
+   * surface stays achromatic; we only use --accent on interactive emphasis
+   * (focus borders, primary fill, link underlines). */
+  --accent: rgba(255, 255, 255, 0.92);
+  --accent-fill: rgba(255, 255, 255, 0.88);
+  --accent-fill-hover: rgba(255, 255, 255, 0.96);
+  --accent-text: #1c1c1e;
 
   --radius-inline: 10px;
   --radius-container: 16px;
   --radius-window: 22px;
+  --radius-pill: 999px;
 
   --blur-window: blur(40px) saturate(180%);
   --shadow-window: 0 32px 80px rgba(0, 0, 0, 0.55);
+  --shadow-primary: 0 6px 16px rgba(0, 0, 0, 0.28);
 
+  --t-fast: 120ms;
   --t-base: 220ms;
   --ease-pill: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --fw-medium: 500;
+  --fw-semibold: 600;
 
   --content-w: 1180px;
 }
@@ -59,7 +65,7 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   color: var(--text);
-  background: var(--cosmic-bg);
+  background: var(--bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -90,7 +96,7 @@ code {
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
-  background: rgba(10, 8, 20, 0.6);
+  background: rgba(18, 18, 22, 0.6);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--border);
@@ -235,13 +241,14 @@ code {
 }
 
 .gradient-text {
+  /* Achromatic emphasis: subtle vertical fade for depth, no chromatic
+     shift. Colour on the page should come from the screenshots, not from
+     the heading. */
   display: block;
   background: linear-gradient(
-    100deg,
-    var(--cosmic-2) 0%,
-    var(--cosmic-3) 40%,
-    var(--cosmic-4) 70%,
-    var(--cosmic-5) 100%
+    180deg,
+    var(--text) 0%,
+    color-mix(in oklch, var(--text) 65%, var(--muted)) 100%
   );
   background-clip: text;
   -webkit-background-clip: text;
@@ -282,19 +289,19 @@ code {
 }
 
 .btn-primary {
-  color: white;
-  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
-  border-color: rgba(255, 255, 255, 0.18);
+  /* Achromatic primary — same recipe as the app's button.primary: solid
+     near-opaque fill with subtle gradient, contrasting text. */
+  color: var(--accent-text);
+  background: linear-gradient(180deg, var(--accent-fill-hover), var(--accent-fill));
+  border-color: transparent;
   box-shadow:
-    0 8px 24px rgba(124, 92, 255, 0.35),
+    var(--shadow-primary),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow:
-    0 12px 32px rgba(124, 92, 255, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  background: var(--accent-fill-hover);
 }
 
 .btn-ghost {
@@ -319,40 +326,32 @@ code {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--cosmic-2);
-  box-shadow: 0 0 12px var(--cosmic-2);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
 /* --- Hero atmospheric layers --- */
 
 .hero-aurora {
+  /* Achromatic ambient glow — two soft white puffs replace the old
+     lavender/pink/yellow aurora. No drift animation; the chrome stays
+     still. The SVG refraction filter is also gone (cleaner without). */
   position: absolute;
   inset: -10% -10% 30%;
   z-index: -1;
   background:
     radial-gradient(
       ellipse 800px 500px at 20% 30%,
-      rgba(124, 92, 255, 0.35),
+      rgba(255, 255, 255, 0.12),
       transparent 60%
     ),
     radial-gradient(
       ellipse 700px 400px at 80% 60%,
-      rgba(236, 72, 153, 0.3),
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse 600px 350px at 50% 80%,
-      rgba(251, 191, 36, 0.18),
+      rgba(255, 255, 255, 0.08),
       transparent 60%
     );
-  filter: blur(40px) url(#liquid-refract);
-  animation: drift 24s ease-in-out infinite;
+  filter: blur(40px);
   pointer-events: none;
-}
-
-@keyframes drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-20px, -10px) scale(1.05); }
 }
 
 .hero-stars {
@@ -370,13 +369,8 @@ code {
   pointer-events: none;
 }
 
-/* --- Floating app preview --- */
-
-.hero-preview {
-  position: relative;
-  z-index: 0;
-}
-
+/* Reusable glass material — used by .demo-frame, .price-card,
+   .about-card, .dl-card. Same recipe as the app's window surface. */
 .glass {
   background: var(--surface);
   backdrop-filter: var(--blur-window);
@@ -385,88 +379,7 @@ code {
   box-shadow: var(--shadow-window), inset 0 1px 0 var(--highlight-edge);
 }
 
-.preview-shell {
-  border-radius: var(--radius-window);
-  overflow: hidden;
-  transform: perspective(2000px) rotateY(-6deg) rotateX(4deg);
-  transform-origin: center;
-  transition: transform var(--t-base) ease;
-}
-
-.preview-shell:hover {
-  transform: perspective(2000px) rotateY(-3deg) rotateX(2deg);
-}
-
-.preview-titlebar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.preview-titlebar .dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--surface-3);
-}
-
-.preview-titlebar .red { background: #ff5f57; }
-.preview-titlebar .yellow { background: #febc2e; }
-.preview-titlebar .green { background: #28c840; }
-
-.preview-title {
-  margin-left: 10px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.preview-body {
-  display: grid;
-  grid-template-columns: 1fr 200px;
-  gap: 18px;
-  padding: 20px;
-}
-
-.preview-canvas {
-  aspect-ratio: 16 / 9;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background:
-    radial-gradient(ellipse at 30% 20%, var(--cosmic-2), transparent 50%),
-    radial-gradient(ellipse at 70% 60%, var(--cosmic-3), transparent 50%),
-    radial-gradient(ellipse at 50% 90%, var(--cosmic-4), transparent 50%),
-    var(--cosmic-1);
-  filter: blur(0.5px);
-}
-
-.preview-inspector {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ins-line {
-  height: 8px;
-  background: var(--surface-2);
-  border-radius: 4px;
-}
-
-.ins-line.short {
-  width: 60%;
-}
-
-.ins-pill {
-  height: 22px;
-  background: var(--surface-2);
-  border-radius: 11px;
-  margin-top: 6px;
-}
-
-/* --- Hero variant: single column, content centered (when there's no
-       preview card on the right) --- */
+/* --- Hero variant: single column, content centered --- */
 .hero-center {
   grid-template-columns: 1fr;
   text-align: center;
@@ -490,6 +403,10 @@ code {
 /* ============================================================ */
 /* Interactive sneak-peek demo                                    */
 /* ============================================================ */
+/* PNG gallery — each tab swaps between screenshots captured from
+   the live app at 868x648 (window + drop shadow). The earlier
+   live-canvas + CSS-stock mocks are gone; visitors see the real
+   product chrome. */
 
 .demo {
   max-width: var(--content-w);
@@ -507,42 +424,39 @@ code {
 }
 
 .demo-frame {
-  max-width: 980px;
+  max-width: 900px;
   margin: 0 auto;
-  border-radius: var(--radius-window);
-  overflow: hidden;
-  text-align: left;
-}
-
-.demo-titlebar {
   display: flex;
-  align-items: center;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  gap: 12px;
+  flex-direction: column;
+  gap: 22px;
 }
 
+/* Glass-pill tab nav — same recipe as the app's bottom .tabs pill. */
 .demo-tabs {
   display: inline-flex;
-  flex: 1;
+  align-self: center;
   align-items: center;
-  gap: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  padding: 2px;
+  gap: 0;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .demo-tab {
-  padding: 5px 12px;
-  font-size: 12.5px;
+  padding: 7px 18px;
+  font-size: 13px;
   font-weight: var(--fw-medium);
   font-family: inherit;
   color: var(--muted);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   transition: color var(--t-fast) ease, background var(--t-fast) ease;
 }
@@ -553,386 +467,41 @@ code {
 
 .demo-tab.active {
   color: var(--text);
-  background: var(--surface-2);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-
-.demo-traffic {
-  display: inline-flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.demo-dot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--surface-3);
-}
-
-.demo-dot.red    { background: #ff5f57; }
-.demo-dot.yellow { background: #febc2e; }
-.demo-dot.green  { background: #28c840; }
-
-/* Panel base — hidden by default, active wins. */
-.demo-tab-panel {
-  display: none;
-  padding: 22px;
-}
-
-.demo-tab-panel.active {
-  display: block;
-}
-
-/* Two-column preview + inspector layout, shared by Patterns / Sources / Generate. */
-.demo-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 20px;
-  align-items: start;
-}
-
-.demo-preview-col {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.demo-preview-wrap {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-container);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
-  overflow: hidden;
-  position: relative;
-}
-
-.demo-preview-wrap canvas,
-.demo-preview-wrap > div {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.demo-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.demo-actions button {
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: var(--fw-medium);
-  font-family: inherit;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  cursor: pointer;
-  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
-}
-
-.demo-actions button:hover {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-}
-
-.demo-actions button.primary {
-  color: white;
-  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
-  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.14);
   box-shadow:
-    0 4px 12px rgba(124, 92, 255, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
-/* Inspector + sections inside it. */
-.demo-inspector {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
+.demo-stage {
+  position: relative;
+  width: 100%;
+  /* Match the source PNG aspect (868 × 648). object-fit:contain
+     inside lets the screenshot keep its native proportions even if
+     the user later swaps a different-size PNG. */
+  aspect-ratio: 868 / 648;
 }
 
-.demo-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.demo-section h4 {
-  margin: 0;
-  font-size: 10.5px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.demo-type-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.demo-type-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-inline);
-  color: var(--text);
-  font-size: 13px;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
-}
-
-.demo-type-row:hover:not(.active) {
-  background: var(--surface);
-}
-
-.demo-type-row.active {
-  background: var(--surface-2);
-  border-color: var(--border);
-}
-
-.demo-type-emoji {
-  flex: 0 0 18px;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.demo-type-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.demo-type-name {
-  font-weight: var(--fw-medium);
-  font-size: 13px;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.demo-type-desc {
-  font-size: 10.5px;
-  color: var(--muted);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.demo-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.demo-presets button {
-  padding: 4px 10px;
-  font-size: 12px;
-  font-family: inherit;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  cursor: pointer;
-  transition: color var(--t-fast) ease, border-color var(--t-fast) ease;
-}
-
-.demo-presets button:hover,
-.demo-presets button.active {
-  color: var(--text);
-  border-color: var(--border-strong);
-}
-
-/* Stock-photo mocks for Sources and Generate panels — CSS-only so we
-   don't ship a 200-KB nebula JPG for the demo. */
-.demo-stock-photo {
+.demo-shot {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  position: relative;
+  display: block;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity var(--t-base) ease;
+  pointer-events: none;
 }
 
-.demo-stock-space {
-  background:
-    radial-gradient(ellipse 200px 140px at 30% 35%, rgba(124, 92, 255, 0.85), transparent 65%),
-    radial-gradient(ellipse 260px 180px at 70% 60%, rgba(236, 72, 153, 0.72), transparent 65%),
-    radial-gradient(ellipse 160px 120px at 55% 75%, rgba(251, 191, 36, 0.45), transparent 65%),
-    radial-gradient(1px 1px at 20% 25%, rgba(255, 255, 255, 0.9), transparent),
-    radial-gradient(1px 1px at 65% 18%, rgba(255, 255, 255, 0.7), transparent),
-    radial-gradient(1px 1px at 80% 70%, rgba(255, 255, 255, 0.6), transparent),
-    radial-gradient(1px 1px at 35% 80%, rgba(255, 255, 255, 0.8), transparent),
-    radial-gradient(1px 1px at 12% 60%, rgba(255, 255, 255, 0.5), transparent),
-    #050214;
+.demo-shot.active {
+  opacity: 1;
 }
 
-.demo-stock-ai {
-  background:
-    linear-gradient(180deg, transparent 60%, rgba(0, 0, 0, 0.4) 100%),
-    linear-gradient(180deg, #f8c8a0 0%, #d68b6e 40%, #5b4076 75%, #1e1b3a 100%);
-  position: relative;
-}
-
-.demo-stock-ai::after {
-  content: '';
-  position: absolute;
-  inset: 60% 0 0 0;
-  background:
-    linear-gradient(180deg, transparent, rgba(40, 30, 65, 0.95)),
-    repeating-linear-gradient(110deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 10px);
-  clip-path: polygon(0% 30%, 18% 10%, 32% 22%, 50% 5%, 70% 18%, 88% 8%, 100% 25%, 100% 100%, 0% 100%);
-}
-
-/* Library tab — CSS-gradient thumbnails as a stand-in for real saved
-   wallpapers. */
-.demo-library-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.demo-thumb {
-  aspect-ratio: 16 / 10;
-  border-radius: var(--radius-container);
-  border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
-  transition: transform var(--t-base) ease, border-color var(--t-base) ease;
-}
-
-.demo-thumb:hover {
-  transform: translateY(-1px);
-  border-color: var(--border-strong);
-}
-
-.demo-thumb-1 {
-  background:
-    radial-gradient(ellipse at 30% 40%, #7c5cff, transparent 60%),
-    radial-gradient(ellipse at 75% 65%, #ec4899, transparent 60%),
-    #0c0a1f;
-}
-
-.demo-thumb-2 {
-  background:
-    linear-gradient(135deg, #f8c8a0, #d68b6e, #5b4076);
-}
-
-.demo-thumb-3 {
-  background:
-    radial-gradient(ellipse at 50% 50%, #2e8bc0, transparent 70%),
-    radial-gradient(ellipse at 20% 80%, #5fd3bc, transparent 70%),
-    #011627;
-}
-
-.demo-thumb-4 {
-  background:
-    radial-gradient(ellipse at 65% 35%, #e94560, transparent 65%),
-    radial-gradient(ellipse at 30% 60%, #ff9f1c, transparent 65%),
-    #1f0e3d;
-}
-
-.demo-thumb-5 {
-  background:
-    repeating-linear-gradient(45deg, #fbcfe8 0 18px, #c7d2fe 18px 36px, #a7f3d0 36px 54px);
-}
-
-.demo-thumb-6 {
-  background:
-    radial-gradient(circle 12px at 25% 30%, #7c5cff, transparent),
-    radial-gradient(circle 14px at 70% 25%, #ec4899, transparent),
-    radial-gradient(circle 10px at 55% 65%, #fbbf24, transparent),
-    radial-gradient(circle 12px at 30% 75%, #f1ecff, transparent),
-    radial-gradient(circle 14px at 80% 80%, #7c5cff, transparent),
-    #0c0a1f;
-}
-
-/* Generate tab — readonly prompt textarea + mock provider list */
-.demo-prompt {
-  width: 100%;
-  min-height: 70px;
-  padding: 10px 12px;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  resize: none;
-}
-
-/* Settings tab */
-.demo-settings {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 22px;
-}
-
-.demo-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-.demo-field input,
-.demo-field select {
-  width: 100%;
-  padding: 9px 11px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: normal;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  opacity: 0.7;
-}
-
-.demo-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text);
-}
-
-/* Responsive — collapse the inspector below the preview on narrow
-   viewports. */
 @media (max-width: 760px) {
-  .demo-grid {
-    grid-template-columns: 1fr;
-  }
-  .demo-library-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .demo-settings {
-    grid-template-columns: 1fr;
-  }
   .demo-tabs {
     flex-wrap: wrap;
-  }
-  .demo-traffic {
-    display: none;
+    justify-content: center;
   }
 }
 
@@ -983,10 +552,11 @@ code {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--cosmic-2), var(--cosmic-3));
-  color: white;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
   margin-bottom: 16px;
-  box-shadow: 0 6px 16px rgba(124, 92, 255, 0.3);
+  box-shadow: inset 0 1px 0 var(--highlight-edge);
 }
 
 .feature h3 {
@@ -1042,9 +612,11 @@ code {
   inset: -50% -20% auto -20%;
   height: 80%;
   z-index: -1;
+  /* Achromatic ambient glow behind the price card — same recipe as the
+     app's .license-card-aurora. */
   background:
-    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(124, 92, 255, 0.32), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 40%, rgba(236, 72, 153, 0.22), transparent 60%);
+    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(255, 255, 255, 0.10), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 40%, rgba(255, 255, 255, 0.06), transparent 60%);
   filter: blur(48px);
   pointer-events: none;
 }
@@ -1070,11 +642,12 @@ code {
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1;
+  /* Same achromatic vertical fade as .gradient-text — keeps the price
+     hero-sized without re-introducing colour to a neutral surface. */
   background: linear-gradient(
-    100deg,
-    var(--cosmic-2) 0%,
-    var(--cosmic-3) 50%,
-    var(--cosmic-4) 100%
+    180deg,
+    var(--text) 0%,
+    color-mix(in oklch, var(--text) 65%, var(--muted)) 100%
   );
   background-clip: text;
   -webkit-background-clip: text;
@@ -1123,8 +696,8 @@ code {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: linear-gradient(180deg, var(--cosmic-2), var(--cosmic-3));
-  color: white;
+  background: var(--accent-fill);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
   display: inline-flex;
@@ -1132,7 +705,7 @@ code {
   justify-content: center;
   line-height: 1;
   margin-top: 1px;
-  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 
 .price-cta-row {
@@ -1186,45 +759,136 @@ code {
   line-height: 1.55;
 }
 
-.download-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  max-width: 820px;
-  margin: 0 auto;
-}
-
-.dl-card {
+/* Single primary download — detected platform gets the prominent slot,
+   the rest live under the <details> disclosure below. download.js
+   populates the glyph, OS label, arch meta + href on load; the values
+   in the markup are the non-JS fallback (macOS). */
+.dl-primary {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 26px 20px;
+  gap: 18px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 18px 22px;
   border-radius: var(--radius-container);
-  text-align: center;
+  text-align: left;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
   transition: transform var(--t-base) ease, border-color var(--t-base) ease;
 }
 
-.dl-card:hover {
-  transform: translateY(-2px);
+.dl-primary:hover {
+  transform: translateY(-1px);
   border-color: var(--accent);
 }
 
-.dl-platform {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.dl-primary-glyph {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  color: var(--text);
+  opacity: 0.85;
 }
 
-.dl-meta {
+.dl-primary-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dl-primary-os {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.dl-primary-meta {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.dl-primary-cta {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: var(--fw-semibold);
+  border-radius: var(--radius-inline);
+  background: linear-gradient(180deg, var(--accent-fill-hover), var(--accent-fill));
+  color: var(--accent-text);
+  box-shadow: var(--shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* "Other platforms" — native <details> disclosure. Small + muted so
+   it reads as secondary; opens to a plain list of every shipped
+   artifact. */
+.dl-alternatives {
+  max-width: 520px;
+  margin: 14px auto 0;
   font-size: 13px;
   color: var(--muted);
 }
 
+.dl-alternatives summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 6px 0;
+  text-align: center;
+  transition: color var(--t-base) ease;
+}
+
+.dl-alternatives summary::-webkit-details-marker {
+  display: none;
+}
+
+.dl-alternatives summary::after {
+  content: ' ▾';
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.dl-alternatives[open] summary::after {
+  content: ' ▴';
+}
+
+.dl-alternatives summary:hover {
+  color: var(--text);
+}
+
+.dl-alt-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dl-alt-list li {
+  margin: 0;
+}
+
+.dl-alt-list a {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 14px;
+  border-radius: var(--radius-inline);
+  color: var(--text);
+  transition: background var(--t-fast) ease;
+}
+
+.dl-alt-list a:hover {
+  background: var(--surface);
+}
+
+.dl-alt-list span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .dl-note {
-  margin-top: 24px;
+  margin-top: 28px;
   font-size: 13px;
   max-width: 540px;
   margin-left: auto;
@@ -1299,7 +963,7 @@ code {
 .trial-status {
   margin-top: 16px;
   font-size: 14px;
-  color: var(--cosmic-2);
+  color: var(--text);
 }
 
 .muted {
@@ -1337,8 +1001,8 @@ code {
   height: 70%;
   z-index: -1;
   background:
-    radial-gradient(ellipse 60% 60% at 30% 40%, rgba(124, 92, 255, 0.35), transparent 60%),
-    radial-gradient(ellipse 50% 50% at 75% 30%, rgba(236, 72, 153, 0.28), transparent 60%);
+    radial-gradient(ellipse 60% 60% at 30% 40%, rgba(255, 255, 255, 0.10), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 75% 30%, rgba(255, 255, 255, 0.06), transparent 60%);
   filter: blur(40px);
 }
 
@@ -1348,18 +1012,12 @@ code {
   margin: 0 auto 20px;
   position: relative;
   border-radius: 50%;
-  /* Two-layer glow: tight outline + softer accent halo. */
+  /* Achromatic edge — soft white-to-translucent ring instead of the
+     cosmic conic. Same depth, no colour. */
   padding: 3px;
-  background:
-    conic-gradient(
-      from 180deg,
-      var(--cosmic-2),
-      var(--cosmic-3),
-      var(--cosmic-4),
-      var(--cosmic-2)
-    );
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.12));
   box-shadow:
-    0 16px 40px rgba(124, 92, 255, 0.35),
+    0 16px 40px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
@@ -1369,7 +1027,7 @@ code {
   border-radius: 50%;
   display: block;
   object-fit: cover;
-  background: var(--cosmic-1);
+  background: var(--surface-3);
 }
 
 .about-eyebrow {
@@ -1392,8 +1050,8 @@ code {
 .about-role {
   margin: 0 0 22px;
   font-size: 14px;
-  color: var(--accent);
-  font-weight: 500;
+  color: var(--muted);
+  font-weight: var(--fw-medium);
   letter-spacing: -0.005em;
 }
 
@@ -1436,7 +1094,7 @@ code {
 }
 
 .about-link svg {
-  color: var(--accent);
+  color: var(--muted);
 }
 
 /* ============================================================ */
@@ -1580,24 +1238,9 @@ footer {
     justify-content: center;
   }
 
-  .preview-shell {
-    transform: none;
-  }
-
-  .preview-shell:hover {
-    transform: none;
-  }
-
-  .preview-body {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-aurora {
-    animation: none;
-  }
-  .preview-shell,
   .feature,
   .dl-card,
   .btn-primary:hover {
@@ -1609,13 +1252,12 @@ footer {
 /* ============================================================ */
 /* Light theme — toggled via .theme-light on <html>              */
 /* ============================================================ */
-/* Mirrors the achromatic Liquid Glass principle in light mode:  */
-/* near-white background, neutral text, deeper purple accent for */
-/* contrast against light surfaces.                              */
+/* Mirrors design-system/colors_and_type.css's light overrides:  */
+/* near-white background, dark text, achromatic black accent.    */
 
 :root.theme-light {
   color-scheme: light;
-  --cosmic-bg: #f7f5fb;
+  --bg-base: rgb(250, 250, 252);
   --surface: rgba(255, 255, 255, 0.5);
   --surface-2: rgba(255, 255, 255, 0.7);
   --surface-3: rgba(255, 255, 255, 0.92);
@@ -1624,39 +1266,26 @@ footer {
   --highlight-edge: rgba(0, 0, 0, 0.04);
   --text: #1c1c1e;
   --muted: #5e5e63;
-  --accent: #7c3aed;
-  --accent-hover: #6d28d9;
+  --accent: rgba(0, 0, 0, 0.82);
+  --accent-fill: rgba(0, 0, 0, 0.85);
+  --accent-fill-hover: rgba(0, 0, 0, 0.95);
+  --accent-text: #f5f5f7;
 }
 
 .theme-light body {
-  background: var(--cosmic-bg);
+  background: var(--bg-base);
   color: var(--text);
 }
 
 .theme-light .nav {
-  background: rgba(247, 245, 251, 0.7);
+  background: rgba(250, 250, 252, 0.7);
   border-bottom-color: var(--border);
-}
-
-.theme-light .gradient-text,
-.theme-light .price-number {
-  /* Same Cosmic palette but starting darker so it reads against white. */
-  background: linear-gradient(
-    100deg,
-    #5b21b6 0%,
-    #be185d 45%,
-    #c2410c 75%,
-    #92400e 100%
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
 }
 
 .theme-light .hero-aurora {
   background:
-    radial-gradient(ellipse 800px 500px at 20% 30%, rgba(124, 58, 237, 0.18), transparent 60%),
-    radial-gradient(ellipse 700px 400px at 80% 60%, rgba(236, 72, 153, 0.16), transparent 60%),
-    radial-gradient(ellipse 600px 350px at 50% 80%, rgba(251, 146, 60, 0.12), transparent 60%);
+    radial-gradient(ellipse 800px 500px at 20% 30%, rgba(0, 0, 0, 0.06), transparent 60%),
+    radial-gradient(ellipse 700px 400px at 80% 60%, rgba(0, 0, 0, 0.04), transparent 60%);
 }
 
 /* Stars look bad on light. Fade them out. */
@@ -1664,36 +1293,21 @@ footer {
   display: none;
 }
 
-.theme-light .preview-canvas {
-  /* Keep the dark wallpaper "screenshot" — the preview-shell still has
-     a dark titlebar tone so the canvas matching its color is fine. */
-  filter: brightness(0.95);
-}
-
 .theme-light .glass {
   background: rgba(255, 255, 255, 0.65);
   border-color: var(--border);
   box-shadow:
-    0 16px 48px rgba(124, 58, 237, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-
-.theme-light .preview-titlebar {
-  background: rgba(255, 255, 255, 0.4);
-  border-bottom-color: var(--border);
-}
-
-.theme-light .preview-titlebar .dot {
-  background: rgba(0, 0, 0, 0.08);
 }
 
 .theme-light .feature {
   background: rgba(255, 255, 255, 0.55);
 }
 
-.theme-light .ins-line,
-.theme-light .ins-pill {
-  background: rgba(0, 0, 0, 0.06);
+.theme-light .feature-icon {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--border-strong);
 }
 
 .theme-light .btn-ghost {
@@ -1707,17 +1321,17 @@ footer {
 }
 
 .theme-light .btn-primary {
-  /* Brighten the primary so it still pops against light bg */
+  /* Adjust the inset sheen for the inverted (dark fill) primary. */
   box-shadow:
-    0 8px 24px rgba(124, 58, 237, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    var(--shadow-primary),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .theme-light .about-aurora,
 .theme-light .price-card-aurora {
   background:
-    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(124, 58, 237, 0.16), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 40%, rgba(236, 72, 153, 0.12), transparent 60%);
+    radial-gradient(ellipse 70% 60% at 30% 30%, rgba(0, 0, 0, 0.06), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 40%, rgba(0, 0, 0, 0.04), transparent 60%);
 }
 
 .theme-light #lang-switcher,
@@ -1739,7 +1353,7 @@ footer {
 }
 
 .theme-light .price-features .check {
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .theme-light .legal-page a {
@@ -1748,4 +1362,16 @@ footer {
 
 .theme-light .trial-form input {
   background: rgba(255, 255, 255, 0.7);
+}
+
+.theme-light .demo-tabs {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--border-strong);
+}
+
+.theme-light .demo-tab.active {
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.08);
 }

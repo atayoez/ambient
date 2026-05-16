@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Ambient — $15 desktop wallpaper studio for macOS, Windows, Linux</title>
-    <meta name="description" content="Ambient generates patterns, fetches curated photos from NASA / Unsplash / Pexels, and creates AI wallpapers — all rendered at your exact screen resolution. One-time $15 license, no subscription, no telemetry." />
+    <title>Ambient: a $15 desktop wallpaper app for macOS, Windows, Linux</title>
+    <meta name="description" content="Ambient is a small desktop wallpaper app. Built-in patterns, photos from NASA / Unsplash / Pexels, and an AI generator. $15 one-time, no subscription, no telemetry." />
     <meta name="keywords" content="desktop wallpaper, wallpaper generator, mesh gradient, AI wallpaper, NASA APOD, Unsplash, Pexels, DALL-E, Tauri app, macOS wallpaper, Windows wallpaper, Linux wallpaper" />
     <meta name="author" content="Atay Özcan" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -14,8 +14,8 @@
 
     <!-- OpenGraph -->
     <meta property="og:site_name" content="Ambient" />
-    <meta property="og:title" content="Ambient — $15 desktop wallpaper studio" />
-    <meta property="og:description" content="Generate patterns, fetch curated photos, or write a prompt and ship pixel-perfect wallpapers. macOS · Windows · Linux. $15 one-time." />
+    <meta property="og:title" content="Ambient: a $15 desktop wallpaper app" />
+    <meta property="og:description" content="Patterns, photos from a few sources, AI generation if you want it. macOS, Windows, Linux. $15 one-time." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://ambient.oezcan.me/" />
     <meta property="og:image" content="https://ambient.oezcan.me/og-banner.png" />
@@ -28,8 +28,8 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Ambient — $15 desktop wallpaper studio" />
-    <meta name="twitter:description" content="Patterns, curated sources, AI generation. macOS · Windows · Linux. $15 one-time, no subscription." />
+    <meta name="twitter:title" content="Ambient: a $15 desktop wallpaper app" />
+    <meta name="twitter:description" content="Patterns, photos, AI generation. macOS, Windows, Linux. $15 one-time, no subscription." />
     <meta name="twitter:image" content="https://ambient.oezcan.me/og-banner.png" />
     <meta name="twitter:image:alt" content="Ambient app icon and tagline" />
 
@@ -44,7 +44,7 @@
         "applicationCategory": "DesignApplication",
         "applicationSubCategory": "Wallpaper generator",
         "operatingSystem": "macOS, Windows, Linux",
-        "description": "Native desktop wallpaper studio with five pattern generators, curated photo sources (NASA APOD, Unsplash, Pexels), and AI generation. Lifetime license, no subscription, no telemetry.",
+        "description": "Small desktop wallpaper app. Five pattern generators, photo sources (NASA APOD, Unsplash, Pexels), and AI generation. One-time purchase, no subscription.",
         "url": "https://ambient.oezcan.me/",
         "image": "https://ambient.oezcan.me/og-banner.png",
         "offers": {
@@ -65,7 +65,7 @@
           "name": "Atay Özcan",
           "url": "https://oezcan.me"
         },
-        "softwareVersion": "0.1.0",
+        "softwareVersion": "0.3.0",
         "datePublished": "2026-05-15"
       }
     </script>
@@ -75,17 +75,6 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <!-- Inline SVG filter: same turbulence-displacement glass refraction we
-         use in the app, so the marketing surfaces feel like the product. -->
-    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
-      <defs>
-        <filter id="liquid-refract">
-          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="3" />
-          <feDisplacementMap in="SourceGraphic" scale="6" />
-        </filter>
-      </defs>
-    </svg>
-
     <header class="nav">
       <a href="#top" class="brand">
         <img src="./icon.svg" alt="" width="28" height="28" />
@@ -146,9 +135,9 @@
             <span class="gradient-text" data-i18n="hero.titleAccent">that move with you.</span>
           </h1>
           <p class="hero-sub" data-i18n="hero.sub">
-            A native desktop wallpaper studio. Generate infinite patterns,
-            pull from curated photo sources, or write a prompt and ship pixel-perfect
-            wallpapers to your screen.
+            A small desktop app for changing your wallpaper. Built-in
+            patterns, a few photo sources, and an AI generator if you'd
+            rather just describe one.
           </p>
           <div class="cta-row">
             <a
@@ -165,194 +154,58 @@
         </div>
       </section>
 
-      <!-- Interactive sneak-peek: same chrome + Inspector layout as the real
-           app, with the Patterns canvas re-rendered live in JS. Click any
-           tab to switch contexts. -->
+      <!-- Sneak peek: PNG gallery captured from the live app, one shot
+           per tab. Tab buttons crossfade between the images via demo.js. -->
       <section id="demo" class="demo">
         <h2 class="section-eyebrow" data-i18n="demo.eyebrow">Sneak peek</h2>
         <p class="demo-sub" data-i18n="demo.sub">
-          Click between the tabs. The Patterns tab actually re-rolls each
-          design in your browser — same algorithm as the real app.
+          The same four tabs you get after install. Click between them.
         </p>
 
-        <div class="demo-frame glass">
-          <header class="demo-titlebar">
-            <nav class="demo-tabs" role="tablist">
-              <button class="demo-tab active" data-tab="patterns" role="tab" type="button">Patterns</button>
-              <button class="demo-tab" data-tab="sources"   role="tab" type="button">Sources</button>
-              <button class="demo-tab" data-tab="library"   role="tab" type="button">Library</button>
-              <button class="demo-tab" data-tab="generate"  role="tab" type="button">Generate</button>
-              <button class="demo-tab" data-tab="settings"  role="tab" type="button">Settings</button>
-            </nav>
-            <div class="demo-traffic">
-              <span class="demo-dot red" aria-hidden="true"></span>
-              <span class="demo-dot yellow" aria-hidden="true"></span>
-              <span class="demo-dot green" aria-hidden="true"></span>
-            </div>
-          </header>
+        <div class="demo-frame">
+          <nav class="demo-tabs" role="tablist">
+            <button class="demo-tab active" data-tab="patterns" role="tab" type="button">Patterns</button>
+            <button class="demo-tab" data-tab="sources"  role="tab" type="button">Sources</button>
+            <button class="demo-tab" data-tab="generate" role="tab" type="button">Generate</button>
+            <button class="demo-tab" data-tab="library"  role="tab" type="button">Library</button>
+          </nav>
 
-          <!-- Patterns tab: live canvas + inspector -->
-          <div class="demo-tab-panel active" data-panel="patterns">
-            <div class="demo-grid">
-              <div class="demo-preview-col">
-                <div class="demo-preview-wrap">
-                  <canvas id="demo-canvas" width="640" height="360"></canvas>
-                </div>
-                <div class="demo-actions">
-                  <button id="demo-reroll" type="button">↻ Re-roll</button>
-                  <button id="demo-apply" type="button" class="primary">Apply as wallpaper</button>
-                </div>
-              </div>
-              <aside class="demo-inspector">
-                <section class="demo-section">
-                  <h4>Pattern</h4>
-                  <div class="demo-type-list" id="demo-type-list">
-                    <button class="demo-type-row active" data-type="mesh" type="button">
-                      <span class="demo-type-emoji">🎨</span>
-                      <span class="demo-type-name">Mesh gradient</span>
-                    </button>
-                    <button class="demo-type-row" data-type="geometric" type="button">
-                      <span class="demo-type-emoji">🔺</span>
-                      <span class="demo-type-name">Geometric</span>
-                    </button>
-                    <button class="demo-type-row" data-type="dots" type="button">
-                      <span class="demo-type-emoji">🔘</span>
-                      <span class="demo-type-name">Dots</span>
-                    </button>
-                    <button class="demo-type-row" data-type="stripes" type="button">
-                      <span class="demo-type-emoji">🦓</span>
-                      <span class="demo-type-name">Stripes</span>
-                    </button>
-                  </div>
-                </section>
-                <section class="demo-section">
-                  <h4>Palette</h4>
-                  <div class="demo-presets" id="demo-presets">
-                    <button data-palette="cosmic" type="button" class="active">Cosmic</button>
-                    <button data-palette="sunset" type="button">Sunset</button>
-                    <button data-palette="ocean" type="button">Ocean</button>
-                    <button data-palette="pastel" type="button">Pastel</button>
-                  </div>
-                </section>
-              </aside>
-            </div>
-          </div>
-
-          <!-- Sources tab: mock NASA APOD preview -->
-          <div class="demo-tab-panel" data-panel="sources">
-            <div class="demo-grid">
-              <div class="demo-preview-col">
-                <div class="demo-preview-wrap">
-                  <div class="demo-stock-photo demo-stock-space" aria-label="Stock photo of a nebula"></div>
-                </div>
-                <div class="demo-actions">
-                  <button type="button">↻ Re-fetch</button>
-                  <button type="button" class="primary">Apply as wallpaper</button>
-                </div>
-              </div>
-              <aside class="demo-inspector">
-                <section class="demo-section">
-                  <h4>Source</h4>
-                  <div class="demo-type-list">
-                    <button class="demo-type-row active" type="button">
-                      <span class="demo-type-text">
-                        <span class="demo-type-name">NASA APOD</span>
-                        <span class="demo-type-desc">Free · one image per day</span>
-                      </span>
-                    </button>
-                    <button class="demo-type-row" type="button">
-                      <span class="demo-type-text">
-                        <span class="demo-type-name">Unsplash</span>
-                        <span class="demo-type-desc">Free API key · search-driven</span>
-                      </span>
-                    </button>
-                    <button class="demo-type-row" type="button">
-                      <span class="demo-type-text">
-                        <span class="demo-type-name">Pexels</span>
-                        <span class="demo-type-desc">Free API key · search-driven</span>
-                      </span>
-                    </button>
-                  </div>
-                </section>
-              </aside>
-            </div>
-          </div>
-
-          <!-- Library tab: thumbnail grid -->
-          <div class="demo-tab-panel" data-panel="library">
-            <div class="demo-library-grid">
-              <div class="demo-thumb demo-thumb-1"></div>
-              <div class="demo-thumb demo-thumb-2"></div>
-              <div class="demo-thumb demo-thumb-3"></div>
-              <div class="demo-thumb demo-thumb-4"></div>
-              <div class="demo-thumb demo-thumb-5"></div>
-              <div class="demo-thumb demo-thumb-6"></div>
-            </div>
-          </div>
-
-          <!-- Generate tab: prompt + AI image preview -->
-          <div class="demo-tab-panel" data-panel="generate">
-            <div class="demo-grid">
-              <div class="demo-preview-col">
-                <div class="demo-preview-wrap">
-                  <div class="demo-stock-photo demo-stock-ai" aria-label="AI-generated landscape"></div>
-                </div>
-                <div class="demo-actions">
-                  <button type="button" class="primary">Generate + apply</button>
-                </div>
-              </div>
-              <aside class="demo-inspector">
-                <section class="demo-section">
-                  <h4>Provider</h4>
-                  <div class="demo-type-list">
-                    <button class="demo-type-row active" type="button">
-                      <span class="demo-type-text">
-                        <span class="demo-type-name">Pollinations</span>
-                        <span class="demo-type-desc">Free, no key required</span>
-                      </span>
-                    </button>
-                    <button class="demo-type-row" type="button">
-                      <span class="demo-type-text">
-                        <span class="demo-type-name">OpenAI DALL-E 3</span>
-                        <span class="demo-type-desc">Bring your own API key</span>
-                      </span>
-                    </button>
-                  </div>
-                </section>
-                <section class="demo-section">
-                  <h4>Prompt</h4>
-                  <textarea readonly class="demo-prompt">a calm misty mountain valley at dawn, painterly, soft light</textarea>
-                </section>
-              </aside>
-            </div>
-          </div>
-
-          <!-- Settings tab: a few mock controls -->
-          <div class="demo-tab-panel" data-panel="settings">
-            <div class="demo-settings">
-              <section class="demo-section">
-                <h4>AI image generation</h4>
-                <label class="demo-field">
-                  <span>Provider</span>
-                  <select disabled><option>Pollinations (free, no key)</option></select>
-                </label>
-                <label class="demo-field">
-                  <span>Resolution</span>
-                  <select disabled><option>Auto (match your primary monitor)</option></select>
-                </label>
-              </section>
-              <section class="demo-section">
-                <h4>Rotation</h4>
-                <label class="demo-toggle">
-                  <input type="checkbox" disabled />
-                  <span>Auto-rotate while the app is running</span>
-                </label>
-                <label class="demo-field">
-                  <span>Interval (minutes)</span>
-                  <input type="number" value="60" disabled />
-                </label>
-              </section>
-            </div>
+          <div class="demo-stage">
+            <img
+              class="demo-shot active"
+              data-shot="patterns"
+              src="./screenshots/patterns.png"
+              alt="Patterns tab: emoji-pattern preview with the categorized emoji picker popover open."
+              width="868"
+              height="648"
+            />
+            <img
+              class="demo-shot"
+              data-shot="sources"
+              src="./screenshots/sources.png"
+              alt="Sources tab: NASA Astronomy Picture of the Day preview with a daily auto-refresh toggle."
+              width="868"
+              height="648"
+              loading="lazy"
+            />
+            <img
+              class="demo-shot"
+              data-shot="generate"
+              src="./screenshots/generate.png"
+              alt="Generate tab: AI-generated misty mountain valley wallpaper with provider and prompt fields."
+              width="868"
+              height="648"
+              loading="lazy"
+            />
+            <img
+              class="demo-shot"
+              data-shot="library"
+              src="./screenshots/library.png"
+              alt="Library tab: grid of saved wallpapers with shuffle and system-theme follow toggles."
+              width="868"
+              height="648"
+              loading="lazy"
+            />
           </div>
         </div>
       </section>
@@ -368,9 +221,9 @@
             </div>
             <h3 data-i18n="features.patterns.title">Five pattern generators</h3>
             <p data-i18n="features.patterns.body">
-              Mesh gradients, geometric shapes, dot grids, stripes, and iOS-style
-              emoji wallpapers using Microsoft Fluent 3D. Re-rolls in milliseconds at
-              your screen's exact resolution.
+              Mesh gradients, dots, stripes, geometric shapes, and emoji
+              walls using Microsoft's Fluent 3D set. Hit re-roll until you
+              like one.
             </p>
           </article>
 
@@ -384,8 +237,9 @@
             </div>
             <h3 data-i18n="features.sources.title">Curated photo sources</h3>
             <p data-i18n="features.sources.body">
-              One-click pulls from NASA APOD, Unsplash, and Pexels. Free, BYO key for
-              the search-driven providers. Cached locally so the preview is instant.
+              NASA's daily astronomy photo is free. Unsplash and Pexels
+              need an API key, which is also free to get. Whatever you
+              apply gets saved locally.
             </p>
           </article>
 
@@ -397,8 +251,8 @@
             </div>
             <h3 data-i18n="features.ai.title">AI generation</h3>
             <p data-i18n="features.ai.body">
-              Write a prompt, hit ⌘↩, get a wallpaper applied. Free via Pollinations
-              (no key needed) or bring your OpenAI key for DALL-E 3.
+              Type a prompt, hit ⌘↩. Pollinations works out of the box
+              with no setup. For DALL·E 3 you bring your own OpenAI key.
             </p>
           </article>
 
@@ -412,10 +266,10 @@
               </svg>
             </div>
             <h3 data-i18n="features.library.title">Your own library</h3>
-            <p data-i18n-html="features.library.body">
-              Every wallpaper you apply is saved locally. Re-apply with a click,
-              delete with a second click. Lives in <code>~/.local/share</code>;
-              never leaves your machine.
+            <p data-i18n="features.library.body">
+              Everything you've used hangs around in the library. One click
+              puts it back on the desktop, two clicks delete it. The files
+              just sit on your disk.
             </p>
           </article>
 
@@ -425,11 +279,11 @@
                 <path d="M16 4 L26 9 L26 18 Q26 25 16 28 Q6 25 6 18 L6 9 Z" />
               </svg>
             </div>
-            <h3 data-i18n="features.privacy.title">Local. Private. Yours.</h3>
+            <h3 data-i18n="features.privacy.title">Stays on your machine</h3>
             <p data-i18n="features.privacy.body">
-              Built on Tauri + Rust + React. No telemetry, no accounts, no servers.
-              Every wallpaper you make stays on your machine — nothing leaves
-              the device without your say-so.
+              Tauri + Rust + React under the hood. No account, no telemetry,
+              no backend at all. The only thing the app calls out to is
+              whichever photo source you've turned on.
             </p>
           </article>
 
@@ -444,8 +298,9 @@
             </div>
             <h3 data-i18n="features.design.title">Designed like an Apple inspector</h3>
             <p data-i18n="features.design.body">
-              Liquid-glass surfaces, intrinsic-width sliders, sticky preview column.
-              Native Wayland on Linux, vibrancy on macOS, Mica on Windows.
+              Inspector on the right, preview on the left that stays put
+              while you tweak. Glass surfaces, minimal motion. Native
+              Wayland on Linux.
             </p>
           </article>
         </div>
@@ -454,7 +309,7 @@
       <section id="pricing" class="pricing">
         <h2 class="section-eyebrow" data-i18n="pricing.eyebrow">Pricing</h2>
         <p class="pricing-sub" data-i18n="pricing.sub">
-          One price. Yours forever. All updates included.
+          One price, one time. Future versions are free too.
         </p>
 
         <div class="price-card glass">
@@ -465,29 +320,29 @@
             <span class="price-period" data-i18n="pricing.period">once</span>
           </div>
           <p class="price-tagline" data-i18n="pricing.tagline">
-            Lifetime license. Every future update. Every platform.
+            Yours to keep, with every future update.
           </p>
 
           <ul class="price-features">
             <li>
               <span class="check" aria-hidden="true">✓</span>
-              <span data-i18n="pricing.feat1">All five pattern generators, all sources, AI generation</span>
+              <span data-i18n="pricing.feat1">Every pattern, every source, the AI generator</span>
             </li>
             <li>
               <span class="check" aria-hidden="true">✓</span>
-              <span data-i18n="pricing.feat2">Works on macOS, Windows, and Linux</span>
+              <span data-i18n="pricing.feat2">macOS, Windows, and Linux</span>
             </li>
             <li>
               <span class="check" aria-hidden="true">✓</span>
-              <span data-i18n="pricing.feat3">Signed binaries with automatic updates</span>
+              <span data-i18n="pricing.feat3">Free updates for life, plus a heads-up in the app when a new one ships</span>
             </li>
             <li>
               <span class="check" aria-hidden="true">✓</span>
-              <span data-i18n="pricing.feat4">Use on every Mac/PC you own — no per-device cap</span>
+              <span data-i18n="pricing.feat4">Run it on as many of your own machines as you want</span>
             </li>
             <li>
               <span class="check" aria-hidden="true">✓</span>
-              <span data-i18n="pricing.feat5">No subscription, no telemetry, no account required</span>
+              <span data-i18n="pricing.feat5">No subscription, no account, no analytics</span>
             </li>
           </ul>
 
@@ -504,8 +359,8 @@
           </div>
 
           <p class="price-fineprint" data-i18n="pricing.fineprint">
-            Pay once. Get a signed, auto-updating build for every platform.
-            Lifetime updates, no recurring fees.
+            Pay once and that's the whole thing. Same license for your
+            Mac, PC, or Linux machine.
           </p>
         </div>
       </section>
@@ -513,27 +368,44 @@
       <section id="download" class="download">
         <h2 class="section-eyebrow" data-i18n="download.eyebrow">Download</h2>
         <p class="download-sub" data-i18n="download.sub">
-          The app's free to download. A license key (sent by email after
-          purchase) unlocks it past the activation screen.
+          Anyone can download the app. Buying it gets you a license key
+          by email, which you paste in on first launch.
         </p>
-        <div class="download-grid">
-          <a class="dl-card glass" href="/downloads/latest/macos">
-            <div class="dl-platform">macOS</div>
-            <div class="dl-meta">Apple Silicon · .dmg</div>
-          </a>
-          <a class="dl-card glass" href="/downloads/latest/windows">
-            <div class="dl-platform">Windows</div>
-            <div class="dl-meta">x64 · NSIS installer</div>
-          </a>
-          <a class="dl-card glass" href="/downloads/latest/linux">
-            <div class="dl-platform">Linux</div>
-            <div class="dl-meta">x86_64 · AppImage</div>
-          </a>
-        </div>
+
+        <!-- Single primary download for the visitor's detected OS + arch.
+             Populated by download.js on load. Defaults shown are the
+             non-JS fallback (macOS — first installer most marketing
+             visitors expect to see). -->
+        <a class="dl-primary glass" id="dl-primary" href="/downloads/latest/macos">
+          <svg class="dl-primary-glyph" id="dl-primary-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M17.05 20.28c-.98.95-2.05.94-3.08.51-1.09-.46-2.09-.47-3.24 0-1.44.59-2.2.42-3.06-.51C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+          </svg>
+          <div class="dl-primary-text">
+            <div class="dl-primary-os" id="dl-primary-os">macOS</div>
+            <div class="dl-primary-meta" id="dl-primary-meta">Apple Silicon · .dmg</div>
+          </div>
+          <span class="dl-primary-cta" data-i18n="download.cta">Download</span>
+        </a>
+
+        <!-- Native disclosure widget — closed by default, opens to a
+             plain list of every shipped artifact. No JS required for
+             the toggle (HTML <details>). -->
+        <details class="dl-alternatives">
+          <summary data-i18n="download.alt_heading">Other platforms</summary>
+          <ul class="dl-alt-list" id="dl-alt-list">
+            <li><a href="/downloads/latest/macos">macOS <span>· Apple Silicon · .dmg</span></a></li>
+            <li><a href="/downloads/latest/windows">Windows <span>· x86_64 · .msi</span></a></li>
+            <li><a href="/downloads/latest/windows-arm64">Windows <span>· ARM64 · .msi</span></a></li>
+            <li><a href="/downloads/latest/linux">Linux <span>· x86_64 · .AppImage</span></a></li>
+            <li><a href="/downloads/latest/linux-arm64">Linux <span>· aarch64 · .AppImage</span></a></li>
+          </ul>
+        </details>
+
         <p class="dl-note muted" data-i18n="download.note">
-          Builds are currently unsigned — macOS Gatekeeper and Windows
-          SmartScreen will show a "from the internet" warning the first time.
-          Right-click → Open (macOS) or More info → Run anyway (Windows).
+          These builds aren't signed yet, so macOS and Windows both
+          complain about an unknown app the first time. On Mac, right-click
+          the app and pick Open. On Windows, click "More info" and then
+          "Run anyway".
         </p>
       </section>
 
@@ -553,9 +425,9 @@
           <h2 class="about-name">Atay Özcan</h2>
           <p class="about-role" data-i18n="about.role">Computer science student · building things on the internet</p>
           <p class="about-body" data-i18n="about.body">
-            Ambient is something I made for myself first. If it works for you
-            (or doesn't), I'd love to hear — drop me a line or check what
-            else I'm working on.
+            I built Ambient because I wanted it on my own laptop. If you
+            try it, tell me what works and what doesn't. I read everything
+            that comes in.
           </p>
           <div class="about-links">
             <a class="about-link" href="mailto:atay@oezcan.me">
@@ -594,5 +466,6 @@
     </footer>
     <script src="./i18n.js"></script>
     <script src="./demo.js"></script>
+    <script src="./download.js"></script>
   </body>
 </html>

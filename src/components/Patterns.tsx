@@ -1,7 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { primaryMonitor } from '@tauri-apps/api/window';
 import { useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useKeydown, usePersistedState } from '../lib/hooks';
+import { useDraftState, useKeydown, usePersistedState } from '../lib/hooks';
 import {
   COLOR_PRESETS,
   DEFAULT_CONFIG,
@@ -14,18 +12,13 @@ import {
   SLIDER_RANGES,
   TYPE_DEFAULTS,
 } from '../lib/patterns';
-import { mutateLibrary } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
-import { setWallpaper } from '../lib/wallpaper';
-import EmojiPicker from './EmojiPicker';
 import {
   AutoThemeIcon,
   CheckIcon,
   MoonIcon,
-  PlusIcon,
   ShuffleIcon,
   SunIcon,
-  XIcon,
 } from './Icons';
 import {
   ControlRow,
@@ -36,11 +29,8 @@ import {
   StatusInline,
   TabLayout,
 } from './layout';
-
-// Fallback monitor size when neither the Tauri command nor the JS API can
-// give us the real resolution. Matches the smallest mainstream desktop size.
-const FALLBACK_WIDTH = 1920;
-const FALLBACK_HEIGHT = 1080;
+import PaletteEditor from './PaletteEditor';
+import { useApplyPattern } from './useApplyPattern';
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
@@ -76,39 +66,19 @@ export default function Patterns() {
     'patterns.themeMode',
     'auto',
   );
-  const [config, setConfig] = usePersistedState<PatternConfig>(
+  // patterns.config is draft state: tweaks live in memory only until
+  // the user clicks Apply, which calls saveConfig() to commit. This is
+  // the "tick = save" model — slider drags don't thrash the disk, and
+  // switching tabs without applying drops any unapplied tweaks.
+  const [config, setConfig, saveConfig] = useDraftState<PatternConfig>(
     'patterns.config',
     pickInitialConfig(isDarkForMode('auto', systemDark)),
   );
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [emojiVersion, setEmojiVersion] = useState(0);
   const previewRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Emoji picker popover state. The wrap ref scopes the click-outside
-  // handler — any click NOT inside the wrap (button + popover) closes
-  // the picker. Escape also closes.
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
-  const emojiPickerWrapRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!emojiPickerOpen) return;
-    function onDocMouseDown(e: MouseEvent) {
-      if (!emojiPickerWrapRef.current?.contains(e.target as Node)) {
-        setEmojiPickerOpen(false);
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setEmojiPickerOpen(false);
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [emojiPickerOpen]);
+  // Apply pipeline (busy/status/error + the render-save-set flow).
+  const { busy, status, error, apply } = useApplyPattern(config, saveConfig);
 
   // Defer the config used by the renderer so high-frequency slider input
   // doesn't trigger a render per pixel of drag — React schedules the
@@ -133,11 +103,6 @@ export default function Patterns() {
 
   // Pre-paint render: useLayoutEffect runs synchronously after the DOM is
   // ready but before the browser paints, so the canvas never flashes empty.
-  // Renderer always gets randomness: 1 — matches the apply path so the
-  // preview is what-you-see-is-what-you-get. Without this, old persisted
-  // configs (saved before the randomness slider was removed) render the
-  // preview with their stale value while apply uses full randomness, and
-  // the wallpaper that lands on disk looks different from the preview.
   useLayoutEffect(() => {
     renderRef.current = () => {
       const canvas = previewRef.current;
@@ -230,6 +195,10 @@ export default function Patterns() {
     patch({ emojis: config.emojis.filter((_, idx) => idx !== i) });
   }
 
+  function addEmoji(emoji: string) {
+    patch({ emojis: [...config.emojis, emoji] });
+  }
+
   // Selecting a preset sets BOTH the colors (light or dark variant for
   // the current theme) AND the emojis. The Emoji pattern type picks up
   // the new emojis on the next render; users who've customized the
@@ -243,101 +212,6 @@ export default function Patterns() {
       colors: [...(effectiveDark ? preset.dark : preset.light)],
       emojis: [...preset.emojis],
     });
-  }
-
-  async function apply() {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    setStatus('Reading screen size…');
-    try {
-      let w = FALLBACK_WIDTH;
-      let h = FALLBACK_HEIGHT;
-      try {
-        const info = await invoke<{
-          width: number;
-          height: number;
-          scale: number;
-          source: string;
-        }>('get_primary_monitor_pixels');
-        w = info.width;
-        h = info.height;
-      } catch {
-        const monitor = await primaryMonitor();
-        w = monitor?.size?.width ?? FALLBACK_WIDTH;
-        h = monitor?.size?.height ?? FALLBACK_HEIGHT;
-      }
-
-      if (config.type === 'emoji') {
-        setStatus('Loading emoji graphics…');
-        await preloadEmojis(config.emojis);
-      }
-
-      // Emoji renders use raster assets, so super-sampling buys nothing
-      // and just slows the export down; everything else benefits from
-      // 2× SSAA before downscaling for crisper edges.
-      const SS = config.type === 'emoji' ? 1 : 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Could not get 2D context');
-
-      if (SS > 1) {
-        setStatus(`Rendering ${w}×${h} at ${SS}× for sharpness…`);
-        const renderCanvas = document.createElement('canvas');
-        renderCanvas.width = w * SS;
-        renderCanvas.height = h * SS;
-        const renderCtx = renderCanvas.getContext('2d');
-        if (!renderCtx) throw new Error('Could not get 2D context');
-        renderPattern(renderCtx, w * SS, h * SS, config);
-
-        setStatus('Downscaling…');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(renderCanvas, 0, 0, w, h);
-      } else {
-        setStatus(`Rendering ${w}×${h}…`);
-        renderPattern(ctx, w, h, config);
-      }
-
-      setStatus('Encoding (lossless PNG)…');
-      const blob: Blob = await new Promise((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob failed'))),
-          'image/png',
-        );
-      });
-      const buffer = await blob.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-
-      setStatus('Saving…');
-      const localPath = await invoke<string>('save_image_bytes', {
-        bytes: Array.from(bytes),
-        filename: `pattern-${config.type}-${config.seed}.png`,
-      });
-
-      const info = PATTERN_TYPES.find((p) => p.id === config.type);
-      await mutateLibrary((lib) => [
-        {
-          path: localPath,
-          source: 'generated',
-          title: `${info?.name ?? config.type} (${config.colors.length} colors)`,
-          addedAt: Date.now(),
-        },
-        ...lib,
-      ]);
-
-      setStatus('Applying wallpaper…');
-      await setWallpaper(localPath);
-      setStatus('Applied');
-      setTimeout(() => setStatus(null), 1500);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus(null);
-    } finally {
-      setBusy(false);
-    }
   }
 
   // Cmd/Ctrl+Enter applies, Cmd/Ctrl+Shift+R re-rolls. Apple desktop
@@ -400,75 +274,16 @@ export default function Patterns() {
                   </button>
                 ))}
               </div>
-              {config.type === 'emoji' ? (
-                <div className="emoji-row">
-                  {config.emojis.map((emoji, i) => (
-                    <div key={`${emoji}-${i}`} className="emoji-chip">
-                      <span aria-hidden="true">{emoji}</span>
-                      {config.emojis.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeEmoji(i)}
-                          className="chip-remove"
-                          aria-label={`Remove emoji ${emoji}`}
-                          title="Remove"
-                        >
-                          <XIcon size={11} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <div className="emoji-picker-wrap" ref={emojiPickerWrapRef}>
-                    <button
-                      type="button"
-                      className="add-emoji"
-                      aria-label="Add emoji"
-                      aria-expanded={emojiPickerOpen}
-                      onClick={() => setEmojiPickerOpen((o) => !o)}
-                    >
-                      +
-                    </button>
-                    {emojiPickerOpen && (
-                      <EmojiPicker
-                        onPick={(emoji) => patch({ emojis: [...config.emojis, emoji] })}
-                      />
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="colors-row">
-                  {config.colors.map((c, i) => (
-                    <div key={i} className="color-chip">
-                      <input
-                        type="color"
-                        value={c}
-                        onChange={(e) => setColor(i, e.target.value)}
-                        aria-label={`color ${i + 1}`}
-                      />
-                      {config.colors.length > 2 && (
-                        <button
-                          onClick={() => removeColor(i)}
-                          className="chip-remove"
-                          aria-label="remove color"
-                          title="Remove color"
-                        >
-                          <XIcon size={11} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {config.colors.length < 6 && (
-                    <button
-                      onClick={addColor}
-                      className="add-color"
-                      aria-label="Add color"
-                      title="Add color"
-                    >
-                      <PlusIcon size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+              <PaletteEditor
+                type={config.type}
+                colors={config.colors}
+                emojis={config.emojis}
+                onColorChange={setColor}
+                onAddColor={addColor}
+                onRemoveColor={removeColor}
+                onAddEmoji={addEmoji}
+                onRemoveEmoji={removeEmoji}
+              />
             </InspectorSection>
 
             <InspectorSection title="Form">

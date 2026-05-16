@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
-import { useKeydown } from '../lib/hooks';
+import { useDebouncedCallback, useKeydown } from '../lib/hooks';
 import { fetchRandomFromSource } from '../lib/sources';
 import { loadLibrary, loadSettings, mutateLibrary, saveSettings } from '../lib/store';
 import {
@@ -118,10 +118,6 @@ export default function Sources() {
   const [previewMeta, setPreviewMeta] = useState<Wallpaper | null>(null);
 
   const prevSource = useRef<SourceKind | null>(null);
-  // Debounces the disk save + "Saved" toast so typing into a text input
-  // doesn't flash the notification on every keystroke. The in-memory
-  // setSettings happens immediately; only the persistence is delayed.
-  const saveDebounceRef = useRef<number | null>(null);
   // Drafts for the search query inputs. Queries are commit-on-Enter (or
   // blur), not commit-on-keystroke — a half-typed "mounta" shouldn't
   // race ahead and persist to disk. Mirrors the rotation interval input
@@ -225,26 +221,22 @@ export default function Sources() {
     }
   }
 
+  // 400 ms of quiet before we touch disk + flash "Saved". Without the
+  // debounce, every keystroke into the Unsplash/Pexels query inputs
+  // nagged the user with a fresh notification. App.tsx + RotationControl
+  // listen for the dispatched event so cross-tab settings stay in sync.
+  const debouncedSave = useDebouncedCallback((next: Settings) => {
+    void saveSettings(next).then(() => {
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
+      window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+    });
+  }, 400);
+
   function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch };
     setSettings(next);
-    // 400 ms of quiet before we touch disk + flash "Saved". Without the
-    // debounce, every keystroke into the Unsplash/Pexels query inputs
-    // nagged the user with a fresh notification.
-    if (saveDebounceRef.current !== null) {
-      window.clearTimeout(saveDebounceRef.current);
-    }
-    saveDebounceRef.current = window.setTimeout(() => {
-      void saveSettings(next).then(() => {
-        setSavedFlash(true);
-        setTimeout(() => setSavedFlash(false), 1200);
-        // App.tsx + RotationControl mirrors listen for this so changes
-        // to rotationSource / source-specific behavior propagate without
-        // an app restart.
-        window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
-      });
-      saveDebounceRef.current = null;
-    }, 400);
+    debouncedSave(next);
   }
 
   async function fetchNew(apply: boolean, s?: Settings) {

@@ -1,10 +1,16 @@
 # Cross-platform CI for Ambient.
 #
 # - check: fast TypeScript + Biome pass on Ubuntu. Gates the build.
-# - build-tauri: macOS .dmg and Windows .exe/.msi via tauri-action.
-# - build-flatpak: Linux .flatpak via flatpak-builder against the
-#   project's existing manifest. Native AppImage/.deb intentionally
-#   dropped — flatpak is the only Linux ship target.
+# - build-tauri: three-arch matrix —
+#     macOS aarch64 (.dmg)
+#     Windows x86_64 (.msi)
+#     Windows aarch64 (.msi)
+#   Both Linux variants are built locally by scripts/release.sh:
+#   x86_64 against the host webkit2gtk-4.1 toolchain, aarch64 via
+#   Docker + QEMU (scripts/build-linux-arm64.sh). The build-tauri
+#   matrix is gated to workflow_dispatch so it only fires when
+#   release.sh kicks it off — saves macOS minutes (~10×-priced on
+#   free-tier) on every-push runs that don't need binaries.
 #
 # Triggered on push to main and on PRs.
 
@@ -37,20 +43,55 @@ jobs:
       - name: Biome check
         run: bun run lint
 
+      - name: Vitest (JS unit tests)
+        run: bun run test
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache for tests
+        uses: swatinem/rust-cache@v2
+        continue-on-error: true
+        with:
+          workspaces: './src-tauri -> target'
+          key: check-x86_64
+
+      - name: Install Linux dev libs (for cargo test link)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Cargo tests (Rust unit tests)
+        working-directory: ./src-tauri
+        run: cargo test --lib
+
   build-tauri:
-    name: Build (${{ matrix.platform }})
+    name: Build (${{ matrix.platform }} / ${{ matrix.arch }})
     needs: check
+    # Dispatch-only. scripts/release.sh fires `gh workflow run` after
+    # the version-bump commit; pushes / PRs only spend the cheap
+    # `check` minutes above.
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-latest
+            arch: aarch64
             artifact-glob: |
               src-tauri/target/release/bundle/dmg/*.dmg
               src-tauri/target/release/bundle/macos/*.app.tar.gz
           - platform: windows-latest
+            arch: x86_64
             artifact-glob: |
-              src-tauri/target/release/bundle/nsis/*.exe
+              src-tauri/target/release/bundle/msi/*.msi
+          - platform: windows-11-arm
+            arch: aarch64
+            artifact-glob: |
               src-tauri/target/release/bundle/msi/*.msi
     runs-on: ${{ matrix.platform }}
     steps:
@@ -72,6 +113,9 @@ jobs:
         continue-on-error: true
         with:
           workspaces: './src-tauri -> target'
+          # Distinct cache slots per arch — otherwise an arm64 build
+          # would clobber the x64 incremental cache and vice versa.
+          key: ${{ matrix.platform }}-${{ matrix.arch }}
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
@@ -80,32 +124,17 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tauri auto-signs each bundle when the env var is present.
+          # Stored as a GH repo secret; pasted contents of the
+          # ~/.config/ambient/updater-private.key file. Leave empty
+          # secret = signing skipped, plugin updater inactive that
+          # release.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ambient-${{ matrix.platform }}
+          name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
-
-  # Flatpak builds are slow (~30 min cold) because of the GNOME runtime
-  # download + cargo cold compile. Restrict to tagged releases and
-  # manual dispatch — every-push flatpak builds would make merges
-  # painful for no benefit (the macOS+Windows jobs already prove the
-  # frontend + Rust code compiles).
-  build-flatpak:
-    name: Build (flatpak)
-    needs: check
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-22.04
-    container:
-      image: bilelmoussaoui/flatpak-github-actions:gnome-46
-      options: --privileged
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          bundle: ambient.flatpak
-          manifest-path: flatpak/com.ambient.app.yaml
-          cache-key: flatpak-${{ hashFiles('flatpak/com.ambient.app.yaml', 'src-tauri/Cargo.lock', 'package.json') }}

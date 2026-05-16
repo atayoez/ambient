@@ -9,6 +9,14 @@
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://ambient.oezcan.me/downloads/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDRDg0QTQ3NTc2RDZDQzcKUldUSGJHMVhSMHJZdk96Y3p0dnRxS2xwU1cvWFZWNU5yOWZ3K1pueEpDWlpmZFJtV1I1STNEaS8K"
+    }
+  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
@@ -43,7 +51,7 @@
     "targets": [
       "appimage",
       "dmg",
-      "nsis"
+      "msi"
     ],
     "category": "Utility",
     "shortDescription": "Wallpaper generator with patterns, emoji, and AI",
@@ -57,12 +65,18 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ],
     "linux": {
       "appimage": {
         "bundleMediaFramework": true
+      }
+    },
+    "windows": {
+      "wix": {
+        "language": ["en-US"]
       }
     }
   }

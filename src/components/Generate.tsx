@@ -1,7 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { generateWallpaper } from '../lib/aigen';
-import { useKeydown, usePersistedState } from '../lib/hooks';
+import { useDebouncedCallback, useDraftState, useKeydown } from '../lib/hooks';
 import { loadSettings, mutateLibrary, saveSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
@@ -47,14 +47,18 @@ const DEFAULT_PROMPT = 'a calm misty mountain valley at dawn, painterly, soft li
 
 export default function Generate() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [prompt, setPrompt] = usePersistedState<string>(
+  // generate.prompt + generate.lastResult are draft state: typing into
+  // the prompt or getting a result back stays in memory until the user
+  // clicks Generate, which commits both. Matches the "tick = save"
+  // model used on Patterns.
+  const [prompt, setPrompt, savePrompt] = useDraftState<string>(
     'generate.prompt',
     DEFAULT_PROMPT,
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [lastResult, setLastResult] = usePersistedState<string | null>(
+  const [lastResult, setLastResult, saveLastResult] = useDraftState<string | null>(
     'generate.lastResult',
     null,
   );
@@ -63,33 +67,33 @@ export default function Generate() {
     loadSettings().then(setSettings);
   }, []);
 
-  // Debounces the disk save so typing into the OpenAI API key or model
-  // input doesn't write to the Tauri store on every keystroke (and
-  // wouldn't fire the cross-tab event a hundred times either).
-  const saveDebounceRef = useRef<number | null>(null);
-
   // Generic settings patcher used by every config field in this tab.
   // setSettings is synchronous (UI stays responsive); disk save +
-  // ambient-settings-changed dispatch are debounced 400ms so a burst of
-  // keystrokes resolves to a single write.
+  // ambient-settings-changed dispatch are debounced 400ms via the
+  // shared useDebouncedCallback so a burst of keystrokes resolves to
+  // a single write.
+  const debouncedSave = useDebouncedCallback((next: Settings) => {
+    void saveSettings(next).then(() => {
+      window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+    });
+  }, 400);
+
   function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch };
     setSettings(next);
-    if (saveDebounceRef.current !== null) {
-      window.clearTimeout(saveDebounceRef.current);
-    }
-    saveDebounceRef.current = window.setTimeout(() => {
-      void saveSettings(next).then(() => {
-        window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
-      });
-      saveDebounceRef.current = null;
-    }, 400);
+    debouncedSave(next);
   }
 
   async function go() {
     if (busy || !prompt.trim()) return;
     setBusy(true);
     setError(null);
+    // Commit the prompt before the long-running generation. Save errors
+    // are swallowed — a transient store hiccup shouldn't block the
+    // generation, which is the meaningful action.
+    try {
+      await savePrompt();
+    } catch {}
     setStatus(
       settings.genProvider === 'pollinations'
         ? 'Generating (5–15s)…'
@@ -113,6 +117,12 @@ export default function Generate() {
         ...library,
       ]);
       setLastResult(localPath);
+      // Commit lastResult so a fresh launch shows the most recent
+      // result in the preview frame. Pass the value explicitly because
+      // the useState ref hasn't caught up to the set call above yet.
+      try {
+        await saveLastResult(localPath);
+      } catch {}
       setStatus('Setting wallpaper…');
       await setWallpaper(localPath);
       setStatus('Applied — added to Library');

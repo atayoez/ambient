@@ -36,17 +36,15 @@
     </header>
 
     <main class="legal-page">
-      <h1>Privacy policy</h1>
-      <p class="legal-lede">
-        <!-- FILL IN: replace 2026-05-15 with the actual date the policy
-             goes live (or each time it's materially updated). -->
-        Effective <time datetime="2026-05-15">2026-05-15</time>.
+      <h1 data-i18n="privacy.title">Privacy policy</h1>
+      <p class="legal-lede" data-i18n-html="privacy.lede">
+        Effective <time datetime="2026-05-16">2026-05-16</time>.
         Drafted to satisfy the General Data Protection Regulation (GDPR /
         DSGVO) and the German Bundesdatenschutzgesetz (BDSG).
       </p>
 
       <section>
-        <h2>Controller</h2>
+        <h2 data-i18n="privacy.h.controller">Controller</h2>
         <address>
           <strong>Atay Özcan</strong><br />
           Durlacher Allee 15<br />
@@ -54,7 +52,7 @@
           Baden-Württemberg, Germany<br />
           <a href="mailto:atay@oezcan.me">atay@oezcan.me</a>
         </address>
-        <p>
+        <p data-i18n="privacy.controller_lede">
           The controller is the natural or legal person who alone or
           jointly with others determines the purposes and means of
           processing of personal data.
@@ -62,36 +60,24 @@
       </section>
 
       <section>
-        <h2>What data is processed</h2>
-        <p>This site is intentionally minimal. Three sources of data:</p>
+        <h2 data-i18n="privacy.h.what_data">What data is processed</h2>
+        <p data-i18n="privacy.what_data_intro">This site is intentionally minimal. Two sources of data:</p>
 
-        <h3>1. Server logs (Cloudflare)</h3>
-        <p>
+        <h3 data-i18n="privacy.h.logs">1. Server logs (Cloudflare)</h3>
+        <p data-i18n="privacy.logs_body">
           When you visit this site, our hosting provider Cloudflare
           automatically records: IP address, requested URL, HTTP method,
           response status, user-agent string, referrer, timestamp. This
           is kept for at most 30 days for the purpose of detecting and
           mitigating attacks, abuse, and operational issues.
         </p>
-        <p>
+        <p data-i18n-html="privacy.logs_basis">
           <strong>Legal basis:</strong> Art. 6(1)(f) GDPR — our legitimate
           interest in the secure operation of this website.
         </p>
 
-        <h3>2. Email address (free-trial form)</h3>
-        <p>
-          If you submit the trial form, your email address is sent to us
-          so we can deliver your trial license file. We do not subscribe
-          you to anything. The address is retained for as long as your
-          trial license is valid plus 60 days for follow-up, then deleted.
-        </p>
-        <p>
-          <strong>Legal basis:</strong> Art. 6(1)(b) GDPR — performance of
-          a (pre-)contractual measure at your request.
-        </p>
-
-        <h3>3. Purchase data (when you buy)</h3>
-        <p>
+        <h3 data-i18n="privacy.h.purchase">2. Purchase data (when you buy)</h3>
+        <p data-i18n-html="privacy.purchase_body">
           The "Buy" button takes you to a checkout hosted by
           <a href="https://polar.sh" target="_blank" rel="noopener">Polar Software, Inc.</a>
           ("Polar"), our Merchant of Record. Polar collects your payment
@@ -100,51 +86,51 @@
           purchased, and confirmation of payment. Polar's own privacy
           policy applies during checkout.
         </p>
-        <p>
+        <p data-i18n-html="privacy.purchase_basis">
           <strong>Legal basis:</strong> Art. 6(1)(b) GDPR — performance of
           the contract you enter into when you buy.
         </p>
       </section>
 
       <section>
-        <h2>Cookies</h2>
-        <p>
+        <h2 data-i18n="privacy.h.cookies">Cookies</h2>
+        <p data-i18n="privacy.cookies_body1">
           This site sets no first-party cookies. We do not run analytics
           (no Google Analytics, no Plausible, no Posthog, no anything).
         </p>
-        <p>
+        <p data-i18n-html="privacy.cookies_body2">
           Cloudflare may set a strictly-necessary technical cookie
           (<code>__cf_bm</code>, "bot management") for ~30 minutes for
-          security purposes. Under §25 (2) TTDSG this falls under the
+          security purposes. Under §25 (2) TDDDG this falls under the
           consent exception for technically necessary cookies; no banner
           is required.
         </p>
       </section>
 
       <section>
-        <h2>Recipients / sub-processors</h2>
+        <h2 data-i18n="privacy.h.recipients">Recipients / sub-processors</h2>
         <ul>
-          <li>
+          <li data-i18n-html="privacy.recipients_cf">
             <strong>Cloudflare, Inc.</strong> — site hosting and CDN.
             Server-log data may transit and be cached in jurisdictions
             outside the EEA, including the United States, under the
             EU-U.S. Data Privacy Framework + Cloudflare's GDPR DPA.
           </li>
-          <li>
+          <li data-i18n-html="privacy.recipients_polar">
             <strong>Polar Software, Inc.</strong> — payment processing.
             Acts as Merchant of Record for purchases. Processes your
             payment info under their own privacy policy.
           </li>
         </ul>
-        <p>
+        <p data-i18n="privacy.recipients_note">
           We do not sell, rent, or otherwise share your data with any
           other party.
         </p>
       </section>
 
       <section>
-        <h2>International transfers</h2>
-        <p>
+        <h2 data-i18n="privacy.h.intl">International transfers</h2>
+        <p data-i18n="privacy.intl_body">
           Where data is transferred outside the EEA (chiefly via
           Cloudflare and Polar), we rely on either an adequacy decision
           under Art. 45 GDPR or Standard Contractual Clauses under
@@ -153,39 +139,39 @@
       </section>
 
       <section>
-        <h2>Your rights under GDPR</h2>
+        <h2 data-i18n="privacy.h.rights">Your rights under GDPR</h2>
         <ul>
-          <li>
+          <li data-i18n-html="privacy.rights.access">
             <strong>Access</strong> (Art. 15) — confirmation of whether
             we process data about you and, if so, a copy.
           </li>
-          <li>
+          <li data-i18n-html="privacy.rights.rectification">
             <strong>Rectification</strong> (Art. 16) — correction of
             inaccurate data.
           </li>
-          <li>
+          <li data-i18n-html="privacy.rights.erasure">
             <strong>Erasure</strong> (Art. 17) — deletion of your data
             where the legal grounds for processing no longer exist.
           </li>
-          <li>
+          <li data-i18n-html="privacy.rights.restriction">
             <strong>Restriction</strong> (Art. 18) — limit processing
             to storage during a dispute.
           </li>
-          <li>
+          <li data-i18n-html="privacy.rights.portability">
             <strong>Portability</strong> (Art. 20) — export of your
             data in a structured, machine-readable format.
           </li>
-          <li>
+          <li data-i18n-html="privacy.rights.objection">
             <strong>Objection</strong> (Art. 21) — to processing based
             on legitimate interest.
           </li>
-          <li>
+          <li data-i18n-html="privacy.rights.withdraw">
             <strong>Withdraw consent</strong> at any time (where
             processing is based on consent), without affecting the
             lawfulness of processing already carried out.
           </li>
         </ul>
-        <p>
+        <p data-i18n-html="privacy.rights_exercise">
           To exercise any of these rights, email
           <a href="mailto:atay@oezcan.me">atay@oezcan.me</a>. We will
           respond within one month per Art. 12(3) GDPR.
@@ -193,8 +179,8 @@
       </section>
 
       <section>
-        <h2>Right to lodge a complaint</h2>
-        <p>
+        <h2 data-i18n="privacy.h.complaint">Right to lodge a complaint</h2>
+        <p data-i18n-html="privacy.complaint_body">
           You can lodge a complaint with a data-protection supervisory
           authority — typically the one in the federal state where you
           reside or work. In Germany, see the
@@ -204,8 +190,8 @@
       </section>
 
       <section>
-        <h2>Changes</h2>
-        <p>
+        <h2 data-i18n="privacy.h.changes">Changes</h2>
+        <p data-i18n="privacy.changes_body">
           We may update this policy when our practices change. The
           effective date at the top reflects the most recent revision.
         </p>

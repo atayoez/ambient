@@ -12,9 +12,11 @@ export default {
 
     // /downloads/latest/{platform} → 302 to whatever the manifest currently
     // points at. Lets the homepage hardcode platform-keyed URLs once and
-    // never touch them again across releases.
+    // never touch them again across releases. Bare "windows"/"linux"
+    // alias the x86_64 (majority) builds; "-arm64" suffix picks up the
+    // aarch64 variants from the 0.4-and-later release matrix.
     const latestMatch = url.pathname.match(
-      /^\/downloads\/latest\/(macos|windows|linux)\/?$/,
+      /^\/downloads\/latest\/(macos|windows|windows-arm64|linux|linux-arm64)\/?$/,
     );
     if (latestMatch) {
       return redirectToLatest(env.DOWNLOADS, latestMatch[1]);

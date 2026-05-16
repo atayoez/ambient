@@ -9,26 +9,32 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "flatpak:build": "flatpak-builder --user --install --force-clean build-dir flatpak/com.ambient.app.yaml",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "test": "vitest run",
     "release": "./scripts/release.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-http": "^2.4.0",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2.2.6",
     "@tauri-apps/plugin-store": "^2.2.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "@tauri-apps/cli": "^2.11.1",
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/jsdom": "^28.0.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.6",
+    "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.13"
+    "vite": "^8.0.13",
+    "vitest": "^4.1.6"
   }
 }

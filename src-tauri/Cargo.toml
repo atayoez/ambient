@@ -16,7 +16,37 @@ tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-http = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
+tauri-plugin-notification = "2"
+# Updater plugin handles signed delta installs. We add it now even though
+# signing isn't wired yet — the check() path works without sigs and gives
+# us a single place to wire auto-install once a code-signing + Tauri
+# update-signing keypair are in place.
+tauri-plugin-updater = "2"
 wallpaper = "3"
+# Pinned to 0.12 to share the tauri-plugin-http transitive (the
+# heavier of the two HTTP consumers). tauri-plugin-updater still
+# pulls reqwest 0.13 of its own, so two versions still coexist —
+# bumping our direct dep wouldn't dedupe either way until both
+# plugins align. We only use reqwest::get for one-shot downloads,
+# so the version pick is functionally indifferent.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Image decoding for Library thumbnail cache. Minimal feature set: just
+# the formats the Library can actually store (PNG patterns, JPEG
+# downloads, WEBP thumbnails). Lossless WebP encoder ships in
+# image-webp under the `webp` feature.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+
+# Release profile tuned for binary size + load-time RSS. Trade-off:
+# release builds get slower (codegen-units=1, fat LTO), but the resulting
+# binary is ~20-30% smaller, starts faster, and uses noticeably less
+# resident memory before the WebView spins up. panic=abort drops the
+# unwinding machinery, which Ambient doesn't use anywhere — every Result
+# is handled explicitly.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+opt-level = 3

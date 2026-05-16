@@ -19,6 +19,8 @@
     "core:path:default",
     "store:default",
     "opener:default",
+    "notification:default",
+    "updater:default",
     {
       "identifier": "http:default",
       "allow": [

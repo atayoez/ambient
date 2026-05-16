@@ -57,7 +57,35 @@ fi
 # Make sure bun is in PATH for child shells (e.g. tauri build → bun run build)
 export PATH="$HOME/.bun/bin:$PATH"
 
+# Tauri update-signing key. If present, each shipped artifact gets a
+# minisign signature embedded in latest.json's platforms block; the
+# plugin then verifies on download_and_install. Without it, we still
+# ship + still write the legacy `downloads` block (so the manual
+# updater banner keeps working), but auto-install won't be available.
+TAURI_SIGNING_PRIVATE_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.config/ambient/updater-private.key}"
+SIGN_ENABLED=false
+if [[ -f "$TAURI_SIGNING_PRIVATE_KEY_PATH" ]]; then
+  SIGN_ENABLED=true
+  export TAURI_SIGNING_PRIVATE_KEY_PATH
+fi
+
+# Sign one artifact in place. Stdout is the base64 signature suitable
+# for embedding in latest.json's platforms.<key>.signature field.
+sign_artifact() {
+  local f="$1"
+  bunx tauri signer sign \
+    -k "$TAURI_SIGNING_PRIVATE_KEY_PATH" \
+    --password "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
+    "$f" >/dev/null
+  cat "${f}.sig"
+}
+
 echo "==> Releasing v$VERSION (was $CURRENT_VERSION)"
+if [[ "$SIGN_ENABLED" == "true" ]]; then
+  echo "    Update signing: ENABLED (key at $TAURI_SIGNING_PRIVATE_KEY_PATH)"
+else
+  echo "    Update signing: DISABLED (set TAURI_SIGNING_PRIVATE_KEY_PATH to enable)"
+fi
 
 # --- 0. Promote CHANGELOG's [Unreleased] section --------------------
 # The Unreleased section becomes the new v$VERSION section, and we
@@ -160,22 +188,31 @@ git push origin main
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "    HEAD is now $HEAD_SHA"
 
-# --- 3. Wait for CI to build mac + win ------------------------------
+# --- 3. Dispatch + wait for CI build (mac + win matrix) -------------
+# build-tauri is gated to workflow_dispatch (see .github/workflows/
+# build.yml). The push above only ran the cheap `check` job; we
+# kick off the actual build matrix here so it doesn't fire on every
+# main push.
 
-echo "==> Locating CI run for this commit"
+echo "==> Dispatching build-tauri workflow"
+gh workflow run build.yml --ref main
+
+echo "==> Locating dispatched run"
 RUN_ID=""
 for _ in $(seq 1 30); do
-  RUN_ID="$(gh run list --workflow=build.yml --limit 5 --json databaseId,headSha \
-    --jq '.[] | select(.headSha == "'"$HEAD_SHA"'") | .databaseId' | head -n1)"
+  # Filter by event=workflow_dispatch so we don't accidentally grab
+  # the cheap check-only run that the push above triggered.
+  RUN_ID="$(gh run list --workflow=build.yml --limit 10 --json databaseId,headSha,event \
+    --jq '.[] | select(.headSha == "'"$HEAD_SHA"'" and .event == "workflow_dispatch") | .databaseId' | head -n1)"
   if [[ -n "$RUN_ID" ]]; then break; fi
   sleep 2
 done
 if [[ -z "$RUN_ID" ]]; then
-  echo "Couldn't find a CI run for $HEAD_SHA. Find it manually with: gh run list" >&2
+  echo "Couldn't find the dispatched CI run for $HEAD_SHA. Re-dispatch manually: gh workflow run build.yml --ref main" >&2
   exit 1
 fi
 echo "    CI run: $RUN_ID"
-echo "==> Waiting for CI (mac + win build typically ~6 min total)"
+echo "==> Waiting for CI (mac + win matrix typically ~10 min)"
 gh run watch "$RUN_ID" --exit-status >/dev/null
 
 # --- 4. Download mac + win artifacts --------------------------------
@@ -184,80 +221,173 @@ WORKDIR="$(mktemp -d -t ambient-release-XXXXXX)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 echo "==> Downloading CI artifacts to $WORKDIR"
-gh run download "$RUN_ID" -n ambient-macos-latest   -D "$WORKDIR/macos"   >/dev/null
-gh run download "$RUN_ID" -n ambient-windows-latest -D "$WORKDIR/windows" >/dev/null
+# Three-arch CI matrix: mac aarch64, win x64, win arm64. Both Linux
+# builds are local (next steps): x86_64 against the host toolchain,
+# aarch64 via Docker + QEMU.
+gh run download "$RUN_ID" -n "ambient-macos-latest-aarch64"     -D "$WORKDIR/macos-aarch64"   >/dev/null
+gh run download "$RUN_ID" -n "ambient-windows-latest-x86_64"    -D "$WORKDIR/windows-x86_64"  >/dev/null
+gh run download "$RUN_ID" -n "ambient-windows-11-arm-aarch64"   -D "$WORKDIR/windows-aarch64" >/dev/null
 
-DMG="$(find "$WORKDIR/macos" -name "*.dmg" -print -quit)"
-EXE="$(find "$WORKDIR/windows" -name "*.exe" -print -quit)"
-if [[ -z "$DMG" || ! -f "$DMG" ]]; then
-  echo "macOS .dmg not found in artifact" >&2; exit 1
-fi
-if [[ -z "$EXE" || ! -f "$EXE" ]]; then
-  echo "Windows .exe not found in artifact" >&2; exit 1
-fi
-echo "    macOS: $DMG"
-echo "    Windows: $EXE"
+DMG_AARCH64="$(find "$WORKDIR/macos-aarch64"   -name "*.dmg"      -print -quit)"
+MSI_X64="$(find       "$WORKDIR/windows-x86_64"  -name "*.msi"      -print -quit)"
+MSI_AARCH64="$(find   "$WORKDIR/windows-aarch64" -name "*.msi"      -print -quit)"
 
-# --- 5. Build Linux locally -----------------------------------------
+for f in "$DMG_AARCH64" "$MSI_X64" "$MSI_AARCH64"; do
+  if [[ -z "$f" || ! -f "$f" ]]; then
+    echo "Missing one or more CI artifacts. WORKDIR=$WORKDIR" >&2
+    ls -R "$WORKDIR" >&2
+    exit 1
+  fi
+done
 
-echo "==> Building Linux AppImage locally"
-# tauri's own bundling step sometimes errors on linuxdeploy invocation
+echo "    macOS  aarch64:  $DMG_AARCH64"
+echo "    Windows x86_64:  $MSI_X64"
+echo "    Windows aarch64: $MSI_AARCH64"
+
+# --- 5. Build both Linux variants locally ---------------------------
+# x86_64 against the host webkit2gtk-4.1 toolchain. aarch64 via
+# Docker + QEMU (see scripts/build-linux-arm64.sh). Both keep Linux
+# builds off the CI minute meter.
+
+echo "==> Building Linux x86_64 AppImage locally"
+# tauri's bundling step sometimes errors on linuxdeploy invocation
 # even though the AppDir is fine. Tolerate exit-1 and finish by hand.
 bun run tauri build || true
-APPIMAGE=""
-# Tauri 2's AppImage filename can vary across versions; pick whatever's in
-# the appimage/ bundle dir, falling back to the manual linuxdeploy step.
 APPIMAGE_DIR="src-tauri/target/release/bundle/appimage"
-APPIMAGE="$(find "$APPIMAGE_DIR" -maxdepth 1 -name "*.AppImage" -print -quit 2>/dev/null || true)"
-if [[ -z "$APPIMAGE" || ! -f "$APPIMAGE" ]]; then
+APPIMAGE_X64="$(find "$APPIMAGE_DIR" -maxdepth 1 -name "*.AppImage" -print -quit 2>/dev/null || true)"
+if [[ -z "$APPIMAGE_X64" || ! -f "$APPIMAGE_X64" ]]; then
   echo "    Tauri bundling didn't emit an AppImage. Running linuxdeploy manually."
   (
     cd "$APPIMAGE_DIR"
     NO_STRIP=true ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
       --appdir Ambient.AppDir --output appimage
   )
-  APPIMAGE="$(find "$APPIMAGE_DIR" -maxdepth 1 -name "*.AppImage" -print -quit)"
+  APPIMAGE_X64="$(find "$APPIMAGE_DIR" -maxdepth 1 -name "*.AppImage" -print -quit)"
 fi
-if [[ -z "$APPIMAGE" || ! -f "$APPIMAGE" ]]; then
-  echo "AppImage build failed — no file produced in $APPIMAGE_DIR" >&2
+if [[ -z "$APPIMAGE_X64" || ! -f "$APPIMAGE_X64" ]]; then
+  echo "Local Linux x86_64 build failed — no file produced in $APPIMAGE_DIR" >&2
   exit 1
 fi
-echo "    Linux: $APPIMAGE"
+APPIMAGE_X64="$REPO_ROOT/$APPIMAGE_X64"
+echo "    Linux x86_64: $APPIMAGE_X64"
 
-# --- 6. Upload to R2 ------------------------------------------------
+echo "==> Building Linux aarch64 AppImage locally (Docker + QEMU)"
+echo "    First run takes ~40 min for the apt + cargo cold start;"
+echo "    subsequent runs are ~15 min with the named-volume caches."
+APPIMAGE_AARCH64="$("$REPO_ROOT/scripts/build-linux-arm64.sh")"
+if [[ -z "$APPIMAGE_AARCH64" || ! -f "$APPIMAGE_AARCH64" ]]; then
+  echo "Local Linux aarch64 build failed" >&2
+  exit 1
+fi
+echo "    Linux aarch64: $APPIMAGE_AARCH64"
 
-DMG_NAME="Ambient_${VERSION}_aarch64.dmg"
-EXE_NAME="Ambient_${VERSION}_x64-setup.exe"
-APPIMAGE_NAME="Ambient_${VERSION}_x86_64.AppImage"
+# --- 6. Sign + upload to R2 -----------------------------------------
+
+DMG_AARCH64_NAME="Ambient-${VERSION}-macOS-aarch64.dmg"
+MSI_X64_NAME="Ambient-${VERSION}-Windows-x86_64.msi"
+MSI_AARCH64_NAME="Ambient-${VERSION}-Windows-aarch64.msi"
+APPIMAGE_X64_NAME="Ambient-${VERSION}-Linux-x86_64.AppImage"
+APPIMAGE_AARCH64_NAME="Ambient-${VERSION}-Linux-aarch64.AppImage"
+
+DMG_AARCH64_SIG=""; MSI_X64_SIG=""; MSI_AARCH64_SIG=""
+APPIMAGE_X64_SIG=""; APPIMAGE_AARCH64_SIG=""
+if [[ "$SIGN_ENABLED" == "true" ]]; then
+  echo "==> Signing artifacts with Tauri update key"
+  DMG_AARCH64_SIG="$(sign_artifact "$DMG_AARCH64")"
+  MSI_X64_SIG="$(sign_artifact "$MSI_X64")"
+  MSI_AARCH64_SIG="$(sign_artifact "$MSI_AARCH64")"
+  APPIMAGE_X64_SIG="$(sign_artifact "$APPIMAGE_X64")"
+  APPIMAGE_AARCH64_SIG="$(sign_artifact "$APPIMAGE_AARCH64")"
+fi
 
 echo "==> Uploading installers to R2"
 (
   cd website
-  bunx wrangler r2 object put "ambient-releases/$DMG_NAME" \
-    --file="$DMG" \
+  bunx wrangler r2 object put "ambient-releases/$DMG_AARCH64_NAME" \
+    --file="$DMG_AARCH64" \
     --content-type=application/x-apple-diskimage --remote >/dev/null
-  bunx wrangler r2 object put "ambient-releases/$EXE_NAME" \
-    --file="$EXE" \
-    --content-type=application/vnd.microsoft.portable-executable --remote >/dev/null
-  bunx wrangler r2 object put "ambient-releases/$APPIMAGE_NAME" \
-    --file="$REPO_ROOT/$APPIMAGE" \
+  bunx wrangler r2 object put "ambient-releases/$MSI_X64_NAME" \
+    --file="$MSI_X64" \
+    --content-type=application/x-msi --remote >/dev/null
+  bunx wrangler r2 object put "ambient-releases/$MSI_AARCH64_NAME" \
+    --file="$MSI_AARCH64" \
+    --content-type=application/x-msi --remote >/dev/null
+  bunx wrangler r2 object put "ambient-releases/$APPIMAGE_X64_NAME" \
+    --file="$APPIMAGE_X64" \
+    --content-type=application/x-executable --remote >/dev/null
+  bunx wrangler r2 object put "ambient-releases/$APPIMAGE_AARCH64_NAME" \
+    --file="$APPIMAGE_AARCH64" \
     --content-type=application/x-executable --remote >/dev/null
 )
 
 # --- 7. Update latest.json ------------------------------------------
 
 RELEASED="$(date -u +%Y-%m-%d)"
+PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LATEST_JSON="$WORKDIR/latest.json"
+
+# Dual-shape manifest:
+#  - `version` + `downloads` keep the legacy v0.3-and-earlier updater
+#    + the Worker's /downloads/latest/<platform> 302 aliases working.
+#    `downloads.windows` / `downloads.linux` default to the x86_64
+#    variants since that's the vast majority of users; -arm64 aliases
+#    handle the rest (see worker.js).
+#  - `pub_date` + `platforms` are what tauri-plugin-updater reads.
+#    Five platform keys, one per matrix arch. Only emitted when
+#    signing is enabled; without a signature the plugin would reject
+#    the artifact at install time anyway, and the absence cleanly
+#    degrades to "no update available" rather than "downloaded then
+#    failed verification."
+PLATFORMS_BLOCK=""
+if [[ "$SIGN_ENABLED" == "true" ]]; then
+  # Escape newlines + quotes for JSON embedding.
+  esc() { python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().rstrip()))'; }
+  DMG_AARCH64_SIG_JSON="$(printf      '%s' "$DMG_AARCH64_SIG"      | esc)"
+  MSI_X64_SIG_JSON="$(printf          '%s' "$MSI_X64_SIG"          | esc)"
+  MSI_AARCH64_SIG_JSON="$(printf      '%s' "$MSI_AARCH64_SIG"      | esc)"
+  APPIMAGE_X64_SIG_JSON="$(printf     '%s' "$APPIMAGE_X64_SIG"     | esc)"
+  APPIMAGE_AARCH64_SIG_JSON="$(printf '%s' "$APPIMAGE_AARCH64_SIG" | esc)"
+  PLATFORMS_BLOCK=$(cat <<PEOF
+,
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": $DMG_AARCH64_SIG_JSON,
+      "url": "https://ambient.oezcan.me/downloads/$DMG_AARCH64_NAME"
+    },
+    "windows-x86_64": {
+      "signature": $MSI_X64_SIG_JSON,
+      "url": "https://ambient.oezcan.me/downloads/$MSI_X64_NAME"
+    },
+    "windows-aarch64": {
+      "signature": $MSI_AARCH64_SIG_JSON,
+      "url": "https://ambient.oezcan.me/downloads/$MSI_AARCH64_NAME"
+    },
+    "linux-x86_64": {
+      "signature": $APPIMAGE_X64_SIG_JSON,
+      "url": "https://ambient.oezcan.me/downloads/$APPIMAGE_X64_NAME"
+    },
+    "linux-aarch64": {
+      "signature": $APPIMAGE_AARCH64_SIG_JSON,
+      "url": "https://ambient.oezcan.me/downloads/$APPIMAGE_AARCH64_NAME"
+    }
+  }
+PEOF
+)
+fi
+
 cat > "$LATEST_JSON" <<EOF
 {
   "version": "$VERSION",
   "released": "$RELEASED",
+  "pub_date": "$PUB_DATE",
   "notes": "Release v$VERSION",
   "downloads": {
-    "macos":   "https://ambient.oezcan.me/downloads/$DMG_NAME",
-    "windows": "https://ambient.oezcan.me/downloads/$EXE_NAME",
-    "linux":   "https://ambient.oezcan.me/downloads/$APPIMAGE_NAME"
-  }
+    "macos":         "https://ambient.oezcan.me/downloads/$DMG_AARCH64_NAME",
+    "windows":       "https://ambient.oezcan.me/downloads/$MSI_X64_NAME",
+    "windows-arm64": "https://ambient.oezcan.me/downloads/$MSI_AARCH64_NAME",
+    "linux":         "https://ambient.oezcan.me/downloads/$APPIMAGE_X64_NAME",
+    "linux-arm64":   "https://ambient.oezcan.me/downloads/$APPIMAGE_AARCH64_NAME"
+  }$PLATFORMS_BLOCK
 }
 EOF
 
@@ -283,9 +413,11 @@ echo "==> Creating GitHub release with installers attached"
 gh release create "v$VERSION" \
   --title "v$VERSION" \
   --notes-file "$NOTES_FILE" \
-  "$DMG#Ambient $VERSION (macOS Apple Silicon)" \
-  "$EXE#Ambient $VERSION (Windows x64)" \
-  "$REPO_ROOT/$APPIMAGE#Ambient $VERSION (Linux x86_64 AppImage)" \
+  "$DMG_AARCH64#Ambient $VERSION (macOS Apple Silicon)" \
+  "$MSI_X64#Ambient $VERSION (Windows x86_64 MSI)" \
+  "$MSI_AARCH64#Ambient $VERSION (Windows arm64 MSI)" \
+  "$APPIMAGE_X64#Ambient $VERSION (Linux x86_64 AppImage)" \
+  "$APPIMAGE_AARCH64#Ambient $VERSION (Linux aarch64 AppImage)" \
   >/dev/null
 
 # --- done ------------------------------------------------------------

@@ -14,10 +14,102 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **OS notifications** when the wallpaper changes in the background.
+  Auto-rotation + theme-follow events fire an OS toast via
+  tauri-plugin-notification; foreground applies stay silent (the
+  in-app status pill is enough). Permission requested once on first
+  background event.
+- **In-app updater** via tauri-plugin-updater. The "Update" button on
+  the update banner now downloads the signed artifact, verifies its
+  minisign signature against the embedded pubkey, replaces the binary,
+  and relaunches — all in one click. Falls back to opening the
+  download page on any failure.
+- **Library thumbnail cache.** A new Rust command generates 480×300
+  WebP thumbnails under `wallpapers/thumbs/` on first card render and
+  reuses them on subsequent loads. Caps steady-state WebKit image
+  memory for image-heavy libraries.
+- **Windows aarch64 + Linux aarch64 builds** ship alongside the
+  existing x86_64 / aarch64 (macOS) ones. Five artifacts per release.
+- **Auto-detected primary download** on the marketing site. The
+  Download section shows one big card for the visitor's OS + arch
+  (Client Hints API on Chromium, UA parsing elsewhere) and tucks the
+  other four behind a `<details>` disclosure.
+- **Test harness.** `bun run test` runs Vitest (jsdom env, 5 tests
+  for `isDarkForMode` + `dismissUpdate`); `cargo test --lib` runs
+  Rust unit tests (10 tests for `safe_filename`, `thumbnail_path_for`,
+  `first_wxh`, `strip_ansi`). CI runs both on every push.
+- `docs/DEVELOPMENT.md` consolidates the dev/test/release commands.
 
 ### Changed
+- **Patterns + Generate are draft-by-default.** Slider tweaks and
+  prompt edits stay in memory; they persist to disk only when you
+  click Apply ✓. License, library mutations, theme-follow, and
+  rotation toggles continue to autosave (they were already discrete
+  user actions).
+- **Tabs stay mounted across switches** (lazy on first visit, sticky
+  after). Switching Patterns → Library → Patterns no longer drops
+  unapplied tweaks.
+- **Windows installer switched from NSIS to MSI** (WiX-generated,
+  native Windows 11 feel). NSIS-installed 0.3 users should uninstall
+  the old version before installing 0.4.
+- **Release artifacts renamed** to `Ambient-VERSION-{macOS,Windows,
+  Linux}-{aarch64,x86_64}.{dmg,msi,AppImage}`.
+- **CI build matrix gated to `workflow_dispatch`.** Only the cheap
+  `check` job (tsc + biome + tests) runs on every push; the
+  build-tauri matrix only fires when `scripts/release.sh` kicks it
+  off. Saves macOS minutes (10× priced on free tier) per push.
+- **Linux builds happen locally** during release: x86_64 against the
+  host's webkit2gtk-4.1 toolchain, aarch64 via Docker + QEMU
+  (`scripts/build-linux-arm64.sh`). CI matrix shrunk to 3 jobs
+  (macOS, Windows x64, Windows ARM).
+- **Release profile tuned** (LTO + strip + codegen-units=1 +
+  panic=abort). Smaller binary, lower boot RSS, slightly faster cold
+  start.
+- **`src-tauri/src/lib.rs` split** into `desktop.rs` (wallpaper
+  setter), `monitor.rs` (randr detection), `library.rs` (file
+  management + thumbnail cache). lib.rs went from ~380 to 79 lines.
+- **`App.tsx` extracted into hooks** (`lib/appHooks.ts`):
+  useLicenseGate, useUpdateBanner, useAutoRotate, useThemeFollow,
+  useWindowMaximized, useTabKeybindings. App.tsx went from 427 to
+  212 lines.
+- **`Patterns.tsx` split** into PaletteEditor (chip rows + emoji
+  picker) and useApplyPattern (render-save-set pipeline). 700 to 466
+  lines.
+- **Shared `useDebouncedCallback` hook** in `lib/hooks.ts` replaces
+  inline `saveDebounceRef` in Generate.tsx + Sources.tsx.
+- **Library cards memoized** via `React.memo` with a custom
+  comparator. 20+ cards stop re-rendering on every status / confirm
+  flip.
+- **AppImage filename** now includes `Linux-x86_64` / `Linux-aarch64`;
+  embedded icon is the full 512×512 PNG (was 256×256), so file
+  managers with libappimage thumbnailer render the right icon.
+- **Website rebuilt around real app screenshots** captured from the
+  live app (no more CSS-mocked tabs). Achromatic palette throughout
+  (cosmic gradients retired) to match the app. Voice rewritten across
+  en/de/tr — fewer em dashes, less press-release phrasing.
+- **Legal pages updated**: TMG → DDG (Digitale-Dienste-Gesetz, replaced
+  on 14 May 2024); TTDSG → TDDDG (renamed the same day). Impressum +
+  Privacy fully translated to DE + TR via `data-i18n-html`. Privacy
+  policy effective date bumped; the now-nonexistent free-trial form
+  data flow removed from the data-processing section.
+- **Pricing copy honest.** Dropped "Signed binaries with automatic
+  updates" (which weren't actually signed) for "Free updates for life
+  with in-app notifications". JSON-LD `softwareVersion` field bumped
+  to match.
+
+### Removed
+- `flatpak/` directory + `.flatpak-builder/` cache + `build-flatpak`
+  CI job + `flatpak:build` npm script. Was kept on ice for a future
+  Flathub submission; pulled because that isn't on the near-term
+  roadmap. Restore from git history if Flathub re-enters scope.
+- `cosmic-app` git branch (local + `origin`).
+- Manual fetch logic in `lib/updater.ts` — now wraps the plugin's
+  `check()` for signature-verified update checks.
 
 ### Fixed
+- Library thumbnails on a 20+ wallpaper library no longer spike WebKit
+  image-cache memory to hundreds of MB worst case. The Rust thumbnail
+  cache caps each card to ~30 KB on disk / ~10 MB decoded.
 
 ## [0.3.0] — 2026-05-16
 

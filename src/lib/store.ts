@@ -5,7 +5,12 @@ let _store: Store | null = null;
 
 async function getStore(): Promise<Store> {
   if (!_store) {
-    _store = await load('ambient.json', { defaults: {}, autoSave: true });
+    // autoSave is OFF. Every persisting call site is explicit: saveKey,
+    // saveSettings, saveLibrary all flush to disk via store.save(). High
+    // frequency UI state (Patterns slider tweaks, the Generate prompt)
+    // doesn't auto-persist — it's saved only when the user clicks the
+    // Apply tick, matching the explicit "draft → commit" model.
+    _store = await load('ambient.json', { defaults: {}, autoSave: false });
   }
   return _store;
 }
@@ -105,6 +110,10 @@ export async function loadKey<T>(key: string): Promise<T | null> {
 }
 
 export async function saveKey<T>(key: string, value: T): Promise<void> {
+  // Explicit set + save. The plugin's autoSave is off (see getStore),
+  // so this is the only path that persists key/value state. Callers
+  // are expected to be explicit user gestures: useDraftState's save(),
+  // license validation, theme-mode click, etc. — none high frequency.
   const store = await getStore();
   await store.set(key, value);
   await store.save();

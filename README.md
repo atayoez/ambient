@@ -14,11 +14,15 @@ Anything you apply lands in your **Library** for re-use. Everything stays local;
 
 Builds for every release land on the [Releases page](https://github.com/atayozcan/ambient/releases). Pick the file for your OS:
 
-| Platform | File                            | Notes                                                                |
-|----------|---------------------------------|----------------------------------------------------------------------|
-| macOS    | `Ambient_x.y.z_aarch64.dmg`     | Apple Silicon only. Open the DMG, drag Ambient to Applications.       |
-| Windows  | `Ambient_x.y.z_x64-setup.exe`   | Run the NSIS installer. Unsigned: right-click → Properties → Unblock first.   |
-| Linux    | `Ambient_x.y.z_x86_64.AppImage` | `chmod +x` and run. Flatpak is on the way to Flathub.                |
+| Platform                | File                                       | Notes                                                                |
+|-------------------------|--------------------------------------------|----------------------------------------------------------------------|
+| macOS (Apple Silicon)   | `Ambient-x.y.z-macOS-aarch64.dmg`          | Open the DMG, drag Ambient to Applications. Unsigned: right-click → Open the first time. |
+| Windows x86_64          | `Ambient-x.y.z-Windows-x86_64.msi`         | MSI installer (WiX). Unsigned: "More info → Run anyway" the first time. |
+| Windows ARM64           | `Ambient-x.y.z-Windows-aarch64.msi`        | Native ARM64 build for Snapdragon / Copilot+ PCs.                    |
+| Linux x86_64            | `Ambient-x.y.z-Linux-x86_64.AppImage`      | `chmod +x` and run. Needs `webkit2gtk-4.1` on the host.              |
+| Linux aarch64           | `Ambient-x.y.z-Linux-aarch64.AppImage`     | For Raspberry Pi 4/5, Asahi-on-Apple-Silicon, ARM servers.            |
+
+The marketing site at [ambient.oezcan.me](https://ambient.oezcan.me/) auto-detects your OS + arch and surfaces the right download as the primary CTA.
 
 ### Linux requirements
 
@@ -66,15 +70,27 @@ bun run tauri build        # production installers for your platform
 
 The release bundle ends up under `src-tauri/target/release/bundle/`.
 
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full dev / test / release commands (including the Docker QEMU recipe for the Linux aarch64 AppImage, the linuxdeploy bundling-step fallback, and `jq` snippets for resetting license / library state during testing).
+
 ## Project structure
 
 ```
 src/              React + TypeScript frontend
   components/     Tab components + shared layout primitives
-  lib/            Pattern engine, source fetchers, settings store
+  lib/            Pattern engine, sources, store, app-level hooks
 design-system/    Color + type tokens, reference HTML
-src-tauri/        Rust backend (commands, tray, wallpaper bridge)
-flatpak/          Flathub-ready manifest (work in progress)
+src-tauri/
+  src/
+    lib.rs        Tauri builder + plugin registration + tray
+    desktop.rs    set_wallpaper (cross-platform + COSMIC override)
+    monitor.rs    randr-shelling monitor detection
+    library.rs    File mgmt commands + WebP thumbnail cache
+scripts/
+  release.sh     Cut a versioned release (see DEVELOPMENT.md)
+  build-linux-arm64.sh  Local aarch64 build via Docker + QEMU
+  docker/        Dockerfile.aarch64 for the above
+website/         Marketing site (Cloudflare Worker + R2)
+docs/            DEVELOPMENT.md + screenshots + operational notes
 ```
 
 The design system tokens live in [`design-system/colors_and_type.css`](design-system/colors_and_type.css) — change anything there and the app picks it up via a single `@import` from `src/index.css`.
@@ -84,11 +100,13 @@ The design system tokens live in [`design-system/colors_and_type.css`](design-sy
 Issues and PRs welcome. Quick checks before pushing:
 
 ```bash
-bun x tsc --noEmit          # type-check
-bun run lint                # biome lint + format
+bun x tsc --noEmit                       # type-check
+bun run lint                              # biome lint + format
+bun run test                              # vitest (JS unit tests)
+(cd src-tauri && cargo test --lib)        # cargo (Rust unit tests)
 ```
 
-CI runs the same checks plus full Tauri builds on macOS / Windows / Linux on every push.
+CI runs the same `check` job on every push/PR. The cross-platform installer builds are gated to `workflow_dispatch` and only fire during a release cut — `scripts/release.sh` handles the dispatch.
 
 ## License
 

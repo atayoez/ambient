@@ -9,13 +9,12 @@ dist-ssr
 .DS_Store
 
 src-tauri/target
+# Separate target dir for the Linux aarch64 Docker QEMU build —
+# scripts/build-linux-arm64.sh writes here via CARGO_TARGET_DIR.
+src-tauri/target-aarch64
 src-tauri/gen/schemas
 app-icon.png
 dev.log
 
-# Flatpak build outputs
-.flatpak-builder/
-build-dir/
-repo/
-cargo-sources.json
-node-sources.json
+# Vitest output (coverage etc.)
+coverage/

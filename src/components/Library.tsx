@@ -1,9 +1,10 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { loadLibrary, mutateLibrary } from '../lib/store';
 import type { Wallpaper } from '../lib/types';
 import {
   deleteWallpaper,
+  getThumbnail,
   LAST_APPLIED_KEY,
   listLocalWallpapers,
   setWallpaper,
@@ -21,6 +22,112 @@ function readLastApplied(): string | null {
   }
 }
 
+interface LibraryCardProps {
+  wallpaper: Wallpaper;
+  thumbSrc: string;
+  isCurrent: boolean;
+  isConfirming: boolean;
+  busy: boolean;
+  onApply: (w: Wallpaper) => void;
+  onRequestDelete: (path: string) => void;
+  onConfirmDelete: (w: Wallpaper) => void;
+  onCancelDelete: () => void;
+}
+
+// Memoized per-wallpaper card. Custom comparator ignores callback identity
+// (callbacks are stable enough by inspection — see parent useCallback wrappers
+// — and the meaningful props are wallpaper / thumbSrc / isCurrent /
+// isConfirming / busy). Without this, every status / error / confirmDelete
+// toggle would re-render all 20+ cards.
+const LibraryCard = memo(
+  function LibraryCard({
+    wallpaper: w,
+    thumbSrc,
+    isCurrent,
+    isConfirming,
+    busy,
+    onApply,
+    onRequestDelete,
+    onConfirmDelete,
+    onCancelDelete,
+  }: LibraryCardProps) {
+    return (
+      <div className={isCurrent ? 'card current' : 'card'}>
+        <button
+          type="button"
+          className="card-thumb"
+          onClick={() => onApply(w)}
+          disabled={busy}
+          aria-label={`Apply ${w.title ?? 'wallpaper'}`}
+        >
+          {/* thumbSrc is a 480×300 WebP if the cache has resolved, or
+              the full-resolution original as a fallback until the
+              backend generates one. decoding="async" lets WebKit decode
+              off the main thread. */}
+          <img
+            src={thumbSrc}
+            alt={w.title ?? ''}
+            width={480}
+            height={300}
+            loading="lazy"
+            decoding="async"
+          />
+          <span className="card-thumb-hint">{isCurrent ? 'Applied' : 'Apply'}</span>
+        </button>
+        <div className="card-actions">
+          {isConfirming ? (
+            <>
+              {/* Destructive confirmation stays textual — icon-only
+                  on a "really delete?" action invites mis-clicks. */}
+              <button
+                type="button"
+                onClick={() => onConfirmDelete(w)}
+                className="danger"
+                // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
+                autoFocus
+              >
+                Confirm delete
+              </button>
+              <button
+                type="button"
+                onClick={onCancelDelete}
+                className="icon-btn"
+                aria-label="Cancel"
+                title="Cancel"
+              >
+                <XIcon />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onRequestDelete(w.path)}
+              className="danger-ghost icon-btn"
+              aria-label="Delete"
+              title={
+                isCurrent ? 'Currently applied — switch wallpaper first' : 'Delete'
+              }
+              disabled={isCurrent || busy}
+            >
+              <TrashIcon />
+            </button>
+          )}
+        </div>
+        <div className="card-meta">
+          {w.source}
+          {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
+        </div>
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.wallpaper === next.wallpaper &&
+    prev.thumbSrc === next.thumbSrc &&
+    prev.isCurrent === next.isCurrent &&
+    prev.isConfirming === next.isConfirming &&
+    prev.busy === next.busy,
+);
+
 export default function Library() {
   const [library, setLibrary] = useState<Wallpaper[]>([]);
   const [busy, setBusy] = useState(false);
@@ -37,6 +144,12 @@ export default function Library() {
   // desktop, so we block it and let the user pick a different
   // wallpaper first.
   const [currentPath, setCurrentPath] = useState<string | null>(readLastApplied);
+  // wallpaper.path → cached thumbnail path (resolved via Rust). Empty
+  // until the first invoke round-trips; the card falls back to the
+  // full-resolution original until the thumb URL is in here. 480×300
+  // WebP thumbs cap WebKit's image cache footprint dramatically vs the
+  // 2880×1800 originals.
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
   useEffect(() => {
     // Two-stage load: render whatever is in the persisted library
@@ -82,9 +195,45 @@ export default function Library() {
     return () => window.removeEventListener('ambient-wallpaper-applied', onApplied);
   }, []);
 
-  async function applyExisting(w: Wallpaper) {
-    if (busy) return;
-    setBusy(true);
+  useEffect(() => {
+    // Resolve a thumbnail path per library entry. Generation happens
+    // once per file (Rust mtime-checks before re-encoding); subsequent
+    // mounts are pure cache hits. Errors fall through to the original
+    // file path so the card still shows something. Cards render as
+    // soon as their thumb resolves — no batch wait.
+    if (library.length === 0) {
+      setThumbs({});
+      return;
+    }
+    let cancelled = false;
+    for (const w of library) {
+      getThumbnail(w.path)
+        .then((thumbPath) => {
+          if (cancelled) return;
+          setThumbs((cur) =>
+            cur[w.path] === thumbPath ? cur : { ...cur, [w.path]: thumbPath },
+          );
+        })
+        .catch(() => {
+          // Silent fallback — the card already shows the original.
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [library]);
+
+  const applyExisting = useCallback(async (w: Wallpaper) => {
+    // Functional setBusy lets the callback be stable while still bailing
+    // out on a re-entrant click — without this useCallback would have to
+    // depend on `busy`, the closure would re-bind every render, and the
+    // memoized LibraryCard's callback identity would be useless anyway.
+    let alreadyBusy = false;
+    setBusy((b) => {
+      if (b) alreadyBusy = true;
+      return true;
+    });
+    if (alreadyBusy) return;
     setError(null);
     try {
       await setWallpaper(w.path);
@@ -95,12 +244,16 @@ export default function Library() {
     } finally {
       setBusy(false);
     }
-  }
+  }, []);
 
-  async function removeFromLibrary(w: Wallpaper) {
-    if (busy) return;
+  const removeFromLibrary = useCallback(async (w: Wallpaper) => {
+    let alreadyBusy = false;
+    setBusy((b) => {
+      if (b) alreadyBusy = true;
+      return true;
+    });
+    if (alreadyBusy) return;
     setConfirmDelete(null);
-    setBusy(true);
     setError(null);
     try {
       // Delete the file BEFORE the library mutation. If the OS refuses
@@ -127,7 +280,10 @@ export default function Library() {
     } finally {
       setBusy(false);
     }
-  }
+  }, []);
+
+  const onRequestDelete = useCallback((path: string) => setConfirmDelete(path), []);
+  const onCancelDelete = useCallback(() => setConfirmDelete(null), []);
 
   return (
     <div className="library">
@@ -160,72 +316,20 @@ export default function Library() {
             lands here for re-use.
           </div>
         )}
-        {library.map((w) => {
-          const isConfirming = confirmDelete === w.path;
-          const isCurrent = currentPath === w.path;
-          return (
-            <div key={w.path} className={isCurrent ? 'card current' : 'card'}>
-              <button
-                type="button"
-                className="card-thumb"
-                onClick={() => applyExisting(w)}
-                disabled={busy}
-                aria-label={`Apply ${w.title ?? 'wallpaper'}`}
-              >
-                <img src={convertFileSrc(w.path)} alt={w.title ?? ''} loading="lazy" />
-                <span className="card-thumb-hint">{isCurrent ? 'Applied' : 'Apply'}</span>
-              </button>
-              <div className="card-actions">
-                {isConfirming ? (
-                  <>
-                    {/* Destructive confirmation stays textual — icon-only
-                        on a "really delete?" action invites mis-clicks. */}
-                    <button
-                      type="button"
-                      onClick={() => removeFromLibrary(w)}
-                      className="danger"
-                      // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
-                      autoFocus
-                    >
-                      Confirm delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(null)}
-                      className="icon-btn"
-                      aria-label="Cancel"
-                      title="Cancel"
-                    >
-                      <XIcon />
-                    </button>
-                  </>
-                ) : (
-                  // Click the thumbnail to apply. The delete is disabled
-                  // on the currently-applied wallpaper — removing the
-                  // file the OS is rendering leaves a black desktop, so
-                  // we force the user to swap to a different wallpaper
-                  // before deleting this one.
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(w.path)}
-                    className="danger-ghost icon-btn"
-                    aria-label="Delete"
-                    title={
-                      isCurrent ? 'Currently applied — switch wallpaper first' : 'Delete'
-                    }
-                    disabled={isCurrent || busy}
-                  >
-                    <TrashIcon />
-                  </button>
-                )}
-              </div>
-              <div className="card-meta">
-                {w.source}
-                {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
-              </div>
-            </div>
-          );
-        })}
+        {library.map((w) => (
+          <LibraryCard
+            key={w.path}
+            wallpaper={w}
+            thumbSrc={convertFileSrc(thumbs[w.path] ?? w.path)}
+            isCurrent={currentPath === w.path}
+            isConfirming={confirmDelete === w.path}
+            busy={busy}
+            onApply={applyExisting}
+            onRequestDelete={onRequestDelete}
+            onConfirmDelete={removeFromLibrary}
+            onCancelDelete={onCancelDelete}
+          />
+        ))}
       </div>
     </div>
   );
