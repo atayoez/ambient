@@ -22,6 +22,13 @@ is added on top. Edit this file as you go, not at release time.
 ## [0.4.0] — 2026-05-16
 
 ### Added
+- **Linux AppImage self-integrates on first launch.** Copies itself
+  from wherever it was downloaded to `~/.local/bin/Ambient.AppImage`
+  and writes a `com.ambient.app.desktop` entry + 512×512 icon under
+  the XDG paths so the COSMIC / GNOME / KDE launcher discovers it
+  without needing `appimaged` or `AppImageLauncher`. Idempotent across
+  re-launches; downloads a fresh AppImage re-integrates to the new
+  path.
 - **OS notifications** when the wallpaper changes in the background.
   Auto-rotation + theme-follow events fire an OS toast via
   tauri-plugin-notification; foreground applies stay silent (the
