@@ -12,6 +12,7 @@ import { TrashIcon, XIcon } from './Icons';
 import { InspectorSection, StatusInline } from './layout';
 import RotationControl from './RotationControl';
 import ClickSpark from './reactbits/ClickSpark/ClickSpark';
+import SpotlightCard from './reactbits/SpotlightCard/SpotlightCard';
 
 function readLastApplied(): string | null {
   try {
@@ -160,11 +161,7 @@ export default function Library() {
           const isConfirming = confirmDelete === w.path;
           const isCurrent = currentPath === w.path;
           return (
-            <div
-              key={w.path}
-              className={isCurrent ? 'card current' : 'card'}
-              data-current={isCurrent || undefined}
-            >
+            <SpotlightCard key={w.path} className={isCurrent ? 'card current' : 'card'}>
               <ClickSpark>
                 <button
                   type="button"
@@ -227,7 +224,7 @@ export default function Library() {
                 {w.source}
                 {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
               </div>
-            </div>
+            </SpotlightCard>
           );
         })}
       </div>

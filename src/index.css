@@ -754,7 +754,7 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 /* Currently-applied wallpaper gets an accent ring + dimmed delete state.
-   The data-current attribute is set in Library.tsx based on the
+   The .current class is appended in Library.tsx based on the
    ambient-last-applied localStorage key, which lib/wallpaper.ts updates
    on every setWallpaper call. */
 .card.current {
