@@ -11,6 +11,7 @@ import {
 import { TrashIcon, XIcon } from './Icons';
 import { InspectorSection, StatusInline } from './layout';
 import RotationControl from './RotationControl';
+import AnimatedListItem from './reactbits/AnimatedList/AnimatedListItem';
 import ClickSpark from './reactbits/ClickSpark/ClickSpark';
 import SpotlightCard from './reactbits/SpotlightCard/SpotlightCard';
 
@@ -157,74 +158,82 @@ export default function Library() {
             lands here for re-use.
           </div>
         )}
-        {library.map((w) => {
+        {library.map((w, i) => {
           const isConfirming = confirmDelete === w.path;
           const isCurrent = currentPath === w.path;
           return (
-            <SpotlightCard key={w.path} className={isCurrent ? 'card current' : 'card'}>
-              <ClickSpark>
-                <button
-                  type="button"
-                  className="card-thumb"
-                  onClick={() => applyExisting(w)}
-                  disabled={busy}
-                  aria-label={`Apply ${w.title ?? 'wallpaper'}`}
-                >
-                  <img src={convertFileSrc(w.path)} alt={w.title ?? ''} loading="lazy" />
-                  <span className="card-thumb-hint">
-                    {isCurrent ? 'Applied' : 'Apply'}
-                  </span>
-                </button>
-              </ClickSpark>
-              <div className="card-actions">
-                {isConfirming ? (
-                  <>
-                    {/* Destructive confirmation stays textual — icon-only
-                        on a "really delete?" action invites mis-clicks. */}
-                    <button
-                      type="button"
-                      onClick={() => removeFromLibrary(w)}
-                      className="danger"
-                      // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
-                      autoFocus
-                    >
-                      Confirm delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(null)}
-                      className="icon-btn"
-                      aria-label="Cancel"
-                      title="Cancel"
-                    >
-                      <XIcon />
-                    </button>
-                  </>
-                ) : (
-                  // Click the thumbnail to apply. The delete is disabled
-                  // on the currently-applied wallpaper — removing the
-                  // file the OS is rendering leaves a black desktop, so
-                  // we force the user to swap to a different wallpaper
-                  // before deleting this one.
+            <AnimatedListItem key={w.path} delay={i * 0.035}>
+              <SpotlightCard className={isCurrent ? 'card current' : 'card'}>
+                <ClickSpark>
                   <button
                     type="button"
-                    onClick={() => setConfirmDelete(w.path)}
-                    className="danger-ghost icon-btn"
-                    aria-label="Delete"
-                    title={
-                      isCurrent ? 'Currently applied — switch wallpaper first' : 'Delete'
-                    }
-                    disabled={isCurrent || busy}
+                    className="card-thumb"
+                    onClick={() => applyExisting(w)}
+                    disabled={busy}
+                    aria-label={`Apply ${w.title ?? 'wallpaper'}`}
                   >
-                    <TrashIcon />
+                    <img
+                      src={convertFileSrc(w.path)}
+                      alt={w.title ?? ''}
+                      loading="lazy"
+                    />
+                    <span className="card-thumb-hint">
+                      {isCurrent ? 'Applied' : 'Apply'}
+                    </span>
                   </button>
-                )}
-              </div>
-              <div className="card-meta">
-                {w.source}
-                {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
-              </div>
-            </SpotlightCard>
+                </ClickSpark>
+                <div className="card-actions">
+                  {isConfirming ? (
+                    <>
+                      {/* Destructive confirmation stays textual — icon-only
+                        on a "really delete?" action invites mis-clicks. */}
+                      <button
+                        type="button"
+                        onClick={() => removeFromLibrary(w)}
+                        className="danger"
+                        // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
+                        autoFocus
+                      >
+                        Confirm delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(null)}
+                        className="icon-btn"
+                        aria-label="Cancel"
+                        title="Cancel"
+                      >
+                        <XIcon />
+                      </button>
+                    </>
+                  ) : (
+                    // Click the thumbnail to apply. The delete is disabled
+                    // on the currently-applied wallpaper — removing the
+                    // file the OS is rendering leaves a black desktop, so
+                    // we force the user to swap to a different wallpaper
+                    // before deleting this one.
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(w.path)}
+                      className="danger-ghost icon-btn"
+                      aria-label="Delete"
+                      title={
+                        isCurrent
+                          ? 'Currently applied — switch wallpaper first'
+                          : 'Delete'
+                      }
+                      disabled={isCurrent || busy}
+                    >
+                      <TrashIcon />
+                    </button>
+                  )}
+                </div>
+                <div className="card-meta">
+                  {w.source}
+                  {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
+                </div>
+              </SpotlightCard>
+            </AnimatedListItem>
           );
         })}
       </div>
