@@ -65,7 +65,24 @@
    * guidance the material itself is achromatic; we deliberately don't
    * tint it. Color comes from the wallpaper beneath and from the
    * accent on interactive elements only. */
-  --bg-base: rgba(18, 18, 22, 0.72);
+  /* The app window is fully opaque (no backdrop-filter through to the
+   * desktop wallpaper) — the bleed gradients layered on top of this
+   * solid base carry the visual interest now. See --bleed-c-* below
+   * and .app in src/index.css for how they stack. */
+  --bg-base: rgb(18, 18, 22);
+
+  /* Image-color bleed inputs. Three CSS vars drive the layered radial
+   * gradients on .app's background. Patterns.tsx pushes config.colors
+   * onto :root so the window background tracks the active palette;
+   * other tabs leave these at the achromatic gray defaults below so
+   * the window looks intentional rather than dead.
+   *
+   * Color-mix in the gradient itself controls intensity (35-40% of
+   * the var, fading to transparent), so these defaults are plain rgb
+   * — the alpha lives in the consumer, not the variable. */
+  --bleed-c-0: rgb(78, 80, 92);
+  --bleed-c-1: rgb(68, 72, 84);
+  --bleed-c-2: rgb(58, 60, 70);
   --bg-tint-top: transparent;
   --bg-tint-bottom: transparent;
 
@@ -188,7 +205,10 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-base: rgba(250, 250, 252, 0.72);
+    --bg-base: rgb(250, 250, 252);
+    --bleed-c-0: rgb(212, 216, 226);
+    --bleed-c-1: rgb(218, 222, 230);
+    --bleed-c-2: rgb(225, 228, 235);
     --bg-tint-top: transparent;
     --bg-tint-bottom: transparent;
     --surface: rgba(255, 255, 255, 0.5);

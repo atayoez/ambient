@@ -6,26 +6,6 @@
     <title>Ambient</title>
   </head>
   <body>
-    <!-- SVG turbulence/displacement filter for backdrop refraction.
-         Referenced by .app's backdrop-filter as url(#liquid-refract).
-         Kept inline so it's available before any CSS resolves. -->
-    <svg width="0" height="0" style="position:absolute;width:0;height:0" aria-hidden="true">
-      <filter id="liquid-refract" x="0%" y="0%" width="100%" height="100%">
-        <feTurbulence
-          type="fractalNoise"
-          baseFrequency="0.009"
-          numOctaves="2"
-          seed="3"
-          stitchTiles="stitch"
-        />
-        <feDisplacementMap
-          in="SourceGraphic"
-          scale="5"
-          xChannelSelector="R"
-          yChannelSelector="G"
-        />
-      </filter>
-    </svg>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

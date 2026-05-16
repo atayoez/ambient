@@ -99,6 +99,26 @@ export default function Patterns() {
     });
   }, [effectiveDark, setConfig]);
 
+  // Push the first three palette colors onto :root as --bleed-c-{0,1,2}
+  // so .app's background gradient layers track the active pattern. Cleared
+  // on unmount so other tabs fall back to the achromatic defaults in
+  // design-system/colors_and_type.css. The exact slots cycle through the
+  // palette if it has fewer than three entries — most palettes ship 4-6
+  // colors, so this branch is rarely hit.
+  useEffect(() => {
+    const root = document.documentElement;
+    const palette = config.colors;
+    if (palette.length === 0) return;
+    for (let i = 0; i < 3; i++) {
+      root.style.setProperty(`--bleed-c-${i}`, palette[i % palette.length]);
+    }
+    return () => {
+      for (let i = 0; i < 3; i++) {
+        root.style.removeProperty(`--bleed-c-${i}`);
+      }
+    };
+  }, [config.colors]);
+
   // Pre-paint render: useLayoutEffect runs synchronously after the DOM is
   // ready but before the browser paints, so the canvas never flashes empty.
   // Renderer always gets randomness: 1 — matches the apply path so the

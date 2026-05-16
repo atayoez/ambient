@@ -3,12 +3,11 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Platform-aware styling: WebKitGTK on Linux can't render the SVG turbulence
-// filter we use for macOS-style Liquid Glass refraction, and the default
-// Apple font stack falls through to whatever the distro ships. Tagging the
-// root here (before React mounts, before first paint) lets index.css branch
-// on [data-platform="..."] for blur strength, base opacity, and the
-// `url(#liquid-refract)` reference.
+// Platform tag on the root element. The earlier per-platform CSS (different
+// backdrop-filter strengths, SVG turbulence on macOS only, lighter blur on
+// WebKitGTK) is gone now that the window background is opaque + bleed-driven,
+// but keeping the attribute means future surface-specific tweaks can still
+// branch on it cheaply without re-introducing this setup.
 const ua = navigator.userAgent;
 const platform: 'macos' | 'windows' | 'linux' = /Mac OS X|Macintosh/.test(ua)
   ? 'macos'

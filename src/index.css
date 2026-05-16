@@ -55,15 +55,35 @@ textarea,
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-base);
-  /* Default glass treatment — blur + saturation only. The SVG turbulence
-     refraction is opted into on macOS below; WebKitGTK (Linux) doesn't
-     render `backdrop-filter: ... url(#filter)` reliably, and on Windows
-     WebView2 the SVG-filter path is heavy enough to cause frame drops on
-     mid-range hardware. macOS Safari/WebKit is where this technique
-     originated and where it renders cleanly. */
-  backdrop-filter: var(--blur-window);
-  -webkit-backdrop-filter: var(--blur-window);
+  /* Opaque base + three layered radial-gradient bleeds driven by
+     --bleed-c-{0,1,2}. Patterns.tsx pushes its config.colors onto
+     :root so the window background picks up the active palette;
+     other tabs fall back to subtle achromatic grays defined in
+     design-system/colors_and_type.css.
+     Replaces the previous backdrop-filter + SVG turbulence chain —
+     the live blur of the desktop wallpaper was a constant per-frame
+     GPU cost (much worse on integrated graphics + WebKitGTK), and the
+     SVG-filter path on macOS was the heaviest part of it. The window
+     is still Tauri-transparent so the rounded corners + drop shadow
+     read as a shaped panel, but everything inside the panel paints
+     against an opaque surface now. */
+  background:
+    radial-gradient(
+      ellipse 90% 70% at 100% 0%,
+      color-mix(in srgb, var(--bleed-c-0) 38%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 85% 75% at 0% 100%,
+      color-mix(in srgb, var(--bleed-c-1) 32%, transparent) 0%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 65% 65% at 100% 100%,
+      color-mix(in srgb, var(--bleed-c-2) 28%, transparent) 0%,
+      transparent 70%
+    ),
+    var(--bg-base);
   border-radius: var(--radius-window);
   border: 1px solid var(--border-strong);
   box-shadow:
@@ -75,42 +95,11 @@ textarea,
 /* When maximized, the window touches every screen edge — rounded corners
    leave dead-pixel gaps in the four corners, the 1px border draws inside
    the screen, and the drop shadow is clipped at the edge. Strip all three
-   in this state so the app sits flush. The tilt was already removed from
-   .app (it now lives on .tabs / .preview-wrap / .license-card), so no
-   transform reset is needed here. */
+   in this state so the app sits flush. */
 .app[data-maximized='true'] {
   border-radius: 0;
   border: none;
   box-shadow: none;
-}
-
-/* macOS-only: add the SVG turbulence displacement on top of the blur for
-   true Liquid Glass refraction. See note in .app above for why this is
-   gated. */
-:root[data-platform='macos'] .app {
-  backdrop-filter: var(--blur-window) url(#liquid-refract);
-  -webkit-backdrop-filter: var(--blur-window) url(#liquid-refract);
-}
-
-/* Per-platform glass tuning. macOS keeps the heavy 40px blur and 180%
-   saturation that defines Apple's Liquid Glass. Windows and Linux get a
-   lighter, more solid treatment — backdrop-filter performance is uneven on
-   WebView2 and WebKitGTK, and a thinner blur over a higher base opacity
-   reads more like Windows 11 Mica / GNOME's frosted surfaces than like a
-   broken approximation of macOS. */
-:root[data-platform='windows'],
-:root[data-platform='linux'] {
-  --blur-window: blur(28px) saturate(140%);
-  --blur-tabs: blur(14px) saturate(140%);
-  --blur-overlay: blur(18px) saturate(140%);
-  --bg-base: rgba(18, 18, 22, 0.84);
-}
-
-@media (prefers-color-scheme: light) {
-  :root[data-platform='windows'],
-  :root[data-platform='linux'] {
-    --bg-base: rgba(250, 250, 252, 0.88);
-  }
 }
 
 /* Liquid-glass enhancements — specular dome + slow shimmer band.
