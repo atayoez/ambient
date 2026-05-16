@@ -4,7 +4,6 @@
 // "Download" to open the website's downloads section.
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { dismissUpdate, type UpdateInfo } from '../lib/updater';
-import ShinyText from './reactbits/ShinyText/ShinyText';
 
 interface Props {
   info: UpdateInfo;
@@ -28,11 +27,7 @@ export default function UpdateBanner({ info, onDismiss }: Props) {
       <span className="update-banner-icon" aria-hidden="true">
         ↑
       </span>
-      <ShinyText
-        className="update-banner-message"
-        text={`Ambient ${info.version} is available.`}
-        display="inline-block"
-      />
+      <span className="update-banner-message">Ambient {info.version} is available.</span>
       <button type="button" className="update-banner-link" onClick={download}>
         Download
       </button>

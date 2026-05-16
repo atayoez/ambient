@@ -134,18 +134,16 @@ textarea,
   left: 50%;
   display: inline-flex;
   align-items: center;
-  /* Fully transparent pill — no dark tint AND no backdrop-blur, so
-     content behind (library card images, preview canvases) shows
-     through unobscured. The border + shadow + the inner tab-indicator
-     pill still outline the shape so the user has something to aim at. */
+  /* Fully transparent pill — no background, no border, no drop-shadow.
+     The drop-shadow used to paint a 32px dark blur below + around the
+     pill which read as a horizontal strip at the bottom of the window;
+     gone now. Active tab is signalled via .tab-indicator (subtle inner
+     pill) + text color shift on .tab.active. */
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: none;
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 0;
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 var(--highlight-edge);
   z-index: 50;
   transform: translateX(-50%);
 }
