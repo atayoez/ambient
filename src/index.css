@@ -1175,18 +1175,20 @@ input[type='range']:active::-moz-range-thumb {
   display: inline-flex;
 }
 
-/* Popover anchored above the "+" trigger. 8px gap below, 320px max height
-   with overflow-y so the grid scrolls if categories grow. Glass-pill
-   material matches the rest of the chrome; z-index 100 keeps it above
-   inspector content but below the bottom tab pill (z-index 50 — wait,
-   actually we want above the tab pill too, so 100 wins). */
+/* Centered viewport-fixed picker. The earlier absolute-positioned
+   variant anchored to the "+" button overflowed the 820px window
+   whenever the trigger sat near the right edge of the inspector
+   column (~270px wide). Fixed-bottom-center positions reliably
+   regardless of where the trigger lands. The picker stays in the
+   click-outside flow via the wrap ref in Patterns.tsx (DOM nesting
+   still works under position: fixed). */
 .emoji-picker {
-  position: absolute;
-  bottom: calc(100% + 8px);
+  position: fixed;
+  bottom: 92px;
   left: 50%;
   transform: translateX(-50%);
-  width: 296px;
-  max-height: 320px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(360px, calc(100vh - 180px));
   overflow-y: auto;
   background: rgba(30, 30, 36, 0.92);
   backdrop-filter: var(--blur-tabs);
