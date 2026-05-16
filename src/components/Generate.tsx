@@ -19,6 +19,7 @@ import {
   StatusInline,
   TabLayout,
 } from './layout';
+import ClickSpark from './reactbits/ClickSpark/ClickSpark';
 
 const PROVIDER_OPTIONS: { id: GenProvider; name: string; description: string }[] = [
   { id: 'pollinations', name: 'Pollinations', description: 'Free, no key required' },
@@ -232,16 +233,18 @@ export default function Generate() {
         }
         actions={
           <>
-            <button
-              type="button"
-              onClick={go}
-              disabled={busy || !prompt.trim()}
-              className="primary icon-btn"
-              aria-label="Generate and apply"
-              title="Generate and apply (⌘⏎)"
-            >
-              <WandIcon />
-            </button>
+            <ClickSpark>
+              <button
+                type="button"
+                onClick={go}
+                disabled={busy || !prompt.trim()}
+                className="primary icon-btn"
+                aria-label="Generate and apply"
+                title="Generate and apply (⌘⏎)"
+              >
+                <WandIcon />
+              </button>
+            </ClickSpark>
             <StatusInline status={status} error={error} />
           </>
         }

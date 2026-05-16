@@ -27,6 +27,7 @@ import {
   StatusInline,
   TabLayout,
 } from './layout';
+import ClickSpark from './reactbits/ClickSpark/ClickSpark';
 
 // Fallback monitor size when neither the Tauri command nor the JS API can
 // give us the real resolution. Matches the smallest mainstream desktop size.
@@ -600,16 +601,18 @@ export default function Patterns() {
             >
               <ShuffleIcon />
             </button>
-            <button
-              type="button"
-              onClick={apply}
-              disabled={busy}
-              className="primary icon-btn"
-              aria-label="Apply as wallpaper"
-              title="Apply as wallpaper (⌘⏎)"
-            >
-              <CheckIcon />
-            </button>
+            <ClickSpark>
+              <button
+                type="button"
+                onClick={apply}
+                disabled={busy}
+                className="primary icon-btn"
+                aria-label="Apply as wallpaper"
+                title="Apply as wallpaper (⌘⏎)"
+              >
+                <CheckIcon />
+              </button>
+            </ClickSpark>
             <StatusInline status={status} error={error} />
           </>
         }

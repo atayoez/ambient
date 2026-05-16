@@ -11,6 +11,7 @@ import {
 import { TrashIcon, XIcon } from './Icons';
 import { InspectorSection, StatusInline } from './layout';
 import RotationControl from './RotationControl';
+import ClickSpark from './reactbits/ClickSpark/ClickSpark';
 
 function readLastApplied(): string | null {
   try {
@@ -164,16 +165,20 @@ export default function Library() {
               className={isCurrent ? 'card current' : 'card'}
               data-current={isCurrent || undefined}
             >
-              <button
-                type="button"
-                className="card-thumb"
-                onClick={() => applyExisting(w)}
-                disabled={busy}
-                aria-label={`Apply ${w.title ?? 'wallpaper'}`}
-              >
-                <img src={convertFileSrc(w.path)} alt={w.title ?? ''} loading="lazy" />
-                <span className="card-thumb-hint">{isCurrent ? 'Applied' : 'Apply'}</span>
-              </button>
+              <ClickSpark>
+                <button
+                  type="button"
+                  className="card-thumb"
+                  onClick={() => applyExisting(w)}
+                  disabled={busy}
+                  aria-label={`Apply ${w.title ?? 'wallpaper'}`}
+                >
+                  <img src={convertFileSrc(w.path)} alt={w.title ?? ''} loading="lazy" />
+                  <span className="card-thumb-hint">
+                    {isCurrent ? 'Applied' : 'Apply'}
+                  </span>
+                </button>
+              </ClickSpark>
               <div className="card-actions">
                 {isConfirming ? (
                   <>
