@@ -128,16 +128,21 @@ textarea,
   left: 50%;
   display: inline-flex;
   align-items: center;
-  /* Fully transparent pill — no background, no border, no drop-shadow.
-     The drop-shadow used to paint a 32px dark blur below + around the
-     pill which read as a horizontal strip at the bottom of the window;
-     gone now. Active tab is signalled via .tab-indicator (subtle inner
-     pill) + text color shift on .tab.active. */
-  background: transparent;
-  border: none;
+  /* Glass-frosted pill: low-alpha background so the backdrop-filter
+     blur has something to land on, subtle border, AND a smaller
+     drop-shadow than the original (the previous 32px-blur shadow read
+     as a dark strip across the bottom; this 12px shadow gives the
+     pill float without a band). */
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 0;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 var(--highlight-edge);
   z-index: 50;
   transform: translateX(-50%);
 }
@@ -364,19 +369,10 @@ select:focus {
 }
 
 select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpolyline points='2,4 5,7 8,4' fill='none' stroke='%23a59cc4' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 10px 10px;
-  /* Symmetric padding: 28px on both sides keeps the displayed value
-     visually centered (the chevron lives in the right 28px). Without
-     equal left padding, text-align: center would still bias left. */
-  padding-left: 28px;
-  padding-right: 28px;
+  /* No chevron — the user can tell it's a dropdown from cursor: pointer
+     + the hover state. Padding stays symmetric so the displayed value
+     reads centered in the closed state. */
   text-align: center;
-  /* text-align-last is the property that actually centers the closed-
-     state value in Chromium/WebKit; text-align alone does it in some
-     engines but not all. Setting both covers the matrix. */
   text-align-last: center;
   cursor: pointer;
 }
@@ -544,7 +540,9 @@ input[type='range']:active::-moz-range-thumb {
   border: 1px solid var(--border);
   border-radius: var(--radius-container);
   padding: 12px 16px;
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .library-grid {
@@ -563,8 +561,19 @@ input[type='range']:active::-moz-range-thumb {
   border: 1px solid var(--border);
   border-radius: var(--radius-container);
   overflow: hidden;
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
-  transition: transform var(--t-base) ease, border-color var(--t-base) ease;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 var(--highlight-edge);
+  transition:
+    transform var(--t-base) ease,
+    border-color var(--t-base) ease,
+    box-shadow var(--t-base) ease;
+}
+
+.card:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .card:hover {
@@ -748,7 +757,9 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-container);
   border: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: inset 0 1px 0 var(--highlight-edge);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
 }
 
