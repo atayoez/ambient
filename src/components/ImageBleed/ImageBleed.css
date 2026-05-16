@@ -1,0 +1,42 @@
+/* See ImageBleed.tsx for the design rationale. The wrapper is
+   `display: inline-block` so it shrinks to fit its child by default;
+   callers that want the wrapper to fill a flex/grid cell can pass a
+   className with `display: block` or `width: 100%`. */
+
+.image-bleed {
+  position: relative;
+  display: inline-block;
+  /* Sticky-positioned ancestors (.preview-col) need this to be
+     non-static for the halo's absolute positioning to anchor here. */
+}
+
+.image-bleed__halo {
+  position: absolute;
+  /* Extend `spread` px beyond every edge of the wrapped content. The
+     blur below softens the visible edge so the halo dies off into
+     transparent without an explicit mask. */
+  inset: calc(-1 * var(--bleed-spread, 60px));
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* Heavy blur + slight saturation boost — the saturation compensates
+     for the perceived dimming that blur introduces, so the bleed reads
+     as the same hue family as the source image rather than a washed-
+     out approximation. */
+  filter: blur(var(--bleed-blur, 50px)) saturate(135%);
+  opacity: var(--bleed-intensity, 0.6);
+  z-index: 0;
+  pointer-events: none;
+  /* `will-change: filter` would force the halo into its own GPU layer
+     and unlock smoother re-render when bleedSrc changes, but it also
+     pins extra video memory per instance. The Library grid can have
+     20+ cards each with a halo, so we explicitly skip will-change and
+     let the browser decide. */
+}
+
+.image-bleed__content {
+  position: relative;
+  z-index: 1;
+  /* The content stays its natural size; the halo behind extends
+     beyond it. */
+}
