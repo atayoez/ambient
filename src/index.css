@@ -835,6 +835,18 @@ input[type='range']:active::-moz-range-thumb {
    Single styled frame that wraps either a <canvas>, <img>, or empty-state
    <div>. Sized smaller than full-width to feel like a preview, not a
    full-bleed canvas. Centered in its column. */
+/* When PreviewFrame is given a bleedSrc, .preview-wrap sits inside an
+   <ImageBleed> wrapper that owns the column-centering + width
+   constraints. The bleed halo paints OUTSIDE .preview-wrap, so the
+   wrapper must let it overflow — .preview-wrap itself keeps overflow:
+   hidden to clip the image to the rounded preview frame. */
+.preview-bleed-wrapper {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  align-self: center;
+}
+
 .preview-wrap {
   position: relative;
   width: 100%;

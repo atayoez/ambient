@@ -320,7 +320,10 @@ export default function Sources() {
       <TabLayout
         title="Sources"
         preview={
-          <PreviewFrame empty={emptyMessage}>
+          <PreviewFrame
+            empty={emptyMessage}
+            bleedSrc={previewPath ? convertFileSrc(previewPath) : null}
+          >
             {previewPath ? (
               <img src={convertFileSrc(previewPath)} alt={previewMeta?.title ?? ''} />
             ) : null}

@@ -146,7 +146,10 @@ export default function Generate() {
       <TabLayout
         title="Generate"
         preview={
-          <PreviewFrame empty="Type a prompt and hit Generate to see a result here.">
+          <PreviewFrame
+            empty="Type a prompt and hit Generate to see a result here."
+            bleedSrc={lastResult ? convertFileSrc(lastResult) : null}
+          >
             {lastResult ? <img src={convertFileSrc(lastResult)} alt={prompt} /> : null}
           </PreviewFrame>
         }
