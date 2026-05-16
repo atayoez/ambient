@@ -153,21 +153,36 @@ textarea,
   left: 0;
   /* Width and x-offset are driven by --ind-w / --ind-x, which App.tsx
      writes onto .tabs after measuring the active tab's offsetWidth /
-     offsetLeft. The 88px / 3px fallbacks cover the moment before the
-     first measurement runs (initial mount). */
-  width: var(--ind-w, 88px);
-  height: 28px;
+     offsetLeft. Fallbacks (60 / 3) match the natural width of the
+     first emoji tab so the indicator lands roughly correctly on the
+     very first paint, before useLayoutEffect's measurement has had a
+     chance to refine it. */
+  width: var(--ind-w, 60px);
+  height: 36px;
   background: rgba(255, 255, 255, 0.20);
-  border-radius: var(--radius-inline);
+  /* Full pill radius so the inner indicator nests cleanly inside the
+     outer .tabs pill — both are capped to half their own height, so
+     `outer_radius - inner_radius` equals the .tabs padding (3px) and
+     the corners stay concentric. */
+  border-radius: var(--radius-pill);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
     0 1px 3px rgba(0, 0, 0, 0.18);
+  /* Transition is intentionally disabled until App.tsx adds the
+     `initialized` class on .tabs after the first measurement runs.
+     Without this guard, the indicator visibly animates from its
+     fallback width/x to the measured values on first mount — reads as
+     "indicator is bugged" rather than "indicator is sliding". */
+  transition: none;
+  pointer-events: none;
+  transform: translateX(var(--ind-x, 3px));
+}
+
+.tabs.initialized .tab-indicator {
   transition:
     transform var(--t-pill) var(--ease-pill),
     width var(--t-pill) var(--ease-pill);
-  pointer-events: none;
-  transform: translateX(var(--ind-x, 3px));
 }
 
 .window-controls {
@@ -185,25 +200,27 @@ textarea,
 }
 
 .tab {
-  /* Each tab renders a big emoji glyph (🎨 🌌 ✨ 🖼️). The font-size
-     bump from --fs-caption to 22px is what makes the emoji read as a
-     proper nav target instead of a tiny chip. line-height: 1 keeps the
-     emoji vertically centered without expanding the pill's height. */
+  /* Each tab renders a big emoji glyph (🎨 🌌 ✨ 🖼️). 28px font-size
+     reads as a real nav target rather than a chip. The 36px height +
+     line-height: 1 vertically center the glyph in the pill cleanly. */
   position: relative;
-  min-width: 56px;
-  height: 28px;
-  padding: 0 12px;
+  min-width: 60px;
+  height: 36px;
+  padding: 0 14px;
   background: transparent;
   border: none;
   outline: none;
   box-shadow: none;
   color: var(--muted);
   font: inherit;
-  font-size: 22px;
+  font-size: 28px;
   line-height: 1;
   font-weight: var(--fw-medium);
   cursor: pointer;
-  border-radius: var(--radius-inline);
+  /* Match the outer .tabs pill radius so each tab button's hit area
+     has concentric corners — same `outer - inner = padding` logic as
+     the .tab-indicator. */
+  border-radius: var(--radius-pill);
   z-index: 1;
   transition: color var(--t-base) ease;
   white-space: nowrap;
@@ -963,18 +980,23 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .segmented .segment {
+  /* Pill radius so the inner segments nest cleanly inside the outer
+     .segmented pill — same concentric-corner logic as .tab-indicator
+     inside .tabs. */
   display: inline-flex;
   align-items: center;
   gap: 5px;
   background: transparent;
   border: 1px solid transparent;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   font-size: var(--fs-caption);
   font-weight: var(--fw-medium);
   cursor: pointer;
-  transition: background var(--t-fast) ease, color var(--t-fast) ease;
+  transition:
+    background var(--t-fast) ease,
+    color var(--t-fast) ease;
 }
 
 .segmented .segment:hover:not(.active) {

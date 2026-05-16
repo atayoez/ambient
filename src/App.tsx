@@ -228,12 +228,19 @@ export default function App() {
   const activeTabIndex = TABS.findIndex((t) => t.id === tab);
 
   // Dynamic tab-pill sizing. The indicator's width and x-offset are
-  // measured from the active tab's offsetLeft / offsetWidth, so labels of
-  // any length (or future localizations) slot in cleanly without a
-  // hardcoded 88px assumption. Re-measures on active-tab change and on
-  // window resize (font swaps + width changes both invalidate the layout).
+  // measured from the active tab's offsetLeft / offsetWidth, so emoji
+  // glyphs (or future localizations) slot in cleanly. Re-measures on
+  // active-tab change and on window resize.
+  //
+  // `tabsInitialized` gates the CSS transition on the indicator —
+  // until first measurement is committed, transition is disabled (see
+  // .tabs / .tabs.initialized .tab-indicator in index.css), so the
+  // very first paint doesn't animate the indicator from its fallback
+  // 60px / 3px to the measured size (which would read as "the
+  // selection is bugged" on app open).
   const tabsContainerRef = useRef<HTMLElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [tabsInitialized, setTabsInitialized] = useState(false);
   useLayoutEffect(() => {
     function measure() {
       const container = tabsContainerRef.current;
@@ -243,6 +250,7 @@ export default function App() {
       container.style.setProperty('--ind-w', `${active.offsetWidth}px`);
     }
     measure();
+    setTabsInitialized(true);
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [activeTabIndex]);
@@ -328,7 +336,10 @@ export default function App() {
         // bottom-center of the window. Outside <main> so it doesn't
         // participate in tab-content scroll, and gated on `license` so the
         // gate screen isn't littered with non-functional nav.
-        <nav className="tabs" ref={tabsContainerRef}>
+        <nav
+          className={tabsInitialized ? 'tabs initialized' : 'tabs'}
+          ref={tabsContainerRef}
+        >
           <div className="tab-indicator" />
           {TABS.map(({ id, label, emoji }, idx) => (
             <button
