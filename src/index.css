@@ -59,11 +59,8 @@ textarea,
      `transparent: true` so the rounded-corner + drop-shadow shape
      reads as a floating window, but the WebView paints against this
      solid color rather than re-blurring the desktop wallpaper every
-     frame. Saves the constant GPU cost the old
-     `backdrop-filter: blur(...) [url(#liquid-refract)]` chain incurred.
-     Per-image edge bleed (when a preview is showing) lives locally
-     around each <img> / <canvas> via the ImageBleed component; the
-     window background itself stays achromatic. */
+     frame. The window background stays achromatic; visual interest
+     lives in the preview / library content. */
   background: var(--bg-base);
   border-radius: var(--radius-window);
   border: 1px solid var(--border-strong);
@@ -83,13 +80,10 @@ textarea,
   box-shadow: none;
 }
 
-/* The cursor-following specular highlight (.app::before) and slow
-   diagonal shimmer band (.app::after) used to live here. Both were
-   removed — the background is now achromatic and static, and the
-   visual interest moves to the per-preview ImageBleed halos. The
-   per-surface specular on .titlebar::before / .save-toast::before
-   stays because those track the cursor over small chrome elements,
-   not over the window background. */
+/* Earlier iterations of the .app had a cursor-following specular
+   highlight (.app::before) and a slow diagonal shimmer band
+   (.app::after). Both removed during the chrome-motion cleanup —
+   the background is now achromatic and static. */
 
 /* --- Custom titlebar — drag region + window controls only. Tab nav
    moved to a floating bottom pill (Liquid Glass / iOS style); see the
@@ -258,12 +252,11 @@ textarea,
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* Bottom gutter for the floating tab pill — applied on .content so it
-     sits OUTSIDE each tab page's scroll container. Putting it inside the
-     scroll area (the earlier approach) made the padding contribute to
-     scrollHeight and produced phantom scrollbars when content alone fit
-     the viewport but content+padding didn't. */
-  padding-bottom: 76px;
+  /* No bottom gutter for the floating tab pill anymore — the pill is
+     fully transparent (no bg, no border, no drop-shadow) so reserving
+     space for it created an empty light strip at the bottom of the
+     window. Card grids and previews now extend to the window edge;
+     the tab labels float on top with content visible through them. */
 }
 
 .library,
