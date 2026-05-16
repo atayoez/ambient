@@ -105,13 +105,21 @@ export function ShuffleIcon({ size = 14, className, style }: IconProps) {
 }
 
 export function WandIcon({ size = 14, className, style }: IconProps) {
+  // Lucide's `wand` icon — a clean diagonal stick + an 8-direction
+  // sparkle around a center dot. The previous design had a 4-pointed
+  // star whose bottom tip was 1px past where the stick started, so
+  // they overlapped instead of meeting end-to-end.
   return (
     <SvgRoot size={size} className={className} style={style}>
-      <path d="m21 21-9-9" />
-      <path d="m12 3 1 4 4 1-4 1-1 4-1-4-4-1 4-1z" />
-      <path d="M19 12h2" />
-      <path d="M17 17l1.5 1.5" />
-      <path d="M17 7l1.5-1.5" />
+      <path d="m3 21 9-9" />
+      <path d="M15 4V2" />
+      <path d="M15 16v-2" />
+      <path d="M8 9h2" />
+      <path d="M20 9h2" />
+      <path d="M17.8 11.8 19 13" />
+      <path d="M15 9h.01" />
+      <path d="M17.8 6.2 19 5" />
+      <path d="M12.2 6.2 11 5" />
     </SvgRoot>
   );
 }
