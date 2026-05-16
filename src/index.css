@@ -1129,7 +1129,8 @@ input[type='range']:active::-moz-range-thumb {
   justify-content: center;
 }
 
-.add-color {
+.add-color,
+.emoji-row input.add-emoji {
   width: 38px;
   height: 38px;
   background: transparent;
@@ -1140,9 +1141,21 @@ input[type='range']:active::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   line-height: 0;
+  /* Both the shared input rule and the .inspector-section width:100%
+     override need to be neutralised so the add-emoji slot stays a
+     38×38 chip rather than a full-width pill. */
+  padding: 0;
+  font-size: 22px;
+  text-align: center;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  outline: none;
 }
 
-.add-color:hover:not(:disabled) {
+.add-color:hover:not(:disabled),
+.emoji-row input.add-emoji:hover,
+.emoji-row input.add-emoji:focus {
   border-style: solid;
   color: var(--accent);
   border-color: var(--accent);

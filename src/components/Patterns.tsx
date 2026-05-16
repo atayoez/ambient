@@ -377,36 +377,48 @@ export default function Patterns() {
                 ))}
               </div>
               {config.type === 'emoji' ? (
-                <>
-                  <div className="emoji-row">
-                    {config.emojis.map((emoji, i) => (
-                      <div key={`${emoji}-${i}`} className="emoji-chip">
-                        <span aria-hidden="true">{emoji}</span>
-                        {config.emojis.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeEmoji(i)}
-                            className="chip-remove"
-                            aria-label={`Remove emoji ${emoji}`}
-                            title="Remove"
-                          >
-                            <XIcon size={11} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                <div className="emoji-row">
+                  {config.emojis.map((emoji, i) => (
+                    <div key={`${emoji}-${i}`} className="emoji-chip">
+                      <span aria-hidden="true">{emoji}</span>
+                      {config.emojis.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeEmoji(i)}
+                          className="chip-remove"
+                          aria-label={`Remove emoji ${emoji}`}
+                          title="Remove"
+                        >
+                          <XIcon size={11} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {/* Inline add-emoji slot. Typing or pasting an emoji
+                      fires onChange, splits into code points, appends
+                      non-ASCII characters to the chip list, and clears
+                      the input. On macOS Cmd+Ctrl+Space / Windows
+                      Win+. / Linux compose-key emoji picker, the OS
+                      inserts the picked emoji here and it lands in
+                      the list immediately. */}
                   <input
                     type="text"
-                    value={config.emojis.join('')}
-                    onChange={(e) =>
-                      patch({
-                        emojis: Array.from(e.target.value).filter((c) => c.trim()),
-                      })
-                    }
-                    placeholder="✨🌙⭐💫🪐"
+                    className="add-emoji"
+                    placeholder="+"
+                    aria-label="Add emoji"
+                    onChange={(e) => {
+                      const incoming = Array.from(e.target.value).filter(
+                        (c) => c.trim() && (c.codePointAt(0) ?? 0) > 127,
+                      );
+                      if (incoming.length === 0) {
+                        e.target.value = '';
+                        return;
+                      }
+                      patch({ emojis: [...config.emojis, ...incoming] });
+                      e.target.value = '';
+                    }}
                   />
-                </>
+                </div>
               ) : (
                 <div className="colors-row">
                   {config.colors.map((c, i) => (
