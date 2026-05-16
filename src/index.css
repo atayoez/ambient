@@ -371,10 +371,24 @@ select:focus {
 select {
   /* No chevron — the user can tell it's a dropdown from cursor: pointer
      + the hover state. Padding stays symmetric so the displayed value
-     reads centered in the closed state. */
+     reads centered in the closed state.
+     Glass-pill style mirrors the bottom .tabs pill: low-alpha tint for
+     the backdrop-filter to land on, subtle white border, full pill
+     border-radius, and the same float-depth drop-shadow as the tab
+     pill. Wider horizontal padding (20px) keeps the text from being
+     clipped by the rounded ends of the pill. */
   text-align: center;
   text-align-last: center;
   cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border-color: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 8px 20px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 /* Options inside the dropdown popup are OS-rendered — center where the
@@ -904,13 +918,21 @@ input[type='range']:active::-moz-range-thumb {
 /* Segmented control — 2-3 options, single-row pill with a sliding-active
    state. Used for short toggle groups (theme mode, etc.). */
 .segmented {
+  /* Glass-pill style — matches .tabs and select dropdowns. The inner
+     .segment buttons are still rounded with their own radius (6px) and
+     gain a glassy active state via .segment.active below. */
   display: inline-flex;
   align-self: flex-start;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
   padding: 2px;
   gap: 2px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .segmented .segment {
@@ -1064,15 +1086,21 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .preset-btn {
+  /* Glass-pill style — matches .tabs / select / .segmented. */
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-inline);
-  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
   font-size: var(--fs-caption);
   color: var(--muted);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 .preset-btn:hover:not(:disabled) {
