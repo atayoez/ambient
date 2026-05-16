@@ -1,9 +1,8 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { useEffect, useRef, useState } from 'react';
 import { useKeydown } from '../lib/hooks';
 import { fetchRandomFromSource } from '../lib/sources';
-import { loadLibrary, loadSettings, saveLibrary, saveSettings } from '../lib/store';
+import { loadLibrary, loadSettings, mutateLibrary, saveSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
   type Settings,
@@ -11,7 +10,15 @@ import {
   type Wallpaper,
 } from '../lib/types';
 import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
-import { InspectorSection, PreviewFrame, StatusInline, TabLayout } from './layout';
+import { CheckIcon, RefreshIcon } from './Icons';
+import {
+  InspectorSection,
+  PreviewFrame,
+  Select,
+  StatusInline,
+  TabLayout,
+} from './layout';
+import RotationControl from './RotationControl';
 
 function canFetch(s: Settings): boolean {
   switch (s.source) {
@@ -25,9 +32,21 @@ function canFetch(s: Settings): boolean {
 }
 
 const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = [
-  { id: 'nasa-apod', name: 'NASA APOD', description: 'Free · one image per day' },
-  { id: 'unsplash', name: 'Unsplash', description: 'Free API key · search-driven' },
-  { id: 'pexels', name: 'Pexels', description: 'Free API key · search-driven' },
+  {
+    id: 'nasa-apod',
+    name: 'NASA Picture of the Day',
+    description: 'Free · refreshes once a day',
+  },
+  {
+    id: 'unsplash',
+    name: 'Unsplash',
+    description: 'Free with API key · search-driven',
+  },
+  {
+    id: 'pexels',
+    name: 'Pexels',
+    description: 'Free with API key · search-driven',
+  },
 ];
 
 const CACHE_KEY = 'ambient-source-preview-cache';
@@ -99,6 +118,16 @@ export default function Sources() {
   const [previewMeta, setPreviewMeta] = useState<Wallpaper | null>(null);
 
   const prevSource = useRef<SourceKind | null>(null);
+  // Debounces the disk save + "Saved" toast so typing into a text input
+  // doesn't flash the notification on every keystroke. The in-memory
+  // setSettings happens immediately; only the persistence is delayed.
+  const saveDebounceRef = useRef<number | null>(null);
+  // Drafts for the search query inputs. Queries are commit-on-Enter (or
+  // blur), not commit-on-keystroke — a half-typed "mounta" shouldn't
+  // race ahead and persist to disk. Mirrors the rotation interval input
+  // pattern.
+  const [unsplashQueryDraft, setUnsplashQueryDraft] = useState('');
+  const [pexelsQueryDraft, setPexelsQueryDraft] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -157,22 +186,65 @@ export default function Sources() {
   }, [settings.source]);
 
   useEffect(() => {
-    const unsub = listen('rotate-now', () => {
-      void fetchNew(true);
-    });
-    return () => {
-      unsub.then((fn) => fn()).catch(() => {});
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // When rotation fires from outside the Sources tab (auto-rotate timer
+    // or tray "Next wallpaper"), App.tsx dispatches this with the new
+    // Wallpaper entry. We mirror it into the preview so the user sees the
+    // fresh image even though the rotation logic itself doesn't live here
+    // anymore.
+    function onRotated(e: Event) {
+      const entry = (e as CustomEvent<Wallpaper>).detail;
+      if (!entry) return;
+      setPreviewPath(entry.path);
+      setPreviewMeta(entry);
+    }
+    window.addEventListener('ambient-wallpaper-rotated', onRotated);
+    return () => window.removeEventListener('ambient-wallpaper-rotated', onRotated);
   }, []);
+
+  useEffect(() => {
+    setUnsplashQueryDraft(settings.unsplashQuery);
+  }, [settings.unsplashQuery]);
+
+  useEffect(() => {
+    setPexelsQueryDraft(settings.pexelsQuery);
+  }, [settings.pexelsQuery]);
+
+  function commitUnsplashQuery() {
+    const trimmed = unsplashQueryDraft.trim();
+    setUnsplashQueryDraft(trimmed);
+    if (trimmed !== settings.unsplashQuery) {
+      update({ unsplashQuery: trimmed });
+    }
+  }
+
+  function commitPexelsQuery() {
+    const trimmed = pexelsQueryDraft.trim();
+    setPexelsQueryDraft(trimmed);
+    if (trimmed !== settings.pexelsQuery) {
+      update({ pexelsQuery: trimmed });
+    }
+  }
 
   function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch };
     setSettings(next);
-    saveSettings(next).then(() => {
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1200);
-    });
+    // 400 ms of quiet before we touch disk + flash "Saved". Without the
+    // debounce, every keystroke into the Unsplash/Pexels query inputs
+    // nagged the user with a fresh notification.
+    if (saveDebounceRef.current !== null) {
+      window.clearTimeout(saveDebounceRef.current);
+    }
+    saveDebounceRef.current = window.setTimeout(() => {
+      void saveSettings(next).then(() => {
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 1200);
+        // App.tsx + RotationControl mirrors listen for this so changes
+        // to rotationSource / source-specific behavior propagate without
+        // an app restart.
+        window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+      });
+      saveDebounceRef.current = null;
+    }, 400);
   }
 
   async function fetchNew(apply: boolean, s?: Settings) {
@@ -191,8 +263,7 @@ export default function Sources() {
         addedAt: Date.now(),
         title: fetched.title,
       };
-      const lib = await loadLibrary();
-      await saveLibrary([entry, ...lib]);
+      await mutateLibrary((lib) => [entry, ...lib]);
       setPreviewPath(localPath);
       setPreviewMeta(entry);
       saveCache({
@@ -209,7 +280,7 @@ export default function Sources() {
       } else {
         setStatus('Preview ready');
       }
-      setTimeout(() => setStatus(null), 1800);
+      setTimeout(() => setStatus(null), 1500);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus(null);
@@ -247,6 +318,7 @@ export default function Sources() {
   return (
     <div className="sources">
       <TabLayout
+        title="Sources"
         preview={
           <PreviewFrame empty={emptyMessage}>
             {previewPath ? (
@@ -257,56 +329,18 @@ export default function Sources() {
         inspector={
           <>
             <InspectorSection title="Source">
-              <div className="type-list" role="radiogroup" aria-label="Source">
-                {SOURCE_OPTIONS.map(({ id, name, description }) => (
-                  <button
-                    key={id}
-                    role="radio"
-                    aria-checked={settings.source === id}
-                    className={settings.source === id ? 'type-row active' : 'type-row'}
-                    onClick={() => update({ source: id })}
-                  >
-                    <span className="type-text">
-                      <span className="type-name">{name}</span>
-                      <span className="type-desc">{description}</span>
-                    </span>
-                    {settings.source === id && (
-                      <span className="type-check" aria-hidden="true">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <p className="muted small">
-                NASA APOD caches one image per day. Unsplash and Pexels need a free API
-                key for unlimited search-driven variety.
-              </p>
+              <Select
+                options={SOURCE_OPTIONS.map((s) => ({ id: s.id, label: s.name }))}
+                value={settings.source}
+                onChange={(v) => update({ source: v })}
+                ariaLabel="Source"
+              />
             </InspectorSection>
-
-            {settings.source === 'nasa-apod' && (
-              <InspectorSection title="NASA (optional)">
-                <label className="field">
-                  <span>API key</span>
-                  <input
-                    type="password"
-                    value={settings.nasaApiKey}
-                    onChange={(e) => update({ nasaApiKey: e.target.value })}
-                    placeholder="leave blank to use shared DEMO_KEY"
-                  />
-                </label>
-                <p className="muted small">
-                  Without one, Ambient uses NASA's shared <code>DEMO_KEY</code>
-                  {' — '}rate-limited to 30/hr across the internet. Grab a free personal
-                  key at <code>api.nasa.gov</code> for 1000/hr.
-                </p>
-              </InspectorSection>
-            )}
 
             {settings.source === 'unsplash' && (
               <InspectorSection title="Unsplash">
                 <label className="field">
-                  <span>Access key</span>
+                  <span>API key</span>
                   <input
                     type="password"
                     value={settings.unsplashKey}
@@ -315,10 +349,18 @@ export default function Sources() {
                   />
                 </label>
                 <label className="field">
-                  <span>Topic / search query</span>
+                  <span>Search query</span>
                   <input
-                    value={settings.unsplashTopic}
-                    onChange={(e) => update({ unsplashTopic: e.target.value })}
+                    type="text"
+                    value={unsplashQueryDraft}
+                    onChange={(e) => setUnsplashQueryDraft(e.target.value)}
+                    onBlur={commitUnsplashQuery}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        commitUnsplashQuery();
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
                     placeholder="nature"
                   />
                 </label>
@@ -339,29 +381,72 @@ export default function Sources() {
                 <label className="field">
                   <span>Search query</span>
                   <input
-                    value={settings.pexelsQuery}
-                    onChange={(e) => update({ pexelsQuery: e.target.value })}
+                    type="text"
+                    value={pexelsQueryDraft}
+                    onChange={(e) => setPexelsQueryDraft(e.target.value)}
+                    onBlur={commitPexelsQuery}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        commitPexelsQuery();
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
                     placeholder="mountains"
                   />
                 </label>
               </InspectorSection>
             )}
+
+            <InspectorSection title="Auto-rotate">
+              {settings.source === 'nasa-apod' ? (
+                <div className="rotation-control">
+                  <label className="row-toggle">
+                    <input
+                      type="checkbox"
+                      checked={settings.rotationSource === 'sources'}
+                      onChange={(e) =>
+                        update({ rotationSource: e.target.checked ? 'sources' : 'off' })
+                      }
+                    />
+                    <span>Refresh every day</span>
+                  </label>
+                  {settings.rotationSource === 'library' && (
+                    <p className="muted small">
+                      Library shuffle is on — this will replace it.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <RotationControl
+                  mode="sources"
+                  label="Pull a new image from this source"
+                  otherInUseHint="Library shuffle is on — this will replace it."
+                />
+              )}
+            </InspectorSection>
           </>
         }
         actions={
           <>
             <button
+              type="button"
               onClick={() => fetchNew(false)}
               disabled={busy || !canFetch(settings)}
+              className="icon-btn"
+              aria-label="Re-fetch"
+              title="Fetch a new image (⌘⇧R)"
             >
-              ↻ Re-fetch
+              <RefreshIcon />
             </button>
             <button
+              type="button"
               onClick={applyPreview}
               disabled={busy || !previewPath}
-              className="primary"
+              className="primary icon-btn"
+              aria-label="Apply as wallpaper"
+              title="Apply as wallpaper (⌘⏎)"
             >
-              {busy ? 'Working…' : 'Apply as wallpaper'}
+              <CheckIcon />
             </button>
             <StatusInline status={status} error={error} />
           </>

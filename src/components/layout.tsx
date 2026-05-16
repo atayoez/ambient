@@ -7,15 +7,17 @@ import type { CSSProperties, ReactNode } from 'react';
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 interface TabLayoutProps {
+  title?: string;
   preview: ReactNode;
   inspector: ReactNode;
   actions: ReactNode;
 }
 
-export function TabLayout({ preview, inspector, actions }: TabLayoutProps) {
+export function TabLayout({ title, preview, inspector, actions }: TabLayoutProps) {
   return (
     <div className="tab-grid">
       <div className="preview-col">
+        {title && <h1 className="page-title">{title}</h1>}
         {preview}
         <div className="preview-actions">{actions}</div>
       </div>
@@ -144,5 +146,48 @@ export function Segmented<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+interface SelectOption<T extends string> {
+  id: T;
+  label: string;
+  // Optional prefix glyph rendered inside the option (e.g. pattern type
+  // emojis like 🎨 Mesh). Bare strings keep options readable in the OS
+  // dropdown popup; using a `<span>` here wouldn't render inside <option>.
+  emoji?: string;
+}
+
+interface SelectProps<T extends string> {
+  options: SelectOption<T>[];
+  value: T;
+  onChange: (v: T) => void;
+  ariaLabel?: string;
+  disabled?: boolean;
+}
+
+// Native dropdown wrapped as a typed component. Centralizes the API so the
+// app-wide select styling (centered text, chevron, focus ring) lives in CSS
+// once and every call site just passes options + value + onChange.
+export function Select<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+  disabled,
+}: SelectProps<T>) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      aria-label={ariaLabel}
+      disabled={disabled}
+    >
+      {options.map(({ id, label, emoji }) => (
+        <option key={id} value={id}>
+          {emoji ? `${emoji} ${label}` : label}
+        </option>
+      ))}
+    </select>
   );
 }

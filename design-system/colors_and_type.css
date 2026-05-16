@@ -8,6 +8,18 @@
  * so design files can read them with names familiar to a DS reader.
  */
 
+/* Bundled Inter variable font — Linux distros rarely ship Inter, so without
+ * this @font-face the stack falls through to DejaVu/Liberation Sans and the
+ * app immediately reads as "generic Linux GTK app." File lives in
+ * public/fonts/ so Vite copies it to the bundle root at build time. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2-variations");
+}
+
 :root {
   color-scheme: dark light;
 
@@ -15,10 +27,13 @@
   /* TYPE                                                          */
   /* ============================================================ */
 
-  /* Ambient ships a single system stack — Apple sans on macOS / iOS,
-   * Segoe UI on Windows, system Inter/Roboto on Linux. We do NOT
-   * bundle a webfont. Substitute if rendering on the web. */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  /* Per-platform native first, bundled Inter as the universal fallback:
+   * - macOS / iOS  → San Francisco (-apple-system)
+   * - Windows 11   → Segoe UI Variable
+   * - Windows 10   → Segoe UI
+   * - Linux + rest → Inter (bundled via @font-face above) */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Base size & rhythm */
@@ -70,10 +85,26 @@
   --text: #f5f5f7;
   --muted: #a1a1aa;
 
-  /* Brand / semantic */
-  --accent: #b794f6; /* lavender — primary action */
-  --accent-hover: #d6bcff; /* lighter lavender — gradient stop */
-  --accent-glow: rgba(124, 92, 255, 0.35); /* primary btn shadow */
+  /* Accent: the colour used for "prominent UI element" emphasis — focus
+   * rings (via color-mix), input focus borders, slider track fills.
+   * Achromatic by design: macOS Tahoe's Liquid Glass uses the system
+   * accent very sparingly, and we want even less. Near-opaque white in
+   * dark mode and near-opaque black in light mode keep contrast against
+   * any wallpaper bleed-through.
+   *
+   * --accent-fill is the SOLID surface variant — primary buttons, the
+   * checked-checkbox fill, the active end of the slider track. Mostly
+   * opaque so it reads as a distinct affordance against the surrounding
+   * translucent glass. Paired with --accent-text for legible content
+   * placed ON the fill (dark text on light fill, vice versa).
+   *
+   * Danger / success keep their colours: those are semantic state, not
+   * decoration. */
+  --accent: rgba(255, 255, 255, 0.92);
+  --accent-fill: rgba(255, 255, 255, 0.88);
+  --accent-fill-hover: rgba(255, 255, 255, 0.96);
+  --accent-text: #1c1c1e;
+  --accent-glow: rgba(0, 0, 0, 0.28);
   --danger: #ff7a90;
   --success: #6ee7a3;
 
@@ -104,7 +135,7 @@
   --shadow-window: 0 32px 80px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.35);
   --shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.2);
-  --shadow-primary: 0 6px 16px rgba(124, 92, 255, 0.35);
+  --shadow-primary: 0 6px 16px rgba(0, 0, 0, 0.28);
   --inset-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --inset-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
@@ -168,9 +199,13 @@
     --highlight-edge: rgba(0, 0, 0, 0.04);
     --text: #1c1c1e;
     --muted: #6e6e73;
-    --accent: #7c3aed;
-    --accent-hover: #6d28d9;
-    --accent-glow: rgba(124, 58, 237, 0.25);
+    /* Light-mode mirror of the accent tokens — same achromatic role,
+     * dark-on-light variants. */
+    --accent: rgba(0, 0, 0, 0.82);
+    --accent-fill: rgba(0, 0, 0, 0.85);
+    --accent-fill-hover: rgba(0, 0, 0, 0.95);
+    --accent-text: #f5f5f7;
+    --accent-glow: rgba(0, 0, 0, 0.22);
     --danger: #dc2626;
     --success: #16a34a;
   }

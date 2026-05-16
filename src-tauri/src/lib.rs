@@ -3,7 +3,7 @@ use serde::Serialize;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager,
+    Manager,
 };
 
 #[tauri::command]
@@ -342,10 +342,8 @@ pub fn run() {
             {
                 let show_i =
                     MenuItem::with_id(app, "show", "Open Ambient", true, None::<&str>)?;
-                let rotate_i =
-                    MenuItem::with_id(app, "rotate", "Next wallpaper", true, None::<&str>)?;
                 let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&show_i, &rotate_i, &quit_i])?;
+                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
                 let mut tray = TrayIconBuilder::with_id("main")
                     .menu(&menu)
@@ -353,13 +351,6 @@ pub fn run() {
                     .tooltip("Ambient")
                     .on_menu_event(|app, event| match event.id.as_ref() {
                         "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                        "rotate" => {
-                            let _ = app.emit("rotate-now", ());
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
                                 let _ = window.set_focus();

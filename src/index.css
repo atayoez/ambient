@@ -18,11 +18,27 @@ body,
   height: 100%;
   background: transparent;
   color: var(--text);
+  /* Kill rubber-band / pull-to-refresh overscroll. The wallpaper editor
+     has no useful "scroll past the end" semantics, and on some Linux
+     compositors the bounce-back fights the window's transparency. */
+  overscroll-behavior: none;
 }
 
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Block native image / canvas drag affordances. Without this, the user
+   can grab a Library thumbnail or the Patterns preview canvas and drag
+   it like a webpage image — a browser tell that doesn't belong here.
+   The JS dragstart handler in main.tsx is the behavioral half; this is
+   the cursor / visual half. */
+img,
+canvas {
+  -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -40,24 +56,61 @@ textarea,
   flex-direction: column;
   height: 100%;
   background: var(--bg-base);
-  /* Combined glass treatment: heavy gaussian blur + saturation boost for
-     translucent vibrancy + SVG turbulence displacement for actual
-     refraction of the backdrop (defined inline in index.html). Together
-     these approach the optical feel of Apple's Liquid Glass material. */
-  backdrop-filter: var(--blur-window) url(#liquid-refract);
-  -webkit-backdrop-filter: var(--blur-window) url(#liquid-refract);
+  /* Default glass treatment — blur + saturation only. The SVG turbulence
+     refraction is opted into on macOS below; WebKitGTK (Linux) doesn't
+     render `backdrop-filter: ... url(#filter)` reliably, and on Windows
+     WebView2 the SVG-filter path is heavy enough to cause frame drops on
+     mid-range hardware. macOS Safari/WebKit is where this technique
+     originated and where it renders cleanly. */
+  backdrop-filter: var(--blur-window);
+  -webkit-backdrop-filter: var(--blur-window);
   border-radius: var(--radius-window);
   border: 1px solid var(--border-strong);
   box-shadow:
     var(--shadow-window),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
-  /* Subtle 3D tilt that follows the cursor. Combined with the moving
-     specular above, the window reads as a physical glass plane. */
-  transform: perspective(2400px)
-    rotateX(var(--tilt-x, 0deg))
-    rotateY(var(--tilt-y, 0deg));
-  transform-origin: center center;
+}
+
+/* When maximized, the window touches every screen edge — rounded corners
+   leave dead-pixel gaps in the four corners, the 1px border draws inside
+   the screen, and the drop shadow is clipped at the edge. Strip all three
+   in this state so the app sits flush. The tilt was already removed from
+   .app (it now lives on .tabs / .preview-wrap / .license-card), so no
+   transform reset is needed here. */
+.app[data-maximized='true'] {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* macOS-only: add the SVG turbulence displacement on top of the blur for
+   true Liquid Glass refraction. See note in .app above for why this is
+   gated. */
+:root[data-platform='macos'] .app {
+  backdrop-filter: var(--blur-window) url(#liquid-refract);
+  -webkit-backdrop-filter: var(--blur-window) url(#liquid-refract);
+}
+
+/* Per-platform glass tuning. macOS keeps the heavy 40px blur and 180%
+   saturation that defines Apple's Liquid Glass. Windows and Linux get a
+   lighter, more solid treatment — backdrop-filter performance is uneven on
+   WebView2 and WebKitGTK, and a thinner blur over a higher base opacity
+   reads more like Windows 11 Mica / GNOME's frosted surfaces than like a
+   broken approximation of macOS. */
+:root[data-platform='windows'],
+:root[data-platform='linux'] {
+  --blur-window: blur(28px) saturate(140%);
+  --blur-tabs: blur(14px) saturate(140%);
+  --blur-overlay: blur(18px) saturate(140%);
+  --bg-base: rgba(18, 18, 22, 0.84);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-platform='windows'],
+  :root[data-platform='linux'] {
+    --bg-base: rgba(250, 250, 252, 0.88);
+  }
 }
 
 /* Liquid-glass enhancements — specular dome + slow shimmer band.
@@ -120,11 +173,12 @@ textarea,
   }
 }
 
-/* --- Custom titlebar with centered sliding-pill tabs --- */
+/* --- Custom titlebar — drag region + window controls only. Tab nav
+   moved to a floating bottom pill (Liquid Glass / iOS style); see the
+   .tabs rule below. --- */
 .titlebar {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
@@ -133,6 +187,10 @@ textarea,
   height: 42px;
   cursor: default;
   padding: 0 6px;
+}
+
+.titlebar-drag {
+  flex: 1;
 }
 
 /* Per-surface specular for the titlebar — soft horizontal highlight band
@@ -177,26 +235,47 @@ textarea,
   z-index: -1;
 }
 
+/* Floating bottom tab pill — sits over the content area, blurred-glass
+   material, anchored to the bottom-center of the window. Liquid Glass
+   on iOS / iPadOS uses this same pattern for primary navigation; the
+   tab content gets bottom-padding (see tab page wrappers below) so
+   scrolled content doesn't disappear behind the bar. */
 .tabs {
-  grid-column: 2;
-  position: relative;
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
   display: inline-flex;
   align-items: center;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.42);
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: var(--radius-container);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-pill);
   padding: 3px;
   gap: 0;
-  box-shadow: var(--inset-edge);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 var(--highlight-edge);
+  z-index: 50;
+  /* translateX(-50%) centers; the perspective + tilt that follows
+     applies cursor-tracked parallax to the pill itself. Order matters —
+     translateX must come first so centering survives the rotation. */
+  transform:
+    translateX(-50%)
+    perspective(1200px)
+    rotateX(calc(var(--tilt-x, 0deg) * 0.5))
+    rotateY(calc(var(--tilt-y, 0deg) * 0.5));
 }
 
 .tab-indicator {
   position: absolute;
   top: 3px;
-  left: 3px;
-  width: 88px;
+  left: 0;
+  /* Width and x-offset are driven by --ind-w / --ind-x, which App.tsx
+     writes onto .tabs after measuring the active tab's offsetWidth /
+     offsetLeft. The 88px / 3px fallbacks cover the moment before the
+     first measurement runs (initial mount). */
+  width: var(--ind-w, 88px);
   height: 28px;
   background: rgba(255, 255, 255, 0.20);
   border-radius: var(--radius-inline);
@@ -204,14 +283,14 @@ textarea,
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     inset 0 -1px 0 rgba(0, 0, 0, 0.08),
     0 1px 3px rgba(0, 0, 0, 0.18);
-  transition: transform var(--t-pill) var(--ease-pill);
+  transition:
+    transform var(--t-pill) var(--ease-pill),
+    width var(--t-pill) var(--ease-pill);
   pointer-events: none;
-  transform: translateX(calc(var(--active-tab, 0) * 88px));
+  transform: translateX(var(--ind-x, 3px));
 }
 
 .window-controls {
-  grid-column: 3;
-  justify-self: end;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -227,9 +306,9 @@ textarea,
 
 .tab {
   position: relative;
-  width: 88px;
+  min-width: 70px;
   height: 28px;
-  padding: 0;
+  padding: 0 14px;
   background: transparent;
   border: none;
   outline: none;
@@ -242,6 +321,7 @@ textarea,
   border-radius: var(--radius-inline);
   z-index: 1;
   transition: color var(--t-base) ease;
+  white-space: nowrap;
 }
 
 .tab:hover,
@@ -297,19 +377,27 @@ textarea,
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* Bottom gutter for the floating tab pill — applied on .content so it
+     sits OUTSIDE each tab page's scroll container. Putting it inside the
+     scroll area (the earlier approach) made the padding contribute to
+     scrollHeight and produced phantom scrollbars when content alone fit
+     the viewport but content+padding didn't. */
+  padding-bottom: 76px;
 }
 
 .library,
 .patterns,
-.generate,
-.settings {
+.sources,
+.generate {
   align-self: center;
   width: 100%;
 }
 
 .library,
-.patterns {
-  max-width: 1100px;
+.patterns,
+.sources,
+.generate {
+  max-width: 1280px;
 }
 
 /* --- Generic buttons (scoped to exclude tab-like) --- */
@@ -327,17 +415,17 @@ button {
     transform 80ms ease;
 }
 
-button:not(.tab):not(.type-row):not(.segment):not(.wc):hover:not(:disabled) {
+button:not(.tab):not(.segment):not(.wc):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
 
-button:not(.tab):not(.type-row):not(.segment):not(.wc):focus-visible {
+button:not(.tab):not(.segment):not(.wc):focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 35%, transparent);
 }
 
-button:not(.tab):not(.type-row):not(.segment):not(.wc):active:not(:disabled) {
+button:not(.tab):not(.segment):not(.wc):active:not(:disabled) {
   transform: translateY(1px);
 }
 
@@ -347,16 +435,17 @@ button:disabled {
 }
 
 button.primary {
-  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+  /* Achromatic Liquid Glass primary — solid near-opaque fill (white in
+     dark mode, near-black in light) with contrasting text. Subtle
+     gradient gives the surface depth without colour. */
+  background: linear-gradient(180deg, var(--accent-fill-hover), var(--accent-fill));
   border-color: transparent;
-  color: white;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.2) inset,
-    var(--shadow-primary);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-primary);
 }
 
 button.primary:hover:not(:disabled) {
-  filter: brightness(1.06);
+  background: var(--accent-fill-hover);
 }
 
 button.danger {
@@ -405,8 +494,23 @@ select {
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 10px 10px;
+  /* Symmetric padding: 28px on both sides keeps the displayed value
+     visually centered (the chevron lives in the right 28px). Without
+     equal left padding, text-align: center would still bias left. */
+  padding-left: 28px;
   padding-right: 28px;
+  text-align: center;
+  /* text-align-last is the property that actually centers the closed-
+     state value in Chromium/WebKit; text-align alone does it in some
+     engines but not all. Setting both covers the matrix. */
+  text-align-last: center;
   cursor: pointer;
+}
+
+/* Options inside the dropdown popup are OS-rendered — center where the
+   browser respects this, fall through to native left otherwise. */
+select option {
+  text-align: center;
 }
 
 input[type='checkbox'] {
@@ -429,9 +533,8 @@ input[type='checkbox']:hover {
 }
 
 input[type='checkbox']:checked {
-  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+  background: var(--accent-fill);
   border-color: transparent;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset;
 }
 
 input[type='checkbox']:checked::after {
@@ -441,7 +544,9 @@ input[type='checkbox']:checked::after {
   top: 1px;
   width: 4px;
   height: 9px;
-  border: solid white;
+  /* Checkmark drawn in the contrast colour (dark glyph on light fill
+     in dark mode; light glyph on dark fill in light mode). */
+  border: solid var(--accent-text);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -553,11 +658,28 @@ input[type='range']:active::-moz-range-thumb {
   gap: 14px;
 }
 
+/* Shuffle controls panel pinned at the top of the Library tab. Compact —
+   we don't want the rotation toggle eating room from the wallpaper grid.
+   Centered with a sensible max-width so it doesn't span the entire 1280px
+   library width on big monitors. */
+.library-controls {
+  align-self: center;
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  padding: 12px 16px;
+  box-shadow: inset 0 1px 0 var(--highlight-edge);
+}
+
 .library-grid {
   display: grid;
-  /* Larger min so each card feels substantial; auto-fill scales with width. */
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 14px;
+  /* Compact cards — 180px min so 4-5 fit per row at typical widths.
+     Was 260px which felt too spacious for what's effectively a thumbnail
+     grid. */
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .card {
@@ -628,7 +750,18 @@ input[type='range']:active::-moz-range-thumb {
 .card-actions {
   display: flex;
   gap: 6px;
-  padding: 8px;
+  padding: 6px;
+}
+
+/* Currently-applied wallpaper gets an accent ring + dimmed delete state.
+   The data-current attribute is set in Library.tsx based on the
+   ambient-last-applied localStorage key, which lib/wallpaper.ts updates
+   on every setWallpaper call. */
+.card.current {
+  border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--accent) 45%, transparent),
+    inset 0 1px 0 var(--highlight-edge);
 }
 
 /* Ghost-style danger — same red on hover but neutral at rest, so the
@@ -645,7 +778,7 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .card-meta {
-  padding: 0 10px 10px;
+  padding: 0 8px 8px;
   color: var(--muted);
   font-size: var(--fs-eyebrow);
   text-transform: uppercase;
@@ -672,12 +805,24 @@ input[type='range']:active::-moz-range-thumb {
   font-weight: var(--fw-semibold);
 }
 
+/* Page title sitting above the preview frame in each tab. Replaces the
+   old in-titlebar tab heading — the title now lives at the top of the
+   content, the tab nav at the bottom (Liquid Glass style). */
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--text);
+  align-self: flex-start;
+  line-height: 1.2;
+}
+
 /* --- Tab content wrappers --- */
 .tab-page,
 .generate,
 .patterns,
-.sources,
-.settings {
+.sources {
   flex: 1;
   overflow-y: auto;
   padding: 14px;
@@ -686,16 +831,6 @@ input[type='range']:active::-moz-range-thumb {
   gap: 14px;
 }
 
-.settings {
-  max-width: 720px;
-  padding: 14px 18px;
-}
-
-.patterns,
-.sources,
-.generate {
-  padding-bottom: 18px;
-}
 
 .row {
   display: flex;
@@ -733,7 +868,7 @@ input[type='range']:active::-moz-range-thumb {
 .preview-wrap {
   position: relative;
   width: 100%;
-  max-width: 520px;
+  max-width: 640px;
   align-self: center;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius-container);
@@ -741,6 +876,12 @@ input[type='range']:active::-moz-range-thumb {
   background: var(--surface);
   box-shadow: inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
+  /* See note on .tabs — relocated cursor-tilt from .app to internal
+     glass surfaces. */
+  transform:
+    perspective(1600px)
+    rotateX(calc(var(--tilt-x, 0deg) * 0.5))
+    rotateY(calc(var(--tilt-y, 0deg) * 0.5));
 }
 
 .preview-wrap > canvas,
@@ -779,6 +920,21 @@ input[type='range']:active::-moz-range-thumb {
   align-items: start;
 }
 
+/* At wide window widths give the inspector column more room — 280px feels
+   cramped at 1400+ px viewport, where there's no good reason to keep
+   inputs narrow. Cap at 360 so the inspector doesn't dominate. */
+@media (min-width: 1200px) {
+  .tab-grid {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+@media (min-width: 1500px) {
+  .tab-grid {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+
 @media (max-width: 760px) {
   .tab-grid {
     grid-template-columns: 1fr;
@@ -811,7 +967,7 @@ input[type='range']:active::-moz-range-thumb {
 
 .preview-actions {
   width: 100%;
-  max-width: 520px;
+  max-width: 640px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -840,15 +996,21 @@ input[type='range']:active::-moz-range-thumb {
   color: var(--muted);
 }
 
-.inspector-section input:not([type='color']):not([type='range']),
+/* Stretch text-shaped inputs to fill the inspector column. Checkbox,
+   color, and range have intrinsic dimensions and must be excluded —
+   without :not([type='checkbox']) the 100% rule was blowing the
+   Shuffle/Auto-rotate checkbox up to the full panel width and pushing
+   its label out of the container. */
+.inspector-section input:not([type='color']):not([type='range']):not([type='checkbox']),
 .inspector-section select {
   width: 100%;
 }
 
 /* Slightly roomier padding for inputs that live in an inspector column —
    they're already constrained to ~280px wide, so generous interior space
-   keeps them from feeling cramped. */
-.inspector-section input:not([type='color']):not([type='range']),
+   keeps them from feeling cramped. Same exclusions as above. */
+.inspector-section
+  input:not([type='color']):not([type='range']):not([type='checkbox']),
 .inspector-section textarea,
 .inspector-section select {
   padding: 10px 12px;
@@ -858,82 +1020,6 @@ input[type='range']:active::-moz-range-thumb {
   font-size: var(--fs-eyebrow);
   margin: 0;
   line-height: var(--lh-body);
-}
-
-/* Pattern type picker — vertical list of rows with emoji + name.
-   Always visible, replaces the hover-only overlay that was hard
-   to discover. */
-.type-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.type-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-inline);
-  color: var(--text);
-  font-size: var(--fs-body);
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
-}
-
-.type-row:hover:not(.active) {
-  background: var(--surface);
-}
-
-.type-row.active {
-  background: var(--surface-2);
-  border-color: var(--border);
-}
-
-.type-emoji {
-  flex: 0 0 22px;
-  font-size: 16px;
-  line-height: 1;
-  text-align: center;
-}
-
-/* Wrapper for stacked name + optional description. min-width:0 lets the
-   single-line ellipsis on long labels actually kick in inside flex. */
-.type-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.type-name {
-  font-weight: var(--fw-medium);
-  font-size: var(--fs-body);
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.type-desc {
-  font-size: var(--fs-eyebrow);
-  color: var(--muted);
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.type-check {
-  flex: 0 0 14px;
-  color: var(--accent);
-  font-size: var(--fs-body);
-  line-height: 1;
-  text-align: right;
 }
 
 /* Segmented control — 2-3 options, single-row pill with a sliding-active
@@ -1009,11 +1095,31 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 
-.colors-row {
+.colors-row,
+.emoji-row {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* Emoji chip — visual + remove affordance for the Emoji pattern type.
+   Drops in place of the color-chip row when type='emoji'. Wider than a
+   color chip so the glyph reads at the same scale Patterns renders it. */
+.emoji-chip {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .color-chip {
@@ -1043,8 +1149,7 @@ input[type='range']:active::-moz-range-thumb {
   background: var(--danger);
   color: white;
   border: none;
-  font-size: var(--fs-eyebrow);
-  line-height: 1;
+  line-height: 0;
   padding: 0;
   cursor: pointer;
   display: flex;
@@ -1059,8 +1164,10 @@ input[type='range']:active::-moz-range-thumb {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-inline);
   color: var(--muted);
-  font-size: 18px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .add-color:hover:not(:disabled) {
@@ -1078,10 +1185,13 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-inline);
-  padding: 3px 10px;
+  padding: 4px 10px;
   font-size: var(--fs-caption);
   color: var(--muted);
 }
@@ -1090,28 +1200,40 @@ input[type='range']:active::-moz-range-thumb {
   color: var(--text);
 }
 
-/* --- Settings / Sources sections ---
-   No filled surface — sections sit directly on the app glass. Grouping
-   comes from the h2 eyebrow and spacing, per Apple's Liquid Glass
-   "avoid stacking materials" guidance. */
-.settings section {
-  padding: 4px 2px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.preset-btn.active {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 30%, transparent);
 }
 
-.settings h2 {
-  margin: 0;
-  font-size: var(--h2-size);
-  text-transform: var(--h2-transform);
-  letter-spacing: var(--h2-tracking);
-  color: var(--h2-color);
-  font-weight: var(--h2-weight);
+.preset-emoji {
+  font-size: 14px;
+  line-height: 1;
 }
 
-/* Horizontal label + checkbox row, used in Settings for things like
-   "Auto-rotate while the app is running" — distinct from .field, which
+/* Icon-only action button. Replaces text labels on most action affordances
+   throughout the app — destructive confirmations stay textual (see
+   Library "Confirm delete"). Primary variant gets a small bump so it
+   still reads as the prominent action without copy. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px;
+  min-width: 32px;
+  height: 32px;
+  line-height: 0;
+}
+
+button.primary.icon-btn {
+  padding: 9px;
+  min-width: 36px;
+  height: 36px;
+}
+
+/* Horizontal label + checkbox row, used by RotationControl for things
+   like "Shuffle saved wallpapers" — distinct from .field, which
    stacks an eyebrow label above its input. */
 .row-toggle {
   display: flex;
@@ -1120,6 +1242,40 @@ input[type='range']:active::-moz-range-thumb {
   gap: 8px;
   font-size: var(--fs-body);
   color: var(--text);
+  line-height: 1.3;
+}
+
+/* Rotation toggle + interval. Inline "every [60] min" reads better than
+   the stacked uppercase eyebrow + full-width number input that came out
+   of dropping RotationControl into an InspectorSection. The number field
+   gets a hard width override; the selector below has high enough
+   specificity to beat .inspector-section input { width: 100% }. */
+.rotation-control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rotation-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+
+/* width / padding use !important because the broad `.inspector-section
+   input { width: 100% }` rule has specificity (0,4,1) — chaining classes
+   on this selector can't beat that without going to ID-level. The narrow
+   override is genuinely an exception, not a competing pattern. flex: 0 0
+   auto locks the input as a non-growing, non-shrinking flex item so it
+   keeps its 64px even when the row container has slack space. */
+.rotation-interval input[type='number'] {
+  width: 64px !important;
+  padding: 6px 8px !important;
+  flex: 0 0 auto;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Status, errors, save toast --- */
@@ -1137,7 +1293,6 @@ input[type='range']:active::-moz-range-thumb {
    Apple-style: invisible during mouse use, prominent on Tab. Built on
    :focus-visible so it never appears on click. The accent halo matches
    the slider's active state for visual consistency. */
-.type-row:focus-visible,
 .segment:focus-visible,
 .preset-btn:focus-visible,
 .color-chip input[type='color']:focus-visible,
@@ -1170,8 +1325,8 @@ input[type='range']:active::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: white;
+  background: var(--accent-fill);
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
@@ -1197,9 +1352,9 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .update-banner-link:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-text);
 }
 
 .update-banner-dismiss {
@@ -1237,6 +1392,12 @@ input[type='range']:active::-moz-range-thumb {
     var(--shadow-window),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
+  /* See note on .tabs — relocated cursor-tilt from .app to internal
+     glass surfaces. */
+  transform:
+    perspective(1400px)
+    rotateX(calc(var(--tilt-x, 0deg) * 0.5))
+    rotateY(calc(var(--tilt-y, 0deg) * 0.5));
 }
 
 .license-card-aurora {
@@ -1244,9 +1405,20 @@ input[type='range']:active::-moz-range-thumb {
   inset: -40% -10% auto -10%;
   height: 70%;
   z-index: -1;
+  /* Achromatic ambient glow behind the license card — two soft white
+     puffs replace the old lavender/pink aurora. The glass material
+     does the rest. */
   background:
-    radial-gradient(ellipse 60% 60% at 30% 40%, rgba(124, 92, 255, 0.32), transparent 60%),
-    radial-gradient(ellipse 50% 50% at 75% 30%, rgba(236, 72, 153, 0.24), transparent 60%);
+    radial-gradient(
+      ellipse 60% 60% at 30% 40%,
+      rgba(255, 255, 255, 0.10),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 75% 30%,
+      rgba(255, 255, 255, 0.06),
+      transparent 60%
+    );
   filter: blur(36px);
   pointer-events: none;
 }
@@ -1318,22 +1490,16 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .license-footer a {
-  color: var(--accent);
+  /* Links use the regular text colour — the underline is the affordance,
+     in line with macOS Tahoe's "no colour on chrome" stance. */
+  color: var(--text);
   text-decoration: underline;
-  text-decoration-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  text-decoration-color: color-mix(in oklch, var(--accent) 40%, transparent);
   text-underline-offset: 3px;
 }
 
 .license-footer a:hover {
   text-decoration-color: var(--accent);
-}
-
-/* Empty placeholder where the tabs nav would normally sit — keeps the
-   titlebar height stable so the window controls don't jump when the
-   license gate transitions to/from the tabs view. */
-.tabs-placeholder {
-  flex: 1;
-  height: 28px;
 }
 
 .splash {

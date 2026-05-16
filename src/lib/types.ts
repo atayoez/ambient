@@ -1,5 +1,10 @@
 export type SourceKind = 'nasa-apod' | 'unsplash' | 'pexels';
 export type GenProvider = 'pollinations' | 'openai';
+// 'off' = no auto-rotation. 'sources' = fetch a new image from the
+// configured Source on each tick. 'library' = pick a random previously-
+// saved wallpaper. Mutually exclusive: enabling rotation in Sources tab
+// flips this to 'sources', enabling in Library flips to 'library'.
+export type RotationSource = 'off' | 'sources' | 'library';
 export type PollinationsModel =
   | 'flux'
   | 'flux-realism'
@@ -17,17 +22,16 @@ export type GenResolution =
 
 export interface Settings {
   source: SourceKind;
-  nasaApiKey: string;
   unsplashKey: string;
   pexelsKey: string;
-  unsplashTopic: string;
+  unsplashQuery: string;
   pexelsQuery: string;
   genProvider: GenProvider;
   pollinationsModel: PollinationsModel;
   genResolution: GenResolution;
   openaiKey: string;
   openaiModel: string;
-  rotationEnabled: boolean;
+  rotationSource: RotationSource;
   rotationIntervalMinutes: number;
 }
 
@@ -41,16 +45,15 @@ export interface Wallpaper {
 
 export const DEFAULT_SETTINGS: Settings = {
   source: 'nasa-apod',
-  nasaApiKey: '',
   unsplashKey: '',
   pexelsKey: '',
-  unsplashTopic: 'nature',
-  pexelsQuery: 'mountains',
+  unsplashQuery: '',
+  pexelsQuery: '',
   genProvider: 'pollinations',
   pollinationsModel: 'flux',
   genResolution: 'auto',
   openaiKey: '',
   openaiModel: 'dall-e-3',
-  rotationEnabled: false,
+  rotationSource: 'off',
   rotationIntervalMinutes: 60,
 };

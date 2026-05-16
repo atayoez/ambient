@@ -3,24 +3,27 @@ import { primaryMonitor } from '@tauri-apps/api/window';
 import { useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useKeydown, usePersistedState } from '../lib/hooks';
 import {
+  COLOR_PRESETS,
   DEFAULT_CONFIG,
+  getPreset,
   PATTERN_TYPES,
   type PatternConfig,
   type PatternType,
-  PRESET_PALETTES,
   preloadEmojis,
   renderPattern,
   SLIDER_RANGES,
   TYPE_DEFAULTS,
 } from '../lib/patterns';
-import { loadLibrary, saveLibrary } from '../lib/store';
+import { mutateLibrary } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
 import { setWallpaper } from '../lib/wallpaper';
+import { CheckIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
 import {
   ControlRow,
   InspectorSection,
   PreviewFrame,
   Segmented,
+  Select,
   StatusInline,
   TabLayout,
 } from './layout';
@@ -34,12 +37,20 @@ function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
 }
 
-function paletteFor(dark: boolean): string[] {
-  return [...(dark ? PRESET_PALETTES.Cosmic : PRESET_PALETTES.Pastel)];
+function paletteFor(dark: boolean, presetId: string): string[] {
+  const preset = getPreset(presetId) ?? COLOR_PRESETS[0];
+  return [...(dark ? preset.dark : preset.light)];
 }
 
 function pickInitialConfig(dark: boolean): PatternConfig {
-  return { ...DEFAULT_CONFIG, colors: paletteFor(dark), seed: randomSeed() };
+  const preset = COLOR_PRESETS[0];
+  return {
+    ...DEFAULT_CONFIG,
+    colors: paletteFor(dark, preset.id),
+    emojis: [...preset.emojis],
+    seed: randomSeed(),
+    colorPresetId: preset.id,
+  };
 }
 
 const THEME_OPTIONS = [
@@ -76,17 +87,24 @@ export default function Patterns() {
   // current config.
   const renderRef = useRef<() => void>(() => {});
 
-  // Sync the palette to the resolved theme. Manual color edits via chips
-  // still apply, but flipping the theme mode or — in auto — the system
-  // color-scheme always wins, so the user can lock to Light/Dark to opt
-  // out of OS-driven changes.
+  // Re-apply the active preset's variant when the resolved theme flips.
+  // Custom palettes (where the user manually edited a chip and
+  // colorPresetId got cleared) survive the swap unchanged.
   const effectiveDark = isDarkForMode(themeMode, systemDark);
   useEffect(() => {
-    setConfig((c) => ({ ...c, colors: paletteFor(effectiveDark) }));
+    setConfig((c) => {
+      if (!c.colorPresetId) return c;
+      return { ...c, colors: paletteFor(effectiveDark, c.colorPresetId) };
+    });
   }, [effectiveDark, setConfig]);
 
   // Pre-paint render: useLayoutEffect runs synchronously after the DOM is
   // ready but before the browser paints, so the canvas never flashes empty.
+  // Renderer always gets randomness: 1 — matches the apply path so the
+  // preview is what-you-see-is-what-you-get. Without this, old persisted
+  // configs (saved before the randomness slider was removed) render the
+  // preview with their stale value while apply uses full randomness, and
+  // the wallpaper that lands on disk looks different from the preview.
   useLayoutEffect(() => {
     renderRef.current = () => {
       const canvas = previewRef.current;
@@ -148,22 +166,50 @@ export default function Patterns() {
     patch({ seed: randomSeed() });
   }
 
+  // Any direct palette edit (chip color change, add, remove) marks the
+  // palette as custom by clearing colorPresetId — that way the theme-
+  // swap effect leaves the user's customization alone.
   function setColor(i: number, color: string) {
-    patch({ colors: config.colors.map((x, idx) => (idx === i ? color : x)) });
+    patch({
+      colors: config.colors.map((x, idx) => (idx === i ? color : x)),
+      colorPresetId: undefined,
+    });
   }
 
   function addColor() {
     if (config.colors.length >= 6) return;
-    patch({ colors: [...config.colors, '#ffffff'] });
+    patch({
+      colors: [...config.colors, '#ffffff'],
+      colorPresetId: undefined,
+    });
   }
 
   function removeColor(i: number) {
     if (config.colors.length <= 2) return;
-    patch({ colors: config.colors.filter((_, idx) => idx !== i) });
+    patch({
+      colors: config.colors.filter((_, idx) => idx !== i),
+      colorPresetId: undefined,
+    });
   }
 
-  function applyPreset(name: string) {
-    patch({ colors: [...PRESET_PALETTES[name]] });
+  function removeEmoji(i: number) {
+    if (config.emojis.length <= 1) return;
+    patch({ emojis: config.emojis.filter((_, idx) => idx !== i) });
+  }
+
+  // Selecting a preset sets BOTH the colors (light or dark variant for
+  // the current theme) AND the emojis. The Emoji pattern type picks up
+  // the new emojis on the next render; users who've customized the
+  // emoji string after picking a preset will see those overwritten —
+  // explicit re-pick = explicit reset.
+  function applyPreset(id: string) {
+    const preset = getPreset(id);
+    if (!preset) return;
+    patch({
+      colorPresetId: id,
+      colors: [...(effectiveDark ? preset.dark : preset.light)],
+      emojis: [...preset.emojis],
+    });
   }
 
   async function apply() {
@@ -239,8 +285,7 @@ export default function Patterns() {
       });
 
       const info = PATTERN_TYPES.find((p) => p.id === config.type);
-      const lib = await loadLibrary();
-      await saveLibrary([
+      await mutateLibrary((lib) => [
         {
           path: localPath,
           source: 'generated',
@@ -253,7 +298,7 @@ export default function Patterns() {
       setStatus('Applying wallpaper…');
       await setWallpaper(localPath);
       setStatus('Applied');
-      setTimeout(() => setStatus(null), 1800);
+      setTimeout(() => setStatus(null), 1500);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus(null);
@@ -271,11 +316,11 @@ export default function Patterns() {
   const ranges = SLIDER_RANGES[config.type] ?? {};
   const densityRange = ranges.density;
   const sizeRange = ranges.size;
-  const hasFormSliders = densityRange || sizeRange || config.type === 'mesh';
 
   return (
     <div className="patterns">
       <TabLayout
+        title="Patterns"
         preview={
           <PreviewFrame>
             <canvas ref={previewRef} />
@@ -284,29 +329,16 @@ export default function Patterns() {
         inspector={
           <>
             <InspectorSection title="Pattern">
-              <div className="type-list" role="radiogroup" aria-label="Pattern type">
-                {PATTERN_TYPES.map(({ id, emoji, name }) => (
-                  <button
-                    key={id}
-                    role="radio"
-                    aria-checked={config.type === id}
-                    className={config.type === id ? 'type-row active' : 'type-row'}
-                    onClick={() => setType(id)}
-                  >
-                    <span className="type-emoji" aria-hidden="true">
-                      {emoji}
-                    </span>
-                    <span className="type-text">
-                      <span className="type-name">{name}</span>
-                    </span>
-                    {config.type === id && (
-                      <span className="type-check" aria-hidden="true">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+              <Select
+                options={PATTERN_TYPES.map((t) => ({
+                  id: t.id,
+                  label: t.name,
+                  emoji: t.emoji,
+                }))}
+                value={config.type}
+                onChange={setType}
+                ariaLabel="Pattern type"
+              />
             </InspectorSection>
 
             <InspectorSection title="Palette">
@@ -316,103 +348,267 @@ export default function Patterns() {
                 onChange={setThemeMode}
                 ariaLabel="Theme mode"
               />
-              <div className="colors-row">
-                {config.colors.map((c, i) => (
-                  <div key={i} className="color-chip">
-                    <input
-                      type="color"
-                      value={c}
-                      onChange={(e) => setColor(i, e.target.value)}
-                      aria-label={`color ${i + 1}`}
-                    />
-                    {config.colors.length > 2 && (
-                      <button
-                        onClick={() => removeColor(i)}
-                        className="chip-remove"
-                        aria-label="remove color"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {config.colors.length < 6 && (
-                  <button onClick={addColor} className="add-color" aria-label="add color">
-                    +
-                  </button>
-                )}
-              </div>
               <div className="presets-row">
-                {Object.keys(PRESET_PALETTES).map((name) => (
+                {COLOR_PRESETS.map((preset) => (
                   <button
-                    key={name}
-                    onClick={() => applyPreset(name)}
-                    className="preset-btn"
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset.id)}
+                    className={
+                      config.colorPresetId === preset.id
+                        ? 'preset-btn active'
+                        : 'preset-btn'
+                    }
+                    title={`${preset.name} — ${preset.emojis.slice(0, 3).join(' ')}`}
                   >
-                    {name}
+                    <span className="preset-emoji" aria-hidden="true">
+                      {preset.emojis[0]}
+                    </span>
+                    <span>{preset.name}</span>
                   </button>
                 ))}
               </div>
+              {config.type === 'emoji' ? (
+                <>
+                  <div className="emoji-row">
+                    {config.emojis.map((emoji, i) => (
+                      <div key={`${emoji}-${i}`} className="emoji-chip">
+                        <span aria-hidden="true">{emoji}</span>
+                        {config.emojis.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeEmoji(i)}
+                            className="chip-remove"
+                            aria-label={`Remove emoji ${emoji}`}
+                            title="Remove"
+                          >
+                            <XIcon size={11} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={config.emojis.join('')}
+                    onChange={(e) =>
+                      patch({
+                        emojis: Array.from(e.target.value).filter((c) => c.trim()),
+                      })
+                    }
+                    placeholder="✨🌙⭐💫🪐"
+                  />
+                  <p className="muted small">
+                    Click × on a chip to remove, or paste a new emoji string above.
+                    Rendered in Microsoft Fluent style.
+                  </p>
+                </>
+              ) : (
+                <div className="colors-row">
+                  {config.colors.map((c, i) => (
+                    <div key={i} className="color-chip">
+                      <input
+                        type="color"
+                        value={c}
+                        onChange={(e) => setColor(i, e.target.value)}
+                        aria-label={`color ${i + 1}`}
+                      />
+                      {config.colors.length > 2 && (
+                        <button
+                          onClick={() => removeColor(i)}
+                          className="chip-remove"
+                          aria-label="remove color"
+                          title="Remove color"
+                        >
+                          <XIcon size={11} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {config.colors.length < 6 && (
+                    <button
+                      onClick={addColor}
+                      className="add-color"
+                      aria-label="Add color"
+                      title="Add color"
+                    >
+                      <PlusIcon size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
             </InspectorSection>
 
-            {hasFormSliders && (
-              <InspectorSection title="Form">
-                {densityRange && (
-                  <ControlRow
-                    label={densityRange.label}
-                    value={clamp(config.density, densityRange.min, densityRange.max)}
-                    min={densityRange.min}
-                    max={densityRange.max}
-                    onChange={(v) => patch({ density: v })}
-                  />
-                )}
-                {sizeRange && (
-                  <ControlRow
-                    label="Size"
-                    value={clamp(config.size, sizeRange.min, sizeRange.max)}
-                    suffix="px"
-                    min={sizeRange.min}
-                    max={sizeRange.max}
-                    onChange={(v) => patch({ size: v })}
-                  />
-                )}
+            <InspectorSection title="Form">
+              {densityRange && (
                 <ControlRow
-                  label="Randomness"
-                  value={Math.round(config.randomness * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ randomness: v / 100 })}
+                  label={densityRange.label}
+                  value={clamp(config.density, densityRange.min, densityRange.max)}
+                  min={densityRange.min}
+                  max={densityRange.max}
+                  onChange={(v) => patch({ density: v })}
                 />
-              </InspectorSection>
-            )}
+              )}
+              {sizeRange && (
+                <ControlRow
+                  label="Size"
+                  value={clamp(config.size, sizeRange.min, sizeRange.max)}
+                  min={sizeRange.min}
+                  max={sizeRange.max}
+                  onChange={(v) => patch({ size: v })}
+                />
+              )}
 
-            {config.type === 'emoji' && (
-              <InspectorSection title="Emojis">
-                <input
-                  type="text"
-                  value={config.emojis.join('')}
-                  onChange={(e) =>
-                    patch({
-                      emojis: Array.from(e.target.value).filter((c) => c.trim()),
-                    })
-                  }
-                  placeholder="✨🌙⭐💫🪐"
-                />
-                <p className="muted small">
-                  Paste any string — rendered in Microsoft Fluent style.
-                </p>
-              </InspectorSection>
-            )}
+              {config.type === 'mesh' && (
+                <>
+                  <ControlRow
+                    label="Bubbles"
+                    value={config.meshBubbles ?? 16}
+                    min={6}
+                    max={40}
+                    onChange={(v) => patch({ meshBubbles: v })}
+                  />
+                  <ControlRow
+                    label="Softness"
+                    value={Math.round((config.meshSoftness ?? 0.5) * 100)}
+                    suffix="%"
+                    min={0}
+                    max={100}
+                    onChange={(v) => patch({ meshSoftness: v / 100 })}
+                  />
+                </>
+              )}
+
+              {config.type === 'geometric' && (
+                <>
+                  {/* Plain div (not label) — a Segmented renders a button
+                      group, which can't be associated with a single label
+                      target. The eyebrow span + aria-label on Segmented
+                      cover the labelling story. */}
+                  <div className="field">
+                    <span>Shape</span>
+                    <Segmented
+                      options={[
+                        { id: 'mix', label: 'Mix' },
+                        { id: 'circles', label: 'Circles' },
+                        { id: 'triangles', label: 'Triangles' },
+                        { id: 'squares', label: 'Squares' },
+                      ]}
+                      value={config.geometricShape ?? 'mix'}
+                      onChange={(v) => patch({ geometricShape: v })}
+                      ariaLabel="Shape"
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Fill</span>
+                    <Segmented
+                      options={[
+                        { id: 'solid', label: 'Solid' },
+                        { id: 'outline', label: 'Outline' },
+                        { id: 'mix', label: 'Mix' },
+                      ]}
+                      value={config.geometricFill ?? 'solid'}
+                      onChange={(v) => patch({ geometricFill: v })}
+                      ariaLabel="Fill"
+                    />
+                  </div>
+                </>
+              )}
+
+              {config.type === 'dots' && (
+                <>
+                  <ControlRow
+                    label="Scatter"
+                    value={Math.round((config.dotsJitter ?? 0.5) * 100)}
+                    suffix="%"
+                    min={0}
+                    max={100}
+                    onChange={(v) => patch({ dotsJitter: v / 100 })}
+                  />
+                  <ControlRow
+                    label="Size var."
+                    value={Math.round((config.dotsSizeVar ?? 0.7) * 100)}
+                    suffix="%"
+                    min={0}
+                    max={100}
+                    onChange={(v) => patch({ dotsSizeVar: v / 100 })}
+                  />
+                </>
+              )}
+
+              {config.type === 'stripes' && (
+                <>
+                  <ControlRow
+                    label="Angle"
+                    value={clamp(config.stripesAngle ?? 30, 0, 90)}
+                    suffix="°"
+                    min={0}
+                    max={90}
+                    onChange={(v) => patch({ stripesAngle: v })}
+                  />
+                  <ControlRow
+                    label="Width var."
+                    value={Math.round((config.stripesWidthVar ?? 0.5) * 100)}
+                    suffix="%"
+                    min={0}
+                    max={100}
+                    onChange={(v) => patch({ stripesWidthVar: v / 100 })}
+                  />
+                </>
+              )}
+
+              {config.type === 'emoji' && (
+                <>
+                  <ControlRow
+                    label="Spacing"
+                    value={clamp(config.emojiSpacing ?? 175, 50, 300)}
+                    suffix="%"
+                    min={50}
+                    max={300}
+                    onChange={(v) => patch({ emojiSpacing: v })}
+                  />
+                  <ControlRow
+                    label="Rotation"
+                    value={config.emojiRotationMax ?? 34}
+                    suffix="°"
+                    min={0}
+                    max={90}
+                    onChange={(v) => patch({ emojiRotationMax: v })}
+                  />
+                  <ControlRow
+                    label="Size var."
+                    value={Math.round((config.emojiSizeVar ?? 0.75) * 100)}
+                    suffix="%"
+                    min={0}
+                    max={100}
+                    onChange={(v) => patch({ emojiSizeVar: v / 100 })}
+                  />
+                </>
+              )}
+            </InspectorSection>
           </>
         }
         actions={
           <>
-            <button onClick={reroll} disabled={busy}>
-              ↻ Re-roll
+            <button
+              type="button"
+              onClick={reroll}
+              disabled={busy}
+              className="icon-btn"
+              aria-label="Re-roll"
+              title="Re-roll (⌘⇧R)"
+            >
+              <ShuffleIcon />
             </button>
-            <button onClick={apply} disabled={busy} className="primary">
-              {busy ? 'Working…' : 'Apply as wallpaper'}
+            <button
+              type="button"
+              onClick={apply}
+              disabled={busy}
+              className="primary icon-btn"
+              aria-label="Apply as wallpaper"
+              title="Apply as wallpaper (⌘⏎)"
+            >
+              <CheckIcon />
             </button>
             <StatusInline status={status} error={error} />
           </>

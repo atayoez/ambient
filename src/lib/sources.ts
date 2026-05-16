@@ -13,24 +13,23 @@ export async function fetchRandomFromSource(
 ): Promise<FetchedWallpaper> {
   switch (settings.source) {
     case 'nasa-apod':
-      return nasaApod(settings.nasaApiKey);
+      return nasaApod();
     case 'unsplash':
-      return unsplash(settings.unsplashKey, settings.unsplashTopic);
+      return unsplash(settings.unsplashKey, settings.unsplashQuery);
     case 'pexels':
       return pexels(settings.pexelsKey, settings.pexelsQuery);
   }
 }
 
-async function nasaApod(apiKey: string): Promise<FetchedWallpaper> {
-  const key = apiKey.trim() || 'DEMO_KEY';
-  const res = await fetch(
-    `https://api.nasa.gov/planetary/apod?api_key=${encodeURIComponent(key)}`,
-  );
+// NASA APOD publishes once per day, and rotation/preview is cache-gated
+// to a single fetch per day per user. At that rate DEMO_KEY's 30/hr global
+// cap effectively can't bind, so we don't bother surfacing a per-user
+// API-key field — it was just noise in the inspector.
+async function nasaApod(): Promise<FetchedWallpaper> {
+  const res = await fetch('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY');
   if (res.status === 429) {
     throw new Error(
-      key === 'DEMO_KEY'
-        ? "NASA's shared DEMO_KEY hit its rate limit (30/hr, 50/day). Grab a free personal key at api.nasa.gov and paste it into Sources → NASA — bumps the limit to 1000/hr."
-        : 'NASA APOD rate-limited. Try again in a few minutes.',
+      "NASA's shared DEMO_KEY is rate-limited right now. Try again in a few minutes — Ambient only refreshes once a day, so this should be rare.",
     );
   }
   const data = await res.json();
@@ -41,11 +40,11 @@ async function nasaApod(apiKey: string): Promise<FetchedWallpaper> {
   return { url, filename, source: 'nasa-apod', title: data.title };
 }
 
-async function unsplash(key: string, topic: string): Promise<FetchedWallpaper> {
-  if (!key) throw new Error('Set your Unsplash Access Key in Settings.');
+async function unsplash(key: string, query: string): Promise<FetchedWallpaper> {
+  if (!key) throw new Error('Set your Unsplash API key in Sources first.');
   const u = new URL('https://api.unsplash.com/photos/random');
   u.searchParams.set('orientation', 'landscape');
-  if (topic.trim()) u.searchParams.set('query', topic.trim());
+  if (query.trim()) u.searchParams.set('query', query.trim());
   const res = await fetch(u.toString(), {
     headers: { Authorization: `Client-ID ${key}` },
   });
@@ -62,7 +61,7 @@ async function unsplash(key: string, topic: string): Promise<FetchedWallpaper> {
 }
 
 async function pexels(key: string, query: string): Promise<FetchedWallpaper> {
-  if (!key) throw new Error('Set your Pexels API key in Settings.');
+  if (!key) throw new Error('Set your Pexels API key in Sources first.');
   const url = query.trim()
     ? `https://api.pexels.com/v1/search?per_page=1&orientation=landscape&query=${encodeURIComponent(query.trim())}`
     : 'https://api.pexels.com/v1/curated?per_page=1';

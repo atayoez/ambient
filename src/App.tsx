@@ -1,30 +1,60 @@
 import { getVersion } from '@tauri-apps/api/app';
-import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import Library from './components/Library';
 import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
-import SettingsView from './components/Settings';
 import Sources from './components/Sources';
 import UpdateBanner from './components/UpdateBanner';
 import { type LicenseInfo, loadLicense, validateLicense } from './lib/license';
+import { rotateNow } from './lib/rotation';
+import { loadSettings } from './lib/store';
+import type { RotationSource } from './lib/types';
 import { checkForUpdate, type UpdateInfo } from './lib/updater';
 
-type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
+type Tab = 'patterns' | 'sources' | 'library' | 'generate';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'patterns', label: 'Patterns' },
   { id: 'sources', label: 'Sources' },
-  { id: 'library', label: 'Library' },
   { id: 'generate', label: 'Generate' },
-  { id: 'settings', label: 'Settings' },
+  { id: 'library', label: 'Library' },
 ];
+
+// Run a rotation and announce the result on the window. Sources.tsx
+// listens for the announcement so its in-tab preview reflects the freshly
+// applied wallpaper without needing a manual re-fetch. Failures are
+// swallowed — the timer is silent and we don't want it nagging.
+async function rotateAndAnnounce(): Promise<void> {
+  try {
+    const entry = await rotateNow();
+    window.dispatchEvent(new CustomEvent('ambient-wallpaper-rotated', { detail: entry }));
+  } catch {
+    // Common causes: source API rate-limited, network offline, BYOK
+    // missing. Sources tab will surface a fresh error on its next manual
+    // re-fetch; we don't toast here so the background timer stays quiet.
+  }
+}
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('patterns');
+
+  // Tracks whether the window is maximized so .app can drop its rounded
+  // corners, border, and drop-shadow to sit flush against the screen edges,
+  // and so the titlebar's toggle-maximize button can swap to a restore icon.
+  // Updated initially from Tauri, then on every Resized event.
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // Snapshot of the rotation-relevant settings. Loaded on mount and
+  // refreshed when any tab dispatches 'ambient-settings-changed'. Kept
+  // as a small slice (not the full Settings object) so the interval
+  // effect only re-runs when these two values actually change.
+  const [rotationCfg, setRotationCfg] = useState<{
+    source: RotationSource;
+    intervalMinutes: number;
+  } | null>(null);
 
   // License gate: load the stored license, then validate in the
   // background. Until both checks finish we show a tiny splash so we
@@ -83,9 +113,71 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsub = listen('rotate-now', () => setTab('sources'));
+    // Load rotation config on mount, and re-load whenever Settings.tsx
+    // saves a change. Without this the auto-rotate interval below would
+    // be stuck on whatever values existed at app start.
+    let cancelled = false;
+    async function reload() {
+      const s = await loadSettings();
+      if (cancelled) return;
+      setRotationCfg({
+        source: s.rotationSource,
+        intervalMinutes: s.rotationIntervalMinutes,
+      });
+    }
+    void reload();
+    const onChange = () => void reload();
+    window.addEventListener('ambient-settings-changed', onChange);
     return () => {
-      unsub.then((fn) => fn()).catch(() => {});
+      cancelled = true;
+      window.removeEventListener('ambient-settings-changed', onChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Auto-rotate timer. Silent — no tab switch, so we don't yank the
+    // user around mid-task. Failures swallowed; the next tick retries.
+    // Re-runs whenever the source or interval changes, so toggling
+    // rotation off and back on (or switching between Sources/Library
+    // shuffle) restarts the countdown cleanly. rotateNow() itself
+    // branches on rotationSource — we just have to fire the tick.
+    if (!rotationCfg || rotationCfg.source === 'off') return;
+    const ms = Math.max(1, rotationCfg.intervalMinutes) * 60 * 1000;
+    const id = window.setInterval(() => {
+      void rotateAndAnnounce();
+    }, ms);
+    return () => clearInterval(id);
+  }, [rotationCfg?.source, rotationCfg?.intervalMinutes]);
+
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let cancelled = false;
+    let unlistenResized: (() => void) | null = null;
+    (async () => {
+      try {
+        const initial = await win.isMaximized();
+        if (cancelled) return;
+        setIsMaximized(initial);
+        // onResized fires for both user drag-resizes and OS-driven
+        // maximize/restore. We re-check isMaximized rather than diffing
+        // sizes because some WMs (KDE Wayland especially) report
+        // tiled-edge as "maximized" — the Tauri API gives the canonical
+        // answer.
+        unlistenResized = await win.onResized(async () => {
+          try {
+            const max = await win.isMaximized();
+            if (cancelled) return;
+            setIsMaximized(max);
+          } catch {}
+        });
+      } catch {
+        // No window API available (running outside Tauri, e.g. plain
+        // vite dev in a browser tab). Stay in the windowed default.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unlistenResized) unlistenResized();
     };
   }, []);
 
@@ -153,9 +245,6 @@ export default function App() {
   async function minimize() {
     await getCurrentWindow().minimize();
   }
-  async function toggleMaximize() {
-    await getCurrentWindow().toggleMaximize();
-  }
   async function closeWindow() {
     // We want hide-to-tray, not actual quit. Calling .hide() directly skips
     // the CloseRequested → prevent_close round-trip and works with the
@@ -166,32 +255,30 @@ export default function App() {
 
   const activeTabIndex = TABS.findIndex((t) => t.id === tab);
 
+  // Dynamic tab-pill sizing. The indicator's width and x-offset are
+  // measured from the active tab's offsetLeft / offsetWidth, so labels of
+  // any length (or future localizations) slot in cleanly without a
+  // hardcoded 88px assumption. Re-measures on active-tab change and on
+  // window resize (font swaps + width changes both invalidate the layout).
+  const tabsContainerRef = useRef<HTMLElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  useLayoutEffect(() => {
+    function measure() {
+      const container = tabsContainerRef.current;
+      const active = tabRefs.current[activeTabIndex];
+      if (!container || !active) return;
+      container.style.setProperty('--ind-x', `${active.offsetLeft}px`);
+      container.style.setProperty('--ind-w', `${active.offsetWidth}px`);
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [activeTabIndex]);
+
   return (
-    <div className="app">
+    <div className="app" data-maximized={isMaximized || undefined}>
       <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
-        {license ? (
-          <nav
-            className="tabs"
-            style={
-              {
-                ['--active-tab' as string]: String(activeTabIndex),
-              } as React.CSSProperties
-            }
-          >
-            <div className="tab-indicator" />
-            {TABS.map(({ id, label }) => (
-              <button
-                key={id}
-                className={tab === id ? 'tab active' : 'tab'}
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-        ) : (
-          <div className="tabs-placeholder" />
-        )}
+        <div className="titlebar-drag" />
         <div className="window-controls">
           <button onClick={minimize} aria-label="Minimize" className="wc">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
@@ -206,20 +293,11 @@ export default function App() {
               />
             </svg>
           </button>
-          <button onClick={toggleMaximize} aria-label="Toggle maximize" className="wc">
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <rect
-                x="2"
-                y="2"
-                width="6"
-                height="6"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                fill="none"
-                rx="0.5"
-              />
-            </svg>
-          </button>
+          {/* Maximize button removed — the window is fixed at 1100×720
+              and tauri.conf.json sets resizable + maximizable to false.
+              isMaximized state tracking stays as defensive code in case
+              a window manager force-fullscreens despite the hint, but
+              there's no longer a user-facing toggle for it. */}
           <button onClick={closeWindow} aria-label="Close" className="wc close">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
               <line
@@ -269,11 +347,31 @@ export default function App() {
               {tab === 'sources' && <Sources />}
               {tab === 'library' && <Library />}
               {tab === 'generate' && <Generate />}
-              {tab === 'settings' && <SettingsView />}
             </ErrorBoundary>
           </>
         )}
       </main>
+      {license && (
+        // Floating tab bar — Liquid-Glass-style pill anchored at the
+        // bottom-center of the window. Outside <main> so it doesn't
+        // participate in tab-content scroll, and gated on `license` so the
+        // gate screen isn't littered with non-functional nav.
+        <nav className="tabs" ref={tabsContainerRef}>
+          <div className="tab-indicator" />
+          {TABS.map(({ id, label }, idx) => (
+            <button
+              key={id}
+              ref={(el) => {
+                tabRefs.current[idx] = el;
+              }}
+              className={tab === id ? 'tab active' : 'tab'}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }
