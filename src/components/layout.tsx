@@ -3,6 +3,7 @@
 // a vertical inspector with eyebrow-headed sections on the right, and
 // a single action bar across the bottom.
 import type { CSSProperties, ReactNode } from 'react';
+import BlurText from './reactbits/BlurText/BlurText';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -17,7 +18,9 @@ export function TabLayout({ title, preview, inspector, actions }: TabLayoutProps
   return (
     <div className="tab-grid">
       <div className="preview-col">
-        {title && <h1 className="page-title">{title}</h1>}
+        {/* Keyed on `title` so each new tab title remounts BlurText and
+            the blur→clear animation re-fires on tab change. */}
+        {title && <BlurText key={title} text={title} className="page-title" />}
         {preview}
         <div className="preview-actions">{actions}</div>
       </div>
