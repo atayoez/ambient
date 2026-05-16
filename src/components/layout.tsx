@@ -42,7 +42,7 @@ interface PreviewFrameProps {
 
 export function PreviewFrame({ children, empty, bleedSrc }: PreviewFrameProps) {
   const inner = (
-    <div className="preview-wrap">
+    <div className="preview-wrap has-spotlight">
       {children ?? (empty != null && <div className="preview-empty">{empty}</div>)}
     </div>
   );

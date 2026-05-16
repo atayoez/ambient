@@ -197,12 +197,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Motion-responsive specular + parallax tilt. The .app and several inner
-  // glass surfaces use cursor-relative radial highlights driven by
-  // --mouse-x / --mouse-y. The .app also picks up a subtle 3D tilt via
-  // --tilt-x / --tilt-y so the whole window feels like a physical glass
-  // plane catching light from off-screen. RAF-throttled, gated on the
-  // user's reduced-motion preference.
+  // Motion-responsive specular + parallax tilt + per-card hover spotlight.
+  // Three things share one mousemove listener:
+  //   1. window-level --mouse-x / --mouse-y on :root for the titlebar +
+  //      save-toast specular highlights.
+  //   2. --tilt-x / --tilt-y on :root for the subtle 3D tilt on inner
+  //      glass surfaces (.tabs, .preview-wrap, .license-card).
+  //   3. local --mouse-x / --mouse-y on whichever `.has-spotlight`
+  //      ancestor the cursor is currently over — the CSS cascade lets
+  //      that local pair shadow the :root one inside the card, so the
+  //      hover glow anchors to card-local coords.
+  // RAF-throttled, gated on the user's reduced-motion preference.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -225,6 +230,20 @@ export default function App() {
         const dy = (y - cy) / cy;
         root.style.setProperty('--tilt-x', `${-dy * 1.5}deg`);
         root.style.setProperty('--tilt-y', `${dx * 1.5}deg`);
+
+        // Hover spotlight: find the closest .has-spotlight ancestor of
+        // the cursor target and stamp its card-local cursor coords. The
+        // CSS for .has-spotlight reads these locals (shadowing the :root
+        // ones inside the card) to anchor the radial-gradient ::before
+        // at the cursor.
+        const target = e.target as HTMLElement | null;
+        const spotEl = target?.closest('.has-spotlight') as HTMLElement | null;
+        if (spotEl) {
+          const rect = spotEl.getBoundingClientRect();
+          spotEl.style.setProperty('--mouse-x', `${x - rect.left}px`);
+          spotEl.style.setProperty('--mouse-y', `${y - rect.top}px`);
+        }
+
         raf = 0;
       });
     }

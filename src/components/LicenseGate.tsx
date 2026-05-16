@@ -35,7 +35,7 @@ export default function LicenseGate({ revokedMessage, onActivated }: Props) {
 
   return (
     <div className="license-gate">
-      <div className="license-card">
+      <div className="license-card has-spotlight">
         <div className="license-card-aurora" aria-hidden="true" />
 
         <img className="license-icon" src="/icon.svg" alt="" />
