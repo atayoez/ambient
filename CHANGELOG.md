@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.2.0] — 2026-05-16
+
+### Added
 - Floating bottom tab bar (Liquid Glass pill) that auto-sizes to its
   active label.
 - Auto-rotation timer with two flavors: refresh from the current Source,
