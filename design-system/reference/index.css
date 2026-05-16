@@ -686,6 +686,16 @@ input[type="range"] {
   align-items: baseline;
 }
 
+/* Base .muted comes first so the cascade reads top-down: a generic
+   muted styling, then its overrides in higher-specificity contexts.
+   Without this order, biome flags lint/style/noDescendingSpecificity. */
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .control-group > label .muted {
   text-transform: none;
   letter-spacing: 0;
@@ -823,13 +833,6 @@ input[type="range"] {
 .error {
   color: var(--danger);
   font-size: 12px;
-}
-
-.muted {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .muted code {
