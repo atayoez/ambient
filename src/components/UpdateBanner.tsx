@@ -24,7 +24,7 @@ export default function UpdateBanner({ info, onDismiss }: Props) {
   }
 
   return (
-    <div className="update-banner has-spotlight" role="status" aria-live="polite">
+    <div className="update-banner" role="status" aria-live="polite">
       <span className="update-banner-icon" aria-hidden="true">
         ↑
       </span>

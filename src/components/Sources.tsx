@@ -456,7 +456,7 @@ export default function Sources() {
         }
       />
 
-      {savedFlash && <div className="save-toast has-spotlight">Saved</div>}
+      {savedFlash && <div className="save-toast">Saved</div>}
     </div>
   );
 }

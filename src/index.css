@@ -91,43 +91,6 @@ textarea,
    stays because those track the cursor over small chrome elements,
    not over the window background. */
 
-/* Generic hover spotlight — apply by adding the `has-spotlight` class to
-   any card-like surface and the cursor will leave a soft radial highlight
-   on it. Mirrors what SpotlightCard from React Bits does for the Library
-   cards, but uses the global mousemove listener in App.tsx (which already
-   exists for the per-surface specular on titlebar / save-toast) rather
-   than per-instance React handlers. Each spotlight surface owns its own
-   --mouse-x / --mouse-y CSS variables; the listener finds the closest
-   `.has-spotlight` ancestor of the cursor target and updates the locals
-   so the gradient anchors to the cursor in card-local pixel coords.
-   currentColor + color-mix means the gradient adapts to dark/light theme
-   without per-call config. */
-.has-spotlight {
-  position: relative;
-  --mouse-x: 50%;
-  --mouse-y: 50%;
-}
-
-.has-spotlight::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle at var(--mouse-x) var(--mouse-y),
-    color-mix(in srgb, currentColor 14%, transparent),
-    transparent 70%
-  );
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-}
-
-.has-spotlight:hover::before,
-.has-spotlight:focus-within::before {
-  opacity: 1;
-}
-
 /* --- Custom titlebar — drag region + window controls only. Tab nav
    moved to a floating bottom pill (Liquid Glass / iOS style); see the
    .tabs rule below. --- */
@@ -171,7 +134,11 @@ textarea,
   left: 50%;
   display: inline-flex;
   align-items: center;
-  background: rgba(0, 0, 0, 0.42);
+  /* Transparent pill — no dark tint. The backdrop-filter blur is kept
+     so whatever's behind reads as a glass-frosted band, and the border
+     + shadow still outline the pill shape so it doesn't dissolve into
+     the background entirely. */
+  background: transparent;
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1537,9 +1504,6 @@ button.primary.icon-btn {
   .app {
     transform: none;
   }
-  .has-spotlight::before {
-    display: none;
-  }
   /* Snap state transitions for the sliding pills instead of easing. */
   .tab-indicator,
   .save-toast {
@@ -1558,9 +1522,6 @@ button.primary.icon-btn {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     transform: none;
-  }
-  .has-spotlight::before {
-    display: none;
   }
   .tabs {
     background: rgba(20, 20, 22, 0.95);

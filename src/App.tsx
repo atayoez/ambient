@@ -197,17 +197,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Motion-responsive specular + parallax tilt + per-card hover spotlight.
-  // Three things share one mousemove listener:
-  //   1. window-level --mouse-x / --mouse-y on :root for the titlebar +
-  //      save-toast specular highlights.
-  //   2. --tilt-x / --tilt-y on :root for the subtle 3D tilt on inner
-  //      glass surfaces (.tabs, .preview-wrap, .license-card).
-  //   3. local --mouse-x / --mouse-y on whichever `.has-spotlight`
-  //      ancestor the cursor is currently over — the CSS cascade lets
-  //      that local pair shadow the :root one inside the card, so the
-  //      hover glow anchors to card-local coords.
-  // RAF-throttled, gated on the user's reduced-motion preference.
+  // Subtle 3D tilt on inner glass surfaces (.tabs, .preview-wrap,
+  // .license-card) driven by cursor offset from window center. The
+  // listener used to also feed window-level --mouse-x / --mouse-y for
+  // titlebar / save-toast specular highlights and a per-card hover
+  // spotlight; both were removed pending future revisit (see
+  // [[feature-hover-spotlight-removed]] for design context). Only tilt
+  // survives. RAF-throttled, gated on the user's reduced-motion pref.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -216,37 +212,16 @@ export default function App() {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         const root = document.documentElement;
-        const x = e.clientX;
-        const y = e.clientY;
-        root.style.setProperty('--mouse-x', `${x}px`);
-        root.style.setProperty('--mouse-y', `${y}px`);
         // Tilt: cursor offset from window center, normalized to [-1, 1],
         // then mapped to a max ~1.5deg rotation in each axis. Sign is
         // inverted on X so the tilt "leans away" from the cursor,
         // matching how a real plane catching light would behave.
         const cx = window.innerWidth / 2;
         const cy = window.innerHeight / 2;
-        const dx = (x - cx) / cx;
-        const dy = (y - cy) / cy;
+        const dx = (e.clientX - cx) / cx;
+        const dy = (e.clientY - cy) / cy;
         root.style.setProperty('--tilt-x', `${-dy * 1.5}deg`);
         root.style.setProperty('--tilt-y', `${dx * 1.5}deg`);
-
-        // Hover spotlight: find the closest .has-spotlight ancestor of
-        // the cursor target and stamp its card-local cursor coords. The
-        // CSS for .has-spotlight reads these locals (shadowing the :root
-        // ones inside the card) to anchor the radial-gradient ::before
-        // at the cursor. scrollLeft / scrollTop are added so the gradient
-        // tracks correctly inside scroll containers like .library (the
-        // ::before is absolute-positioned and scrolls with content, so
-        // its content-space coords need the scroll offset added).
-        const target = e.target as HTMLElement | null;
-        const spotEl = target?.closest('.has-spotlight') as HTMLElement | null;
-        if (spotEl) {
-          const rect = spotEl.getBoundingClientRect();
-          spotEl.style.setProperty('--mouse-x', `${x - rect.left + spotEl.scrollLeft}px`);
-          spotEl.style.setProperty('--mouse-y', `${y - rect.top + spotEl.scrollTop}px`);
-        }
-
         raf = 0;
       });
     }
@@ -378,7 +353,7 @@ export default function App() {
         // bottom-center of the window. Outside <main> so it doesn't
         // participate in tab-content scroll, and gated on `license` so the
         // gate screen isn't littered with non-functional nav.
-        <nav className="tabs has-spotlight" ref={tabsContainerRef}>
+        <nav className="tabs" ref={tabsContainerRef}>
           <div className="tab-indicator" />
           {TABS.map(({ id, label }, idx) => (
             <button
