@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.4.0] — 2026-05-16
+
+### Added
 - **OS notifications** when the wallpaper changes in the background.
   Auto-rotation + theme-follow events fire an OS toast via
   tauri-plugin-notification; foreground applies stay silent (the
