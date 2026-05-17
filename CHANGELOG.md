@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.6.0] — 2026-05-17
+
+### Added
 - **HDR wallpaper output.** Pattern apply writes a 10-bit AVIF
   alongside the PNG: BT.2020 primaries, PQ (ST.2084) transfer, and a
   smooth highlight-boost curve that pushes max-channel pixels above
