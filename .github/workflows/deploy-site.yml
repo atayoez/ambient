@@ -50,6 +50,12 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Hard-coded so the token doesn't need the "Account
+          # Settings: Read" scope (which is otherwise needed for
+          # wrangler's /memberships lookup). This is the same value
+          # that appears in any cloudflare.com URL for the account —
+          # not a secret, just a public-ish identifier.
+          accountId: '848c6419822ef3e91b6f66d69ebe63eb'
           workingDirectory: website
           # wrangler-action defaults to wrangler 3.x; pinning v4 because
           # wrangler.jsonc uses the `assets` static-asset binding +
