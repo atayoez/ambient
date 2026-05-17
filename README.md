@@ -70,7 +70,7 @@ bun run tauri build        # production installers for your platform
 
 The release bundle ends up under `src-tauri/target/release/bundle/`.
 
-See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full dev / test / release commands (including the Docker QEMU recipe for the Linux aarch64 AppImage, the linuxdeploy bundling-step fallback, and `jq` snippets for resetting license / library state during testing).
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full dev / test / release commands (including the linuxdeploy bundling-step fallback and `jq` snippets for resetting license / library state during testing).
 
 ## Project structure
 
@@ -87,8 +87,6 @@ src-tauri/
     library.rs    File mgmt commands + WebP thumbnail cache
 scripts/
   release.sh     Cut a versioned release (see DEVELOPMENT.md)
-  build-linux-arm64.sh  Local aarch64 build via Docker + QEMU
-  docker/        Dockerfile.aarch64 for the above
 website/         Marketing site (Cloudflare Worker + R2)
 docs/            DEVELOPMENT.md + screenshots + operational notes
 ```

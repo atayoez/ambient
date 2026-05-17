@@ -8,10 +8,11 @@
 # 2. Bumps "version" in package.json, src-tauri/Cargo.toml,
 #    src-tauri/tauri.conf.json
 # 3. Commits the bump and pushes to main — triggers CI
-# 4. Waits for the matching CI run to finish, downloads the macOS .dmg
-#    and Windows .exe artifacts
-# 5. Builds the Linux AppImage locally (with the linuxdeploy-manual
-#    fallback we've been needing under tauri's bundling step)
+# 4. Waits for the matching CI run to finish, downloads the macOS
+#    .dmg, Windows .msi (x64 + arm64), and Linux aarch64 .AppImage
+# 5. Builds the Linux x86_64 AppImage locally (host already has
+#    webkit2gtk-4.1 — faster than spinning up a runner) with the
+#    linuxdeploy-manual fallback for tauri's bundling step
 # 6. Uploads all three installers to the ambient-releases R2 bucket
 #    under versioned names: Ambient_<VERSION>_{aarch64,x64-setup,x86_64}.{dmg,exe,AppImage}
 # 7. Generates a fresh latest.json and uploads it
@@ -73,8 +74,10 @@ fi
 # for embedding in latest.json's platforms.<key>.signature field.
 sign_artifact() {
   local f="$1"
+  # -k is --private-key (key string) and collides with the env-var-set
+  # --private-key-path. The exported env var already tells the signer
+  # where to find the key, so the flag is redundant and breaks signing.
   bunx tauri signer sign \
-    -k "$TAURI_SIGNING_PRIVATE_KEY_PATH" \
     --password "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
     "$f" >/dev/null
   cat "${f}.sig"
@@ -221,18 +224,21 @@ WORKDIR="$(mktemp -d -t ambient-release-XXXXXX)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 echo "==> Downloading CI artifacts to $WORKDIR"
-# Three-arch CI matrix: mac aarch64, win x64, win arm64. Both Linux
-# builds are local (next steps): x86_64 against the host toolchain,
-# aarch64 via Docker + QEMU.
+# Four-arch CI matrix: mac aarch64, win x64, win arm64, linux arm64
+# (native ARM runner, not QEMU). Only Linux x86_64 builds locally —
+# host already has webkit2gtk-4.1 so it's free and ~3 min faster than
+# spinning up a runner.
 gh run download "$RUN_ID" -n "ambient-macos-latest-aarch64"     -D "$WORKDIR/macos-aarch64"   >/dev/null
 gh run download "$RUN_ID" -n "ambient-windows-latest-x86_64"    -D "$WORKDIR/windows-x86_64"  >/dev/null
 gh run download "$RUN_ID" -n "ambient-windows-11-arm-aarch64"   -D "$WORKDIR/windows-aarch64" >/dev/null
+gh run download "$RUN_ID" -n "ambient-ubuntu-22.04-arm-aarch64" -D "$WORKDIR/linux-aarch64"   >/dev/null
 
-DMG_AARCH64="$(find "$WORKDIR/macos-aarch64"   -name "*.dmg"      -print -quit)"
-MSI_X64="$(find       "$WORKDIR/windows-x86_64"  -name "*.msi"      -print -quit)"
-MSI_AARCH64="$(find   "$WORKDIR/windows-aarch64" -name "*.msi"      -print -quit)"
+DMG_AARCH64="$(find     "$WORKDIR/macos-aarch64"   -name "*.dmg"      -print -quit)"
+MSI_X64="$(find         "$WORKDIR/windows-x86_64"  -name "*.msi"      -print -quit)"
+MSI_AARCH64="$(find     "$WORKDIR/windows-aarch64" -name "*.msi"      -print -quit)"
+APPIMAGE_AARCH64="$(find "$WORKDIR/linux-aarch64"  -name "*.AppImage" -print -quit)"
 
-for f in "$DMG_AARCH64" "$MSI_X64" "$MSI_AARCH64"; do
+for f in "$DMG_AARCH64" "$MSI_X64" "$MSI_AARCH64" "$APPIMAGE_AARCH64"; do
   if [[ -z "$f" || ! -f "$f" ]]; then
     echo "Missing one or more CI artifacts. WORKDIR=$WORKDIR" >&2
     ls -R "$WORKDIR" >&2
@@ -243,11 +249,11 @@ done
 echo "    macOS  aarch64:  $DMG_AARCH64"
 echo "    Windows x86_64:  $MSI_X64"
 echo "    Windows aarch64: $MSI_AARCH64"
+echo "    Linux  aarch64:  $APPIMAGE_AARCH64"
 
-# --- 5. Build both Linux variants locally ---------------------------
-# x86_64 against the host webkit2gtk-4.1 toolchain. aarch64 via
-# Docker + QEMU (see scripts/build-linux-arm64.sh). Both keep Linux
-# builds off the CI minute meter.
+# --- 5. Build the Linux x86_64 AppImage locally ---------------------
+# The host already has webkit2gtk-4.1, so this is faster than spinning
+# up a runner. aarch64 came down from CI in step 4.
 
 echo "==> Building Linux x86_64 AppImage locally"
 # tauri's bundling step sometimes errors on linuxdeploy invocation
@@ -270,16 +276,6 @@ if [[ -z "$APPIMAGE_X64" || ! -f "$APPIMAGE_X64" ]]; then
 fi
 APPIMAGE_X64="$REPO_ROOT/$APPIMAGE_X64"
 echo "    Linux x86_64: $APPIMAGE_X64"
-
-echo "==> Building Linux aarch64 AppImage locally (Docker + QEMU)"
-echo "    First run takes ~40 min for the apt + cargo cold start;"
-echo "    subsequent runs are ~15 min with the named-volume caches."
-APPIMAGE_AARCH64="$("$REPO_ROOT/scripts/build-linux-arm64.sh")"
-if [[ -z "$APPIMAGE_AARCH64" || ! -f "$APPIMAGE_AARCH64" ]]; then
-  echo "Local Linux aarch64 build failed" >&2
-  exit 1
-fi
-echo "    Linux aarch64: $APPIMAGE_AARCH64"
 
 # --- 6. Sign + upload to R2 -----------------------------------------
 

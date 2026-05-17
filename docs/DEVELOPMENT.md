@@ -8,10 +8,6 @@ Day-to-day commands for hacking on Ambient locally.
 - `bun` ≥ 1.3 (the lockfile is `bun.lock`; npm/pnpm won't install correctly)
 - `webkit2gtk-4.1` on Linux hosts (`sudo pacman -S webkit2gtk-4.1` on
   Arch, `sudo apt-get install libwebkit2gtk-4.1-dev` on Ubuntu/Debian)
-- `docker` (or `podman` aliased to docker) + `binfmt qemu-aarch64`
-  registered, only if you want to build the Linux aarch64 AppImage
-  locally — see `scripts/build-linux-arm64.sh` for the exact apt /
-  pacman packages.
 
 `bun` typically lives at `~/.bun/bin/bun`, which is *not* in
 `/bin/sh`'s default PATH. Subshell invocations (anything Tauri spawns
@@ -85,19 +81,11 @@ NO_STRIP=true ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
 The release script (`scripts/release.sh`) handles this fallback
 automatically.
 
-### Linux aarch64 build via Docker
+### Linux aarch64
 
-For the aarch64 AppImage (no native aarch64 hardware locally), use
-the Docker QEMU wrapper:
-
-```bash
-./scripts/build-linux-arm64.sh
-```
-
-Cold first run: ~40 min (apt-install + cargo-fetch inside an emulated
-ARM container). Subsequent runs: ~15 min, thanks to named-volume
-caches for cargo / rustup / bun / tauri-cache / node_modules. Output
-goes to `src-tauri/target-aarch64/release/bundle/appimage/`.
+Built in CI on the native `ubuntu-22.04-arm` runner — no local
+toolchain needed. The release script downloads the artifact alongside
+the macOS / Windows ones.
 
 ## Releasing
 
@@ -112,21 +100,20 @@ What that does, in order:
 2. Bumps version in `package.json`, `src-tauri/Cargo.toml`,
    `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`.
 3. Commits + pushes to `main` (triggers the cheap `check` CI job).
-4. Dispatches the `build-tauri` matrix via `gh workflow run` (3 jobs:
-   macOS aarch64, Windows x86_64, Windows aarch64). Waits for green.
-5. Downloads the 3 CI artifacts.
+4. Dispatches the `build-tauri` matrix via `gh workflow run` (4 jobs:
+   macOS aarch64, Windows x86_64, Windows aarch64, Linux aarch64
+   on the native ARM runner). Waits for green.
+5. Downloads the 4 CI artifacts.
 6. Builds Linux x86_64 locally against host webkit2gtk-4.1 (with the
    linuxdeploy fallback baked in).
-7. Builds Linux aarch64 locally via `scripts/build-linux-arm64.sh`
-   (Docker QEMU, the slowest step).
-8. Signs all 5 artifacts with the Tauri updater key at
+7. Signs all 5 artifacts with the Tauri updater key at
    `~/.config/ambient/updater-private.key` if present.
-9. Uploads everything to `ambient-releases` R2 bucket with the
+8. Uploads everything to `ambient-releases` R2 bucket with the
    `Ambient-VERSION-Platform-Arch.ext` naming pattern.
-10. Writes a dual-shape `latest.json` (legacy `downloads.*` keys for
-    pre-0.4 clients + plugin-format `platforms.*` block with
-    minisign signatures for the in-app updater).
-11. Tags `v0.x.y`, pushes the tag, creates a GitHub release with the
+9. Writes a dual-shape `latest.json` (legacy `downloads.*` keys for
+   pre-0.4 clients + plugin-format `platforms.*` block with
+   minisign signatures for the in-app updater).
+10. Tags `v0.x.y`, pushes the tag, creates a GitHub release with the
     5 artifacts attached.
 
 ### Release-time notes
@@ -192,6 +179,7 @@ Library view.
 
 - **`check`** — runs on every push + PR. tsc, biome, vitest, cargo
   test --lib. Fast; ~1-2 min total. Gates the matrix.
-- **`build-tauri`** — `workflow_dispatch` only. 3-arch matrix
+- **`build-tauri`** — `workflow_dispatch` only. 4-arch matrix
   (macos-latest aarch64, windows-latest x86_64, windows-11-arm
-  aarch64). Linux builds happen locally during `release.sh`.
+  aarch64, ubuntu-22.04-arm aarch64). Linux x86_64 still builds
+  locally during `release.sh`.

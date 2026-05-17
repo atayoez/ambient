@@ -1,13 +1,13 @@
 # Cross-platform CI for Ambient.
 #
 # - check: fast TypeScript + Biome pass on Ubuntu. Gates the build.
-# - build-tauri: three-arch matrix —
+# - build-tauri: four-arch matrix —
 #     macOS aarch64 (.dmg)
 #     Windows x86_64 (.msi)
 #     Windows aarch64 (.msi)
-#   Both Linux variants are built locally by scripts/release.sh:
-#   x86_64 against the host webkit2gtk-4.1 toolchain, aarch64 via
-#   Docker + QEMU (scripts/build-linux-arm64.sh). The build-tauri
+#     Linux aarch64 (.AppImage)   ← native ARM runner, no QEMU
+#   Linux x86_64 is still built locally by scripts/release.sh against
+#   the host webkit2gtk-4.1 toolchain (free, fast). The build-tauri
 #   matrix is gated to workflow_dispatch so it only fires when
 #   release.sh kicks it off — saves macOS minutes (~10×-priced on
 #   free-tier) on every-push runs that don't need binaries.
@@ -93,6 +93,10 @@ jobs:
             arch: aarch64
             artifact-glob: |
               src-tauri/target/release/bundle/msi/*.msi
+          - platform: ubuntu-22.04-arm
+            arch: aarch64
+            artifact-glob: |
+              src-tauri/target/release/bundle/appimage/*.AppImage
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -101,6 +105,17 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Install Linux dev libs
+        if: startsWith(matrix.platform, 'ubuntu-')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
