@@ -99,7 +99,6 @@ code {
   background: rgba(18, 18, 22, 0.6);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid var(--border);
 }
 
 .brand,
@@ -591,7 +590,10 @@ code {
   background: var(--surface);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  transition: transform var(--t-base) ease, border-color var(--t-base) ease;
+  /* Same elevation recipe used by .glass / .price-card so every
+   * card-like surface on the page sits at the same depth. */
+  box-shadow: var(--shadow-window), inset 0 1px 0 var(--highlight-edge);
+  transition: transform var(--t-base) ease, border-color var(--t-base) ease, box-shadow var(--t-base) ease;
 }
 
 .feature:hover {
