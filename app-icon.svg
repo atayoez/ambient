@@ -1,49 +1,96 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <title>Ambient</title>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Ambient app icon.
+    Dark squircle backdrop (Cosmic palette base) with a flowing aurora ribbon
+    crossing the lower half. The ribbon uses the canonical 5-stop Cosmic
+    gradient (purple → pink → amber → near-white) so the icon visually echoes
+    the same palette the app's default mesh wallpaper renders with.
+  -->
   <defs>
-    <!-- Twilight sunset sky -->
-    <linearGradient id="sky" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#15053D"/>
-      <stop offset="0.45" stop-color="#5B21B6"/>
-      <stop offset="0.78" stop-color="#EC4899"/>
-      <stop offset="1" stop-color="#FBBF24"/>
+    <!-- Squircle clip — Apple-style rounded square. -->
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224"/>
+    </clipPath>
+
+    <!-- Backdrop: deep cosmic blue/violet with subtle vertical fade. -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#0c0a1f"/>
+      <stop offset="100%" stop-color="#16102b"/>
     </linearGradient>
 
-    <!-- Soft sun halo -->
-    <radialGradient id="sunGlow" cx="0.5" cy="0.58" r="0.4">
-      <stop offset="0" stop-color="#FEF3C7" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#FEF3C7" stop-opacity="0"/>
+    <!-- Aurora ribbon — full Cosmic palette in a diagonal sweep. -->
+    <linearGradient id="aurora" x1="0" y1="0.5" x2="1" y2="0.3">
+      <stop offset="0%"   stop-color="#7c5cff"/>
+      <stop offset="35%"  stop-color="#ec4899"/>
+      <stop offset="70%"  stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f1ecff"/>
+    </linearGradient>
+
+    <!-- Secondary ribbon — softer, behind the main one for depth. -->
+    <linearGradient id="aurora-back" x1="0" y1="0.6" x2="1" y2="0.4">
+      <stop offset="0%"   stop-color="#7c5cff" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#7c5cff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.25"/>
+    </linearGradient>
+
+    <!-- Top specular highlight — the glass-plane dome we use in the app. -->
+    <radialGradient id="sheen" cx="0.3" cy="0" r="0.9">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.22)"/>
+      <stop offset="70%"  stop-color="rgba(255,255,255,0)"/>
     </radialGradient>
 
-    <!-- Top gloss for glass-y depth on Liquid Glass / Mica -->
-    <linearGradient id="gloss" x1="0.5" y1="0" x2="0.5" y2="0.5">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
+    <!-- Soft blur for ribbon glow. -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <!-- Squircle background -->
-  <rect width="1024" height="1024" rx="230" ry="230" fill="url(#sky)"/>
+  <g clip-path="url(#squircle)">
+    <!-- Backdrop -->
+    <rect width="1024" height="1024" fill="url(#bg)"/>
 
-  <!-- Sun halo -->
-  <rect width="1024" height="1024" rx="230" ry="230" fill="url(#sunGlow)"/>
+    <!-- Star pinpricks — tiny, scattered across the top half. -->
+    <g fill="#f1ecff" opacity="0.5">
+      <circle cx="180" cy="180" r="2.5"/>
+      <circle cx="320" cy="120" r="1.8"/>
+      <circle cx="460" cy="220" r="2.2"/>
+      <circle cx="620" cy="140" r="1.6"/>
+      <circle cx="780" cy="240" r="2.4"/>
+      <circle cx="880" cy="160" r="1.9"/>
+      <circle cx="120" cy="340" r="1.5"/>
+      <circle cx="540" cy="320" r="1.7"/>
+      <circle cx="720" cy="380" r="2.1"/>
+      <circle cx="900" cy="380" r="1.4"/>
+    </g>
 
-  <!-- Sun -->
-  <circle cx="512" cy="592" r="142" fill="#FEF3C7"/>
+    <!-- Soft back ribbon (depth layer) -->
+    <path
+      d="M -50 720 Q 200 540 480 660 T 1080 540 L 1080 1080 L -50 1080 Z"
+      fill="url(#aurora-back)"
+      filter="url(#glow)"
+    />
 
-  <!-- Back mountain ridge -->
-  <path d="M 0 720 L 180 520 L 320 620 L 480 480 L 640 600 L 820 470 L 1024 620 L 1024 1024 L 0 1024 Z"
-        fill="#1A0B3D" opacity="0.7"/>
+    <!-- Main aurora ribbon -->
+    <path
+      d="M -50 760 Q 240 600 520 700 T 1080 560 L 1080 1080 L -50 1080 Z"
+      fill="url(#aurora)"
+    />
 
-  <!-- Front mountain ridge -->
-  <path d="M 0 820 L 140 700 L 290 780 L 460 650 L 620 760 L 800 660 L 1024 820 L 1024 1024 L 0 1024 Z"
-        fill="#0F0420"/>
+    <!-- Specular dome on top -->
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
 
-  <!-- Glass top sheen -->
-  <rect width="1024" height="1024" rx="230" ry="230" fill="url(#gloss)"/>
-
-  <!-- Hairline inner ring for subtle bevel -->
-  <rect x="2" y="2" width="1020" height="1020" rx="228" ry="228"
-        fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <!-- Subtle inner-edge hairline -->
+    <rect
+      x="2" y="2"
+      width="1020" height="1020"
+      rx="222" ry="222"
+      fill="none"
+      stroke="rgba(255,255,255,0.10)"
+      stroke-width="2"
+    />
+  </g>
 </svg>

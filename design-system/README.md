@@ -20,7 +20,7 @@ There is exactly one product surface: the **desktop app window**. No web marketi
 | Component JSX | `reference/Patterns.tsx`, `Library.tsx`, `Sources.tsx`, `Generate.tsx`, `Settings.tsx` | The five tabs. |
 | Pattern engine | `reference/patterns.ts` | Preset palettes, Fluent 3D emoji loader, Halton sampling. |
 | Type model | `reference/types.ts` | `Settings`, `Wallpaper`, defaults. |
-| App icon | `assets/app-icon.svg` (source) + `app-icon.png` (generated) | Twilight-sunset squircle. |
+| App icon | `assets/app-icon.svg` (source) + `app-icon.png` (generated) | Cosmic squircle with an aurora ribbon across the lower half. |
 | AppStream | `reference/flatpak/com.ambient.app.metainfo.xml` | Flathub metadata — name, summary, categories, release notes. |
 | Flatpak manifest | `reference/flatpak/com.ambient.app.yaml` | Build + sandbox permissions. |
 | Project README | `reference/AMBIENT_README.md` | Verbatim from the repo. |
@@ -73,7 +73,7 @@ Ambient's whole aesthetic is **one design idea, executed precisely**: a frosted-
 - **Elevation through translucent whites,** not shadow. `--surface` → `--surface-2` → `--surface-3` are all `rgba(255,255,255,…)` at 4%/8%/14% opacity.
 - **Brand color is lavender + cosmic pink.** `--accent: #b794f6`, `--accent-hover: #d6bcff`. The canonical "Cosmic" palette is `#0c0a1f → #7c5cff → #ec4899 → #fbbf24 → #f1ecff` — the dark-mode default for Patterns.
 - **No flat fills on primary buttons** — they use `linear-gradient(180deg, var(--accent), var(--accent-hover))` with a purple drop-shadow (`0 6px 16px rgba(124, 92, 255, 0.35)`).
-- **Imagery is full-bleed and cool/cosmic-leaning** — the app icon is a twilight-purple-to-pink-to-amber sunset. No grain, no b&w, no warm-photo aesthetic.
+- **Imagery is full-bleed and cool/cosmic-leaning** — the app icon is a dark cosmic squircle with an aurora ribbon (purple → pink → amber → near-white) crossing the lower half. No grain, no b&w, no warm-photo aesthetic.
 
 ### Type
 - **Single system font stack:** `-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif`. Root size 14px. No webfont is bundled — type renders in whatever the host OS uses (San Francisco / Segoe UI / Inter), which is intentional: Ambient is supposed to feel native to its host. On Flatpak'd Linux this falls through to **Inter** or whatever the host theme provides.
@@ -150,7 +150,7 @@ Emoji are **never decoration in body copy**. They appear only:
 
 **Logos & marks**
 
-- One asset: `assets/app-icon.png` (1024×1024, generated) + `assets/app-icon.svg` (source). A squircle with a twilight-sunset gradient (`#15053D → #5B21B6 → #EC4899 → #FBBF24`), a soft sun halo, two mountain ridges, and a glass-gloss overlay. **No wordmark.** "Ambient" appears only as the window title (string), never set in a custom typeface. The Flatpak manifest installs it as `/app/share/icons/hicolor/128x128/apps/com.ambient.app.png`.
+- One asset: `assets/app-icon.png` (1024×1024, generated) + `assets/app-icon.svg` (source). A dark cosmic squircle (`#0c0a1f → #16102b` vertical fade) with star pinpricks across the top half and an aurora ribbon sweep across the bottom — the ribbon uses the canonical 5-stop Cosmic gradient (`#7c5cff → #ec4899 → #fbbf24 → #f1ecff`) so the icon mirrors the app's default mesh wallpaper. Glass-sheen overlay on top. **No wordmark.** "Ambient" appears only as the window title (string), never set in a custom typeface.
 
 **Substitutions**
 

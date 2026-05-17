@@ -108,6 +108,6 @@ CI runs the same `check` job on every push/PR. The cross-platform installer buil
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+Proprietary. See [`LICENSE`](LICENSE). End-user usage rights are granted via license keys purchased from [ambient.oezcan.me](https://ambient.oezcan.me).
 
-The Microsoft Fluent emoji art used by the Emoji pattern is also MIT — see [Microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji).
+The Microsoft Fluent emoji art used by the Emoji pattern is MIT-licensed by Microsoft — see [Microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji).

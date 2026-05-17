@@ -8,13 +8,13 @@ user-invocable: true
 
 Ambient is a **Linux wallpaper-generator desktop app, distributed as a Flatpak on Flathub** (Tauri 2 + React + TS). One window, five tabs, a frosted-glass aesthetic with a sliding-pill tab indicator floating over the user's live desktop wallpaper. Dark by default; full light-mode override. Native COSMIC desktop integration (writes directly to `cosmic-bg`'s RON config); GNOME/KDE/sway/X11 via the `wallpaper` crate. macOS/Windows/mobile/web are explicitly **future, not v0**.
 
-Repo: [github.com/atayozcan/ambient](https://github.com/atayozcan/ambient) (MIT). App ID: `com.ambient.app`. AppStream summary: *"Wallpaper generator with patterns, emoji, and AI."*
+Repo: [github.com/atayozcan/ambient](https://github.com/atayozcan/ambient) (proprietary). App ID: `com.ambient.app`. AppStream summary: *"Wallpaper generator with patterns, emoji, and AI."*
 
 ## What's in here
 
 - `README.md` — full context. Read this first. Covers product positioning, content fundamentals (voice / tone / casing), visual foundations (color, type, spacing, motion, shadows, blur, radii, layout), and iconography.
 - `colors_and_type.css` — all design tokens as CSS variables (`--accent`, `--surface`, `--radius-inline`, `--ease-pill`, etc.) plus semantic role helpers (`.ds-h1`, `.ds-eyebrow`). Importable.
-- `assets/` — `app-icon.svg` + `app-icon.png` (1024×1024 squircle, twilight-sunset gradient). The only brand mark Ambient has.
+- `assets/` — `app-icon.svg` + `app-icon.png` (1024×1024 cosmic squircle with an aurora ribbon across the lower half). The only brand mark Ambient has.
 - `preview/` — 24 static HTML cards covering every primitive (palettes, surfaces, type, radii, shadows, blur, motion, buttons, inputs, chips, tabs, library cards, empty/status/toast, iconography). Use these for visual cross-reference.
 - `ui_kits/desktop_app/` — a full click-through React recreation of the Ambient window. `index.html` boots without a build step. Read its `README.md` for component coverage.
 - `reference/` — read-only copies of the original Ambient source (CSS + key component JSX + README). Source of truth.

@@ -16,19 +16,3 @@ OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
 IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
 DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
-
----
-
-Historical open-source distribution
-
-Versions of this software publicly distributed under the MIT License
-between the project's first public commit and 2026-05-15 (commit
-9cada15 and all preceding commits) remain available to recipients
-under the terms of the MIT License attached to those specific
-historical snapshots. The MIT grant is irrevocable for the public
-commits to which it was attached.
-
-All commits, builds, and modifications subsequent to 2026-05-15 are
-subject to the proprietary terms stated above. The LICENSE file in
-each historical commit reflects the licensing terms that applied to
-that commit at the time of its public distribution.

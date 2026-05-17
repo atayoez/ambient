@@ -18,10 +18,10 @@
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A small desktop app for changing your wallpaper. Built-in patterns, a few photo sources, and an AI generator if you'd rather just describe one.",
-        ctaBuy: 'Buy for $15',
+        ctaBuy: 'Buy for {PRICE}',
         ctaDemo: 'Try the demo →',
         ctaFeatures: "See what's in it →",
-        meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
+        meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
       },
       features: {
         eyebrow: "What's in it",
@@ -60,7 +60,7 @@
         feat3: "Free updates for life, plus a heads-up in the app when a new one ships",
         feat4: 'Run it on as many of your own machines as you want',
         feat5: 'No subscription, no account, no analytics',
-        buy: 'Buy for $15',
+        buy: 'Buy for {PRICE}',
         fineprint:
           "Pay once and that's the whole thing. Same license for your Mac, PC, or Linux machine.",
       },
@@ -177,10 +177,10 @@
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Eine kleine Desktop-App zum Wechseln deines Hintergrundbilds. Eingebaute Muster, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
-        ctaBuy: 'Für 15 $ kaufen',
+        ctaBuy: 'Für {PRICE} kaufen',
         ctaDemo: 'Demo ausprobieren →',
         ctaFeatures: 'Was drin steckt →',
-        meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>15 $ einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
+        meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
       },
       features: {
         eyebrow: 'Was drin steckt',
@@ -219,7 +219,7 @@
         feat3: 'Lebenslang kostenlose Updates, mit Hinweis in der App wenn eine neue Version draußen ist',
         feat4: 'Nutzbar auf so vielen deiner eigenen Rechner wie du willst',
         feat5: 'Kein Abo, kein Account, keine Analytics',
-        buy: 'Für 15 $ kaufen',
+        buy: 'Für {PRICE} kaufen',
         fineprint:
           'Einmal zahlen und das war\'s. Dieselbe Lizenz für deinen Mac, PC oder Linux-Rechner.',
       },
@@ -336,10 +336,10 @@
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Bilgisayarının duvar kağıdını değiştirmek için küçük bir masaüstü uygulaması. Hazır desenler, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
-        ctaBuy: '15 $\'a satın al',
+        ctaBuy: '{PRICE}\'a satın al',
         ctaDemo: 'Demoyu dene →',
         ctaFeatures: 'İçinde neler var →',
-        meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>15 $ tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
+        meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
       },
       features: {
         eyebrow: 'İçinde neler var',
@@ -378,7 +378,7 @@
         feat3: 'Ömür boyu ücretsiz güncelleme, yenisi geldiğinde uygulama haber veriyor',
         feat4: 'Kendi sahip olduğun istediğin kadar makinede kullan',
         feat5: 'Abonelik yok, hesap yok, analitik yok',
-        buy: '15 $\'a satın al',
+        buy: '{PRICE}\'a satın al',
         fineprint:
           'Bir kez öde, hepsi bu. Aynı lisans Mac, PC ya da Linux makinen için geçerli.',
       },
@@ -486,16 +486,56 @@
   };
   /* eslint-enable @stylistic/quotes */
 
+  // Sun icon (8 rays + center circle) for light, crescent moon for dark,
+  // half-light/half-dark disc for auto so the three states read at a
+  // glance instead of "light" and "auto" both showing a sun.
   var THEME_ICONS = {
-    auto: '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
+    auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/>',
     dark: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
     light:
       '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
   };
   var THEMES = ['auto', 'dark', 'light'];
 
+  var systemThemeQuery =
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: light)')
+      : null;
+
   var currentLang = localStorage.getItem('ambient.lang') || detectLang();
   var currentTheme = localStorage.getItem('ambient.theme') || 'auto';
+
+  // Polar offers the product at €15 EUR + $15 USD (both round, not
+  // FX-converted). Pick EUR for eurozone visitors so the checkout shows
+  // the same currency they saw on the page; everyone else gets USD.
+  // Polar's hosted checkout honors the customer's billing country if
+  // they pick differently, so worst case we under-guess and Polar
+  // shows the alternative — still consistent.
+  var EUROZONE = {
+    AT: 1, BE: 1, CY: 1, DE: 1, EE: 1, ES: 1, FI: 1, FR: 1, GR: 1, HR: 1,
+    IE: 1, IT: 1, LT: 1, LU: 1, LV: 1, MT: 1, NL: 1, PT: 1, SI: 1, SK: 1,
+  };
+
+  function detectRegion() {
+    try {
+      var loc = new Intl.Locale(navigator.language || 'en');
+      if (loc && loc.region) return loc.region.toUpperCase();
+    } catch (_) {}
+    var raw = (navigator.language || '').split('-')[1];
+    return raw ? raw.toUpperCase() : '';
+  }
+
+  var currentRegion = detectRegion();
+  var currentCurrency = EUROZONE[currentRegion] ? 'EUR' : 'USD';
+  // Both displayed as "$15" / "€15" with the symbol before the digits —
+  // matches the existing price-card layout and reads consistently across
+  // locales. Polar's invoice will use the locale-correct format.
+  var PRICE_FORMS = { USD: '$15', EUR: '€15' };
+  var CURRENCY_SYMBOLS = { USD: '$', EUR: '€' };
+
+  function priceString() {
+    return PRICE_FORMS[currentCurrency];
+  }
 
   function detectLang() {
     var nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
@@ -511,17 +551,18 @@
 
   function applyLanguage(lang) {
     var dict = I18N[lang] || I18N.en;
+    var price = priceString();
 
     document.documentElement.lang = lang;
 
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n'));
-      if (typeof v === 'string') el.textContent = v;
+      if (typeof v === 'string') el.textContent = v.split('{PRICE}').join(price);
     });
 
     document.querySelectorAll('[data-i18n-html]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n-html'));
-      if (typeof v === 'string') el.innerHTML = v;
+      if (typeof v === 'string') el.innerHTML = v.split('{PRICE}').join(price);
     });
 
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
@@ -541,8 +582,12 @@
 
   function applyTheme(theme) {
     document.documentElement.classList.remove('theme-dark', 'theme-light');
-    if (theme === 'dark') document.documentElement.classList.add('theme-dark');
-    if (theme === 'light') document.documentElement.classList.add('theme-light');
+    var resolved = theme;
+    if (theme === 'auto') {
+      resolved = systemThemeQuery && systemThemeQuery.matches ? 'light' : 'dark';
+    }
+    if (resolved === 'dark') document.documentElement.classList.add('theme-dark');
+    if (resolved === 'light') document.documentElement.classList.add('theme-light');
     localStorage.setItem('ambient.theme', theme);
     currentTheme = theme;
     updateThemeButton();
@@ -564,7 +609,16 @@
     applyTheme(next);
   }
 
+  function applyCurrency() {
+    // Visual price-card: swap the symbol (number stays 15 in both
+    // currencies since Polar lists both at round 15).
+    document.querySelectorAll('.price-currency').forEach(function (el) {
+      el.textContent = CURRENCY_SYMBOLS[currentCurrency];
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    applyCurrency();
     applyLanguage(currentLang);
     applyTheme(currentTheme);
 
@@ -573,5 +627,12 @@
 
     var themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) themeBtn.addEventListener('click', cycleTheme);
+
+    // Re-resolve `auto` when the OS theme flips while the page is open.
+    if (systemThemeQuery && typeof systemThemeQuery.addEventListener === 'function') {
+      systemThemeQuery.addEventListener('change', function () {
+        if (currentTheme === 'auto') applyTheme('auto');
+      });
+    }
   });
 })();

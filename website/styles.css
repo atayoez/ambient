@@ -8,7 +8,10 @@
  */
 
 :root {
-  color-scheme: dark;
+  /* `light dark` lets the browser pick form-control colors (scrollbars,
+   * inputs) based on the OS theme. Our own JS still flips a class on
+   * <html> so the painted surfaces follow whichever the user chose. */
+  color-scheme: light dark;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
