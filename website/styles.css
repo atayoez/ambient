@@ -411,10 +411,19 @@ code {
 /* App-preview block right below the headline. Same demo-frame
  * primitive that used to live in the standalone #demo section —
  * just promoted into the hero so the first screen shows the actual
- * product instead of empty atmosphere. */
+ * product instead of empty atmosphere.
+ *
+ * Bleeds wider than the hero's --content-w: pushed out via the
+ * negative-margin / translate breakout trick so the screenshot
+ * spans nearly the full viewport with a 24px gutter on each side.
+ * Capped at 1500px to keep the 868px-native PNG within ~1.7x
+ * upscale, beyond which the rendering visibly softens. */
 .hero-demo {
   margin-top: 56px;
-  width: 100%;
+  width: min(100vw - 48px, 1500px);
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   justify-content: center;
 }
@@ -428,9 +437,9 @@ code {
    elsewhere; it's currently only rendered inside .hero-demo. */
 
 .demo-frame {
-  /* Pushed past the native 868px PNG so the screenshot dominates the
-   * first screen — slight upscale is fine on a modern UI render. */
-  max-width: 1180px;
+  /* Fills the .hero-demo breakout container; the cap there decides
+   * how far the screenshot stretches. */
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
