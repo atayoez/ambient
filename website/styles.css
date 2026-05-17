@@ -553,6 +553,10 @@ code {
   padding: 120px 24px;
 }
 
+.features .section-eyebrow {
+  text-align: center;
+}
+
 .section-eyebrow {
   font-size: 13px;
   text-transform: uppercase;
