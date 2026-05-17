@@ -1,56 +1,14 @@
 /*
  * Ambient marketing site.
  *
- * Mirrors the app's design tokens verbatim — achromatic Liquid Glass,
- * surfaces stay neutral, colour comes from the wallpaper screenshots
- * themselves. Lavender / cosmic accents are out app-side, so they're
- * out site-side too.
+ * Design tokens come from ./tokens.css (a copy of
+ * design-system/colors_and_type.css). This file only adds website-
+ * specific layout vars and the page-level component recipes; every
+ * radius, shadow, blur, font and color is shared with the app.
  */
 
 :root {
-  color-scheme: dark;
-
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  /* Achromatic Liquid Glass — mirrors design-system/colors_and_type.css. */
-  --bg-base: rgb(18, 18, 22);
-
-  --surface: rgba(255, 255, 255, 0.04);
-  --surface-2: rgba(255, 255, 255, 0.08);
-  --surface-3: rgba(255, 255, 255, 0.14);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --highlight-edge: rgba(255, 255, 255, 0.18);
-
-  --text: #f5f5f7;
-  --muted: #a1a1aa;
-
-  /* Accent: near-opaque white on dark, near-opaque black on light. The
-   * surface stays achromatic; we only use --accent on interactive emphasis
-   * (focus borders, primary fill, link underlines). */
-  --accent: rgba(255, 255, 255, 0.92);
-  --accent-fill: rgba(255, 255, 255, 0.88);
-  --accent-fill-hover: rgba(255, 255, 255, 0.96);
-  --accent-text: #1c1c1e;
-
-  --radius-inline: 10px;
-  --radius-container: 16px;
-  --radius-window: 22px;
-  --radius-pill: 999px;
-
-  --blur-window: blur(40px) saturate(180%);
-  --shadow-window: 0 32px 80px rgba(0, 0, 0, 0.55);
-  --shadow-primary: 0 6px 16px rgba(0, 0, 0, 0.28);
-
-  --t-fast: 120ms;
-  --t-base: 220ms;
-  --ease-pill: cubic-bezier(0.32, 0.72, 0, 1);
-
-  --fw-medium: 500;
-  --fw-semibold: 600;
-
+  /* The only website-only token — sections cap at this max-width. */
   --content-w: 1280px;
 }
 
@@ -97,8 +55,8 @@ code {
   justify-content: space-between;
   padding: 14px 24px;
   background: rgba(18, 18, 22, 0.6);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
 }
 
 .brand,
@@ -408,13 +366,15 @@ code {
   align-items: center;
   gap: 4px;
   padding: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  /* Same glass-pill recipe as the app's bottom-tabs primitive:
+   * 6% white surface, --blur-tabs, --highlight-edge inner sheen. */
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
   box-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.22),
+    0 4px 12px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -467,48 +427,6 @@ code {
   display: flex;
   flex-direction: column;
   gap: 22px;
-}
-
-/* Glass-pill tab nav — same recipe as the app's bottom .tabs pill. */
-.demo-tabs {
-  display: inline-flex;
-  align-self: center;
-  align-items: center;
-  gap: 0;
-  padding: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-.demo-tab {
-  padding: 7px 18px;
-  font-size: 13px;
-  font-weight: var(--fw-medium);
-  font-family: inherit;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: color var(--t-fast) ease, background var(--t-fast) ease;
-}
-
-.demo-tab:hover:not(.active) {
-  color: var(--text);
-}
-
-.demo-tab.active {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.26),
-    0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
 .demo-stage {
@@ -592,8 +510,8 @@ code {
   border-radius: var(--radius-container);
   border: 1px solid var(--border);
   background: var(--surface);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
   /* Same elevation recipe used by .glass / .price-card so every
    * card-like surface on the page sits at the same depth. */
   box-shadow: var(--shadow-window), inset 0 1px 0 var(--highlight-edge);

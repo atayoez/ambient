@@ -1,0 +1,240 @@
+/*
+ * Ambient — design tokens (website copy).
+ *
+ * Mirrors design-system/colors_and_type.css so the marketing site uses
+ * the exact same radii / shadows / blurs / type ramp as the app. Light-
+ * mode block is stripped because the website is dark-only by design;
+ * if anything in the canonical token file changes, copy it across.
+ */
+
+/* Bundled Inter variable font — Linux distros rarely ship Inter, so without
+ * this @font-face the stack falls through to DejaVu/Liberation Sans and the
+ * app immediately reads as "generic Linux GTK app." File lives in
+ * public/fonts/ so Vite copies it to the bundle root at build time. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2-variations");
+}
+
+:root {
+  color-scheme: dark;
+
+  /* ============================================================ */
+  /* TYPE                                                          */
+  /* ============================================================ */
+
+  /* Per-platform native first, bundled Inter as the universal fallback:
+   * - macOS / iOS  → San Francisco (-apple-system)
+   * - Windows 11   → Segoe UI Variable
+   * - Windows 10   → Segoe UI
+   * - Linux + rest → Inter (bundled via @font-face above) */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Base size & rhythm */
+  --fs-root: 14px; /* html font-size */
+  --fs-eyebrow: 11px; /* card-meta, save-toast, micro-labels */
+  --fs-caption: 12px; /* section H2s, .muted, .status, .error */
+  --fs-body: 13px; /* secondary body */
+  --fs-body-lg: 14px; /* default body */
+  --fs-title: 16px; /* h1 (settings header) */
+
+  --lh-tight: 1.2;
+  --lh-body: 1.5;
+  --lh-loose: 1.6; /* .empty */
+
+  --tracking-eyebrow: 0.05em; /* uppercase eyebrows: H2, .card-meta */
+  --tracking-normal: 0;
+
+  --fw-regular: 400;
+  --fw-medium: 500; /* tabs */
+  --fw-semibold: 600; /* H2, .empty em */
+
+  /* ============================================================ */
+  /* COLOR — DARK (default)                                        */
+  /* ============================================================ */
+
+  /* Base + tinted background. The app sits on a blurred wallpaper,
+   * so `--bg-base` is INTENTIONALLY translucent — the live wallpaper
+   * bleeds through the 40px backdrop-blur. Per Apple's Liquid Glass
+   * guidance the material itself is achromatic; we deliberately don't
+   * tint it. Color comes from the wallpaper beneath and from the
+   * accent on interactive elements only. */
+  /* The app window paints against this fully-opaque base color (no
+   * backdrop-filter through to the desktop wallpaper). Image bleeds,
+   * when a preview is showing, live LOCALLY around each <img> /
+   * <canvas> via the ImageBleed component — the window background
+   * itself stays achromatic. */
+  --bg-base: rgb(18, 18, 22);
+  --bg-tint-top: transparent;
+  --bg-tint-bottom: transparent;
+
+  /* Surfaces — layered translucent whites for elevation */
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --surface-3: rgba(255, 255, 255, 0.14);
+
+  /* Borders — hairlines */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --highlight-edge: rgba(255, 255, 255, 0.18); /* inner-top sheen */
+
+  /* Foreground — neutral, near-pure white. Apple system label colors
+   * are achromatic; tinting the foreground re-introduces the brand
+   * cast that the glass material is supposed to avoid. */
+  --text: #f5f5f7;
+  --muted: #a1a1aa;
+
+  /* Accent: the colour used for "prominent UI element" emphasis — focus
+   * rings (via color-mix), input focus borders, slider track fills.
+   * Achromatic by design: macOS Tahoe's Liquid Glass uses the system
+   * accent very sparingly, and we want even less. Near-opaque white in
+   * dark mode and near-opaque black in light mode keep contrast against
+   * any wallpaper bleed-through.
+   *
+   * --accent-fill is the SOLID surface variant — primary buttons, the
+   * checked-checkbox fill, the active end of the slider track. Mostly
+   * opaque so it reads as a distinct affordance against the surrounding
+   * translucent glass. Paired with --accent-text for legible content
+   * placed ON the fill (dark text on light fill, vice versa).
+   *
+   * Danger / success keep their colours: those are semantic state, not
+   * decoration. */
+  --accent: rgba(255, 255, 255, 0.92);
+  --accent-fill: rgba(255, 255, 255, 0.88);
+  --accent-fill-hover: rgba(255, 255, 255, 0.96);
+  --accent-text: #1c1c1e;
+  --accent-glow: rgba(0, 0, 0, 0.28);
+  --danger: #ff7a90;
+  --success: #6ee7a3;
+
+  /* Cosmic palette — the canonical brand 5-stop used in Patterns.
+   * Also referenced as the dark-mode preset default. */
+  --cosmic-1: #0c0a1f;
+  --cosmic-2: #7c5cff;
+  --cosmic-3: #ec4899;
+  --cosmic-4: #fbbf24;
+  --cosmic-5: #f1ecff;
+
+  /* ============================================================ */
+  /* RADII                                                          */
+  /* ============================================================ */
+  /* Only three radii across the whole app, by design. */
+  --radius-inline: 8px; /* buttons, inputs, chips, sliding pill */
+  --radius-container: 12px; /* cards, sections, tab tray */
+  --radius-window: 14px; /* the app window itself */
+  --radius-pill: 999px; /* toasts */
+
+  /* ============================================================ */
+  /* SHADOW + BLUR                                                  */
+  /* ============================================================ */
+  --blur-window: blur(40px) saturate(180%);
+  --blur-tabs: blur(20px) saturate(180%);
+  --blur-overlay: blur(24px) saturate(180%);
+
+  --shadow-window: 0 32px 80px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-primary: 0 6px 16px rgba(0, 0, 0, 0.28);
+  --inset-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --inset-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* ============================================================ */
+  /* MOTION                                                         */
+  /* ============================================================ */
+  /* The signature curve — sliding pill indicator, emoji pop. */
+  --ease-pill: cubic-bezier(0.32, 0.72, 0, 1);
+  --t-pill: 380ms;
+  --t-fast: 120ms; /* button background fade */
+  --t-base: 220ms; /* tab color fade, overlay fade */
+  --t-tooltip: 140ms;
+
+  /* ============================================================ */
+  /* SEMANTIC TYPE ROLES                                            */
+  /* ============================================================ */
+
+  /* h1 — used by .settings-header h1 */
+  --h1-size: var(--fs-title);
+  --h1-weight: var(--fw-semibold);
+  --h1-lh: var(--lh-tight);
+
+  /* h2 — UPPERCASE section eyebrow */
+  --h2-size: var(--fs-caption);
+  --h2-weight: var(--fw-semibold);
+  --h2-tracking: var(--tracking-eyebrow);
+  --h2-transform: uppercase;
+  --h2-color: var(--muted);
+
+  /* p / body */
+  --p-size: var(--fs-body-lg);
+  --p-lh: var(--lh-body);
+  --p-color: var(--text);
+
+  /* muted / helper copy */
+  --muted-size: var(--fs-caption);
+  --muted-lh: var(--lh-body);
+  --muted-color: var(--muted);
+
+  /* eyebrow label — control-group > label, .card-meta, prompt-field span */
+  --eyebrow-size: var(--fs-caption);
+  --eyebrow-tracking: var(--tracking-eyebrow);
+  --eyebrow-transform: uppercase;
+  --eyebrow-color: var(--muted);
+
+  /* code — inline */
+  --code-bg: var(--surface-2);
+  --code-font: var(--font-mono);
+}
+
+/* ============================================================ */
+/* Element defaults — use as `class="ds-h1"` etc in design files. */
+/* ============================================================ */
+html {
+  font-family: var(--font-sans);
+  font-size: var(--fs-root);
+  color: var(--text);
+}
+.ds-h1,
+h1.ds {
+  font-size: var(--h1-size);
+  font-weight: var(--h1-weight);
+  line-height: var(--h1-lh);
+  margin: 0;
+}
+.ds-h2,
+h2.ds {
+  font-size: var(--h2-size);
+  font-weight: var(--h2-weight);
+  letter-spacing: var(--h2-tracking);
+  text-transform: var(--h2-transform);
+  color: var(--h2-color);
+  margin: 0;
+}
+.ds-eyebrow {
+  font-size: var(--eyebrow-size);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: var(--eyebrow-transform);
+  color: var(--eyebrow-color);
+}
+.ds-p {
+  font-size: var(--p-size);
+  line-height: var(--p-lh);
+  color: var(--p-color);
+  margin: 0;
+}
+.ds-muted {
+  font-size: var(--muted-size);
+  line-height: var(--muted-lh);
+  color: var(--muted-color);
+  margin: 0;
+}
+.ds-code {
+  font-family: var(--code-font);
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
