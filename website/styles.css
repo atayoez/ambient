@@ -196,13 +196,16 @@ code {
    * rather than below it — the hero needs vertical room for both
    * the headline column and the backdrop screenshot. */
   min-height: 92vh;
-  padding: 120px 24px 80px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 60px;
+  padding: 120px 24px 48px;
+  /* Column flex: hero-content sits at the top, hero-bottom is
+   * pushed to the bottom edge (via margin-top: auto below) so the
+   * meta strip and glass scroller land visually below the
+   * screenshot backdrop. */
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
   max-width: var(--content-w);
   margin: 0 auto;
-  align-items: center;
   isolation: isolate;
   overflow: hidden;
 }
@@ -210,9 +213,18 @@ code {
 .hero-content {
   /* z-index: 1 keeps the headline/CTAs above the .hero-demo-bg
    * backdrop layer (which sits at z-index: 0). */
-  z-index: 1;
   position: relative;
   z-index: 1;
+}
+
+.hero-bottom {
+  margin-top: auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
 }
 
 .hero h1 {
@@ -256,7 +268,6 @@ code {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 28px;
 }
 
 .btn {
@@ -380,10 +391,10 @@ code {
  * a partial-opacity overlay keeps the headline readable. */
 .hero-demo-bg {
   position: absolute;
-  /* Pushed further down so it doesn't crowd the headline; sits more
-   * in the lower-mid of the hero now. `bottom: 0` lets it anchor to
-   * the bottom of the hero too so a tall viewport stretches it. */
-  inset: 28% 0 0 0;
+  /* Sits in the lower-mid of the hero. Leaves a ~22% gap at the
+   * bottom so the .hero-bottom meta strip + glass scroller land
+   * visually below the screenshot rather than on top of it. */
+  inset: 24% 0 22% 0;
   z-index: 0;
   display: flex;
   justify-content: center;
@@ -421,7 +432,6 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 28px;
   padding: 4px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
