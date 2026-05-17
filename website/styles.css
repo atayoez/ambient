@@ -251,6 +251,10 @@ code {
   letter-spacing: -0.03em;
   font-weight: 700;
   margin: 0 0 24px;
+  /* Soft halo so the headline reads cleanly when the screenshot
+   * backdrop sits behind it — never reads as a "drop shadow,"
+   * just a depth cue. */
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .gradient-text {
@@ -275,6 +279,7 @@ code {
   color: var(--muted);
   max-width: 520px;
   margin: 0 0 36px;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
 }
 
 .cta-row {
@@ -333,6 +338,7 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
 }
 
 .hero-meta .dot {
@@ -419,7 +425,10 @@ code {
  * a partial-opacity overlay keeps the headline readable. */
 .hero-demo-bg {
   position: absolute;
-  inset: 60px 0 auto 0;
+  /* Pushed further down so it doesn't crowd the headline; sits more
+   * in the lower-mid of the hero now. `bottom: 0` lets it anchor to
+   * the bottom of the hero too so a tall viewport stretches it. */
+  inset: 28% 0 0 0;
   z-index: 0;
   display: flex;
   justify-content: center;
@@ -427,25 +436,34 @@ code {
 }
 
 .hero-demo-bg .demo-stage {
-  width: min(92vw, 920px);
-  opacity: 0.32;
-  filter: blur(0.5px);
-  /* Fade out at the edges so the screenshot reads as a soft
-   * environmental layer instead of a hard rectangle. */
+  width: min(92vw, 980px);
+  opacity: 0.45;
+  /* Real drop-shadow on the image (drop-shadow follows the rect
+   * alpha, so it casts off the screenshot border rather than the
+   * faded mask edges) so it lifts off the page instead of melting
+   * into the background. */
+  filter:
+    drop-shadow(0 24px 48px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 8px 18px rgba(0, 0, 0, 0.35));
+  /* Soft edge-fade keeps the rectangle from reading as a hard frame
+   * once the shadow gives it definition. */
   -webkit-mask-image: radial-gradient(
-    ellipse 75% 70% at 50% 50%,
-    rgba(0, 0, 0, 1) 35%,
+    ellipse 80% 78% at 50% 50%,
+    rgba(0, 0, 0, 1) 45%,
     rgba(0, 0, 0, 0) 100%
   );
   mask-image: radial-gradient(
-    ellipse 75% 70% at 50% 50%,
-    rgba(0, 0, 0, 1) 35%,
+    ellipse 80% 78% at 50% 50%,
+    rgba(0, 0, 0, 1) 45%,
     rgba(0, 0, 0, 0) 100%
   );
 }
 
 .theme-light .hero-demo-bg .demo-stage {
-  opacity: 0.55;
+  opacity: 0.7;
+  filter:
+    drop-shadow(0 24px 48px rgba(0, 0, 0, 0.18))
+    drop-shadow(0 8px 18px rgba(0, 0, 0, 0.10));
 }
 
 /* Glass-pill arrow scroller — sits inline below the hero meta.
@@ -1391,6 +1409,18 @@ footer {
 .theme-light .nav {
   background: rgba(250, 250, 252, 0.7);
   border-bottom-color: var(--border);
+}
+
+/* Dark text + dark text-shadow reads as a smudge in light mode.
+ * Switch to a soft white halo so the headline still pops off the
+ * (lighter) screenshot backdrop. */
+.theme-light .hero h1 {
+  text-shadow: 0 2px 24px rgba(255, 255, 255, 0.85), 0 1px 4px rgba(255, 255, 255, 0.65);
+}
+
+.theme-light .hero-sub,
+.theme-light .hero-meta {
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.8);
 }
 
 .theme-light .hero-aurora {
