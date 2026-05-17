@@ -549,8 +549,8 @@ code {
 
 .features {
   max-width: var(--content-w);
-  margin: 60px auto;
-  padding: 80px 24px;
+  margin: 0 auto;
+  padding: 120px 24px;
 }
 
 .section-eyebrow {
@@ -640,7 +640,7 @@ code {
 .pricing {
   max-width: var(--content-w);
   margin: 0 auto;
-  padding: 80px 24px 40px;
+  padding: 120px 24px;
   text-align: center;
 }
 
@@ -803,7 +803,7 @@ code {
 .download {
   max-width: var(--content-w);
   margin: 0 auto;
-  padding: 60px 24px 80px;
+  padding: 120px 24px;
   text-align: center;
 }
 
@@ -1033,7 +1033,7 @@ code {
 .about {
   max-width: var(--content-w);
   margin: 0 auto;
-  padding: 40px 24px 100px;
+  padding: 120px 24px;
   display: flex;
   justify-content: center;
 }
@@ -1158,8 +1158,7 @@ code {
 /* ============================================================ */
 
 footer {
-  border-top: 1px solid var(--border);
-  padding: 32px 24px;
+  padding: 48px 24px 56px;
 }
 
 .footer-inner {
