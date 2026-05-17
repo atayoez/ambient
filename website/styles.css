@@ -54,7 +54,7 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  --content-w: 1180px;
+  --content-w: 1280px;
 }
 
 * {
@@ -428,7 +428,9 @@ code {
    elsewhere; it's currently only rendered inside .hero-demo. */
 
 .demo-frame {
-  max-width: 900px;
+  /* Pushed past the native 868px PNG so the screenshot dominates the
+   * first screen — slight upscale is fine on a modern UI render. */
+  max-width: 1180px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
