@@ -27,19 +27,33 @@ export default {
     }
 
     // Everything else falls through to the static assets directory.
-    // Wrap to inject Link response headers (RFC 8288) advertising the
-    // sitemap + license to bots and discovery agents without HTML
-    // parsing.
+    // Wrap to inject:
+    //   - Link response headers (RFC 8288) advertising the sitemap +
+    //     canonical to bots and discovery agents without HTML parsing.
+    //   - data-country onto <html> from Cloudflare's cf.country so the
+    //     page can pick the right currency (EUR vs USD) without
+    //     guessing from navigator.language, which lies about location
+    //     whenever a user has their browser set to en-US in Germany.
     const res = await env.ASSETS.fetch(request);
     if (url.pathname === '/' || url.pathname === '/index.html') {
       const headers = new Headers(res.headers);
       headers.append('link', '</sitemap.xml>; rel="sitemap"; type="application/xml"');
       headers.append('link', '<https://ambient.oezcan.me/>; rel="canonical"');
-      return new Response(res.body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers,
-      });
+      const country = request.cf?.country || '';
+      const rewritten = new HTMLRewriter()
+        .on('html', {
+          element(el) {
+            if (country) el.setAttribute('data-country', country);
+          },
+        })
+        .transform(
+          new Response(res.body, {
+            status: res.status,
+            statusText: res.statusText,
+            headers,
+          }),
+        );
+      return rewritten;
     }
     return res;
   },

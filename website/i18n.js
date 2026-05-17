@@ -485,12 +485,48 @@
   };
 
   function detectRegion() {
+    // 1. Cloudflare cf.country, injected onto <html data-country=".."
+    //    by the Worker. Most accurate — it's the actual request IP's
+    //    country, not whatever locale the user set in their browser.
+    var injected = document.documentElement.getAttribute('data-country');
+    if (injected) return injected.toUpperCase();
+
+    // 2. Time-zone fallback for cases where the Worker didn't run
+    //    (e.g. wrangler dev, static preview). TZ usually mirrors
+    //    physical location even when the browser language doesn't.
+    try {
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      var tzRegion = tzToRegion(tz);
+      if (tzRegion) return tzRegion;
+    } catch (_) {}
+
+    // 3. Browser-locale region — last resort; lies whenever the user
+    //    has e.g. en-US set in their browser while sitting in Berlin.
     try {
       var loc = new Intl.Locale(navigator.language || 'en');
       if (loc && loc.region) return loc.region.toUpperCase();
     } catch (_) {}
     var raw = (navigator.language || '').split('-')[1];
     return raw ? raw.toUpperCase() : '';
+  }
+
+  // Tiny TZ → ISO country map. Covers only the eurozone capitals we
+  // need to flip the currency for; everything else falls through to
+  // an empty string and the locale fallback (or USD default) wins.
+  function tzToRegion(tz) {
+    var TZ_TO_COUNTRY = {
+      'Europe/Berlin':    'DE', 'Europe/Vienna':    'AT',
+      'Europe/Brussels':  'BE', 'Europe/Nicosia':   'CY',
+      'Europe/Tallinn':   'EE', 'Europe/Madrid':    'ES',
+      'Europe/Helsinki':  'FI', 'Europe/Paris':     'FR',
+      'Europe/Athens':    'GR', 'Europe/Zagreb':    'HR',
+      'Europe/Dublin':    'IE', 'Europe/Rome':      'IT',
+      'Europe/Vilnius':   'LT', 'Europe/Luxembourg':'LU',
+      'Europe/Riga':      'LV', 'Europe/Malta':     'MT',
+      'Europe/Amsterdam': 'NL', 'Europe/Lisbon':    'PT',
+      'Europe/Ljubljana': 'SI', 'Europe/Bratislava':'SK',
+    };
+    return TZ_TO_COUNTRY[tz] || '';
   }
 
   var currentRegion = detectRegion();
