@@ -53,14 +53,11 @@
       "src/**/*.tsx",
       "design-system/**/*.css",
       "vite.config.ts",
-      "*.json"
-    ],
-    "experimentalScannerIgnores": [
-      "dist",
-      "build-dir",
-      ".flatpak-builder",
-      "src-tauri/target",
-      "node_modules"
+      "*.json",
+      "!!**/dist",
+      "!!**/build-dir",
+      "!!**/src-tauri/target",
+      "!!**/node_modules"
     ]
   }
 }

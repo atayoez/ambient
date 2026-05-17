@@ -6,14 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "bun run build && wrangler dev",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "vitest run",
-    "release": "./scripts/release.sh",
-    "deploy": "bun run build && wrangler deploy"
+    "release": "./scripts/release.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
@@ -27,7 +25,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "@cloudflare/vite-plugin": "^1.37.1",
     "@tauri-apps/cli": "^2.11.2",
     "@types/jsdom": "^28.0.3",
     "@types/react": "^19.2.0",
@@ -37,7 +34,6 @@
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.13",
-    "vitest": "^4.1.6",
-    "wrangler": "^4.92.0"
+    "vitest": "^4.1.6"
   }
 }

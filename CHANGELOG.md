@@ -73,10 +73,9 @@ is added on top. Edit this file as you go, not at release time.
   `check` job (tsc + biome + tests) runs on every push; the
   build-tauri matrix only fires when `scripts/release.sh` kicks it
   off. Saves macOS minutes (10× priced on free tier) per push.
-- **Linux builds happen locally** during release: x86_64 against the
-  host's webkit2gtk-4.1 toolchain, aarch64 via Docker + QEMU
-  (`scripts/build-linux-arm64.sh`). CI matrix shrunk to 3 jobs
-  (macOS, Windows x64, Windows ARM).
+- **Linux x86_64 builds locally** during release against the host's
+  webkit2gtk-4.1 toolchain; Linux aarch64 builds on the native
+  `ubuntu-22.04-arm` CI runner alongside the macOS / Windows jobs.
 - **Release profile tuned** (LTO + strip + codegen-units=1 +
   panic=abort). Smaller binary, lower boot RSS, slightly faster cold
   start.

@@ -15,7 +15,6 @@
         sub: "A small desktop app for changing your wallpaper. Built-in patterns, a few photo sources, and an AI generator if you'd rather just describe one.",
         ctaBuy: 'Buy for {PRICE}',
         ctaDownload: 'Download →',
-        ctaFeatures: "See what's in it →",
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
       },
       features: {
@@ -169,7 +168,6 @@
         sub: 'Eine kleine Desktop-App zum Wechseln deines Hintergrundbilds. Eingebaute Muster, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
         ctaBuy: 'Für {PRICE} kaufen',
         ctaDownload: 'Herunterladen →',
-        ctaFeatures: 'Was drin steckt →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
       },
       features: {
@@ -323,7 +321,6 @@
         sub: 'Bilgisayarının duvar kağıdını değiştirmek için küçük bir masaüstü uygulaması. Hazır desenler, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
         ctaBuy: '{PRICE}\'a satın al',
         ctaDownload: 'İndir →',
-        ctaFeatures: 'İçinde neler var →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
       },
       features: {

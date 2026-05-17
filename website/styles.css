@@ -89,7 +89,7 @@ code {
   color: var(--text);
 }
 
-/* --- Settings (language + theme toggle in the top-right of the nav) --- */
+/* --- Settings (language switcher in the top-right of the nav) --- */
 .settings-bar {
   display: flex;
   align-items: center;
@@ -297,9 +297,9 @@ code {
   box-shadow: var(--shadow-window), inset 0 1px 0 var(--highlight-edge);
 }
 
-/* --- Hero variant: single column, content centered --- */
+/* --- Hero variant: content centered. The hero is flex now so the
+   grid-template-columns override is gone; only text-align stays. */
 .hero-center {
-  grid-template-columns: 1fr;
   text-align: center;
   padding-bottom: 60px;
 }
@@ -452,13 +452,6 @@ code {
 
 .demo-shot.active {
   opacity: 1;
-}
-
-@media (max-width: 760px) {
-  .demo-tabs {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
 }
 
 /* ============================================================ */
@@ -872,76 +865,6 @@ code {
   margin-left: auto;
   margin-right: auto;
   line-height: 1.55;
-}
-
-/* ============================================================ */
-/* Trial                                                          */
-/* ============================================================ */
-
-.trial {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 20px 24px 100px;
-  text-align: center;
-}
-
-.trial-sub {
-  color: var(--muted);
-  margin: -20px auto 24px;
-  font-size: 15px;
-  max-width: 480px;
-  line-height: 1.55;
-}
-
-.trial-form {
-  display: flex;
-  gap: 10px;
-  max-width: 480px;
-  margin: 0 auto;
-  flex-wrap: wrap;
-}
-
-.trial-form input {
-  flex: 1 1 240px;
-  min-width: 0;
-  padding: 13px 16px;
-  font-size: 15px;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-inline);
-  outline: none;
-  transition: border-color var(--t-base) ease, background var(--t-base) ease;
-}
-
-.trial-form input:focus {
-  border-color: var(--accent);
-  background: var(--surface-2);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 25%, transparent);
-}
-
-.trial-form input::placeholder {
-  color: var(--muted);
-}
-
-.trial-form button {
-  flex: 0 0 auto;
-}
-
-.trial-note {
-  margin-top: 20px;
-  font-size: 13px;
-  max-width: 480px;
-  margin-left: auto;
-  margin-right: auto;
-  line-height: 1.55;
-}
-
-.trial-status {
-  margin-top: 16px;
-  font-size: 14px;
-  color: var(--text);
 }
 
 .muted {
