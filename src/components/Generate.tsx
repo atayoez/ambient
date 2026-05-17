@@ -1,8 +1,10 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
 import { generateWallpaper } from '../lib/aigen';
+import { dispatch } from '../lib/events';
 import { useDebouncedCallback, useDraftState, useKeydown } from '../lib/hooks';
-import { loadSettings, mutateLibrary, patchSettings } from '../lib/store';
+import { useSecret } from '../lib/secrets';
+import { loadSettings, patchSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
   type GenProvider,
@@ -10,7 +12,7 @@ import {
   type PollinationsModel,
   type Settings,
 } from '../lib/types';
-import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
+import { setWallpaper } from '../lib/wallpaper';
 import { WandIcon } from './Icons';
 import {
   InspectorSection,
@@ -62,6 +64,9 @@ export default function Generate() {
     'generate.lastResult',
     null,
   );
+  // OpenAI key moved to the OS keyring in Phase 3 — bound via useSecret
+  // instead of patchSettings.
+  const [openaiKey, setOpenaiKey, openaiKeyLoaded] = useSecret('openai_key');
 
   useEffect(() => {
     loadSettings().then(setSettings);
@@ -77,7 +82,7 @@ export default function Generate() {
     const patch = pendingPatchRef.current;
     pendingPatchRef.current = {};
     void patchSettings(patch).then(() => {
-      window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+      dispatch('settings-changed');
     });
   }, 400);
 
@@ -103,31 +108,19 @@ export default function Generate() {
         : 'Generating via OpenAI…',
     );
     try {
-      const current = await loadSettings();
-      const generated = await generateWallpaper(current, prompt);
-
-      setStatus('Downloading…');
-      const localPath = await downloadAndSave(generated.url, generated.filename);
-
-      await mutateLibrary((library) => [
-        {
-          path: localPath,
-          source: 'generated',
-          prompt,
-          addedAt: Date.now(),
-          title: prompt.slice(0, 60),
-        },
-        ...library,
-      ]);
-      setLastResult(localPath);
+      // Rust reads settings + OpenAI key (from keyring) and handles
+      // the entire pipeline: model API call, download, library prepend.
+      // Frontend just consumes the resulting Wallpaper entry.
+      const entry = await generateWallpaper(prompt);
+      setLastResult(entry.path);
       // Commit lastResult so a fresh launch shows the most recent
       // result in the preview frame. Pass the value explicitly because
       // the useState ref hasn't caught up to the set call above yet.
       try {
-        await saveLastResult(localPath);
+        await saveLastResult(entry.path);
       } catch {}
       setStatus('Setting wallpaper…');
-      await setWallpaper(localPath);
+      await setWallpaper(entry.path);
       setStatus('Applied — added to Library');
       setTimeout(() => setStatus(null), 1500);
     } catch (e: unknown) {
@@ -214,10 +207,10 @@ export default function Generate() {
               <InspectorSection title="API key">
                 <input
                   type="password"
-                  value={settings.openaiKey}
-                  onChange={(e) => update({ openaiKey: e.target.value })}
+                  value={openaiKey}
+                  onChange={(e) => setOpenaiKey(e.target.value)}
                   placeholder="sk-..."
-                  disabled={busy}
+                  disabled={busy || !openaiKeyLoaded}
                   aria-label="OpenAI API key"
                 />
               </InspectorSection>

@@ -1,15 +1,17 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
+import { dispatch, listen } from '../lib/events';
 import { useDebouncedCallback, useKeydown } from '../lib/hooks';
-import { fetchRandomFromSource } from '../lib/sources';
-import { loadLibrary, loadSettings, mutateLibrary, patchSettings } from '../lib/store';
+import { useSecret } from '../lib/secrets';
+import { fetchSourceWallpaper } from '../lib/sources';
+import { loadLibrary, loadSettings, patchSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
   type Settings,
   type SourceKind,
   type Wallpaper,
 } from '../lib/types';
-import { downloadAndSave, setWallpaper } from '../lib/wallpaper';
+import { setWallpaper } from '../lib/wallpaper';
 import { CheckIcon, RefreshIcon } from './Icons';
 import {
   InspectorSection,
@@ -19,17 +21,6 @@ import {
   TabLayout,
 } from './layout';
 import RotationControl from './RotationControl';
-
-function canFetch(s: Settings): boolean {
-  switch (s.source) {
-    case 'nasa-apod':
-      return true;
-    case 'unsplash':
-      return Boolean(s.unsplashKey.trim());
-    case 'pexels':
-      return Boolean(s.pexelsKey.trim());
-  }
-}
 
 const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = [
   {
@@ -117,6 +108,12 @@ export default function Sources() {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<Wallpaper | null>(null);
 
+  // BYO API keys — Phase 3 moved storage from Settings JSON to the OS
+  // keyring. The hooks own their own draft state + debounced persist.
+  const [unsplashKey, setUnsplashKey, unsplashKeyLoaded] = useSecret('unsplash_key');
+  const [pexelsKey, setPexelsKey, pexelsKeyLoaded] = useSecret('pexels_key');
+  const secretsLoaded = unsplashKeyLoaded && pexelsKeyLoaded;
+
   const prevSource = useRef<SourceKind | null>(null);
   // Drafts for the search query inputs. Queries are commit-on-Enter (or
   // blur), not commit-on-keystroke — a half-typed "mounta" shouldn't
@@ -124,6 +121,17 @@ export default function Sources() {
   // pattern.
   const [unsplashQueryDraft, setUnsplashQueryDraft] = useState('');
   const [pexelsQueryDraft, setPexelsQueryDraft] = useState('');
+
+  function canFetch(s: Settings = settings): boolean {
+    switch (s.source) {
+      case 'nasa-apod':
+        return true;
+      case 'unsplash':
+        return unsplashKey.trim().length > 0;
+      case 'pexels':
+        return pexelsKey.trim().length > 0;
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +142,7 @@ export default function Sources() {
       prevSource.current = s.source;
 
       const cached = await reusableCache(loadCache(), s.source);
+      if (cancelled) return;
       if (cached) {
         setPreviewPath(cached.localPath);
         setPreviewMeta({
@@ -142,15 +151,28 @@ export default function Sources() {
           title: cached.title,
           addedAt: 0,
         });
-        return;
       }
-      if (canFetch(s)) void fetchNew(false, s);
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-fetch on first mount once secrets have loaded (Unsplash/Pexels
+  // need the key in local state to satisfy canFetch). For NASA the
+  // secrets load is irrelevant; we still gate on it so the effect runs
+  // exactly once across all three sources. If a cache hit already
+  // populated the preview, skip — the user didn't ask for a fresh fetch.
+  const autoFetchedRef = useRef(false);
+  useEffect(() => {
+    if (autoFetchedRef.current) return;
+    if (!secretsLoaded) return;
+    if (previewPath) return;
+    if (!canFetch(settings)) return;
+    autoFetchedRef.current = true;
+    void fetchNew(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secretsLoaded, previewPath, settings.source]);
 
   useEffect(() => {
     if (prevSource.current === null) return;
@@ -176,7 +198,7 @@ export default function Sources() {
         setPreviewMeta(null);
         return;
       }
-      void fetchNew(false, settings);
+      void fetchNew(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.source]);
@@ -187,14 +209,11 @@ export default function Sources() {
     // Wallpaper entry. We mirror it into the preview so the user sees the
     // fresh image even though the rotation logic itself doesn't live here
     // anymore.
-    function onRotated(e: Event) {
-      const entry = (e as CustomEvent<Wallpaper>).detail;
+    return listen('wallpaper-rotated', (entry) => {
       if (!entry) return;
       setPreviewPath(entry.path);
       setPreviewMeta(entry);
-    }
-    window.addEventListener('ambient-wallpaper-rotated', onRotated);
-    return () => window.removeEventListener('ambient-wallpaper-rotated', onRotated);
+    });
   }, []);
 
   useEffect(() => {
@@ -224,12 +243,7 @@ export default function Sources() {
   // 400 ms of quiet before we touch disk + flash "Saved". Without the
   // debounce, every keystroke into the Unsplash/Pexels query inputs
   // nagged the user with a fresh notification. App.tsx + RotationControl
-  // listen for the dispatched event so cross-tab settings stay in sync.
-  //
-  // Patches accumulate in pendingPatchRef so the flush only writes the
-  // fields the user actually touched — going through patchSettings (a
-  // serialized read-modify-write) keeps Library's themeMode change
-  // from being clobbered by this tab's stale local Settings copy.
+  // pick up the Rust-emitted settings-changed event via the typed bus.
   const pendingPatchRef = useRef<Partial<Settings>>({});
   const debouncedFlush = useDebouncedCallback(() => {
     const patch = pendingPatchRef.current;
@@ -237,7 +251,7 @@ export default function Sources() {
     void patchSettings(patch).then(() => {
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1200);
-      window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+      dispatch('settings-changed');
     });
   }, 400);
 
@@ -247,35 +261,27 @@ export default function Sources() {
     debouncedFlush();
   }
 
-  async function fetchNew(apply: boolean, s?: Settings) {
+  async function fetchNew(apply: boolean) {
     if (busy) return;
     setBusy(true);
     setError(null);
     setStatus('Fetching from source…');
     try {
-      const current = s ?? settings;
-      const fetched = await fetchRandomFromSource(current);
-      setStatus('Downloading…');
-      const localPath = await downloadAndSave(fetched.url, fetched.filename);
-      const entry: Wallpaper = {
-        path: localPath,
-        source: fetched.source,
-        addedAt: Date.now(),
-        title: fetched.title,
-      };
-      await mutateLibrary((lib) => [entry, ...lib]);
-      setPreviewPath(localPath);
+      // Rust does the source-API call, download, and library prepend in
+      // a single command — no JS-side two-step anymore.
+      const entry = await fetchSourceWallpaper();
+      setPreviewPath(entry.path);
       setPreviewMeta(entry);
       saveCache({
-        source: fetched.source,
+        source: entry.source as SourceKind,
         date: todayKey(),
-        localPath,
-        title: fetched.title,
+        localPath: entry.path,
+        title: entry.title,
       });
 
       if (apply) {
         setStatus('Setting wallpaper…');
-        await setWallpaper(localPath);
+        await setWallpaper(entry.path);
         setStatus('Applied — added to Library');
       } else {
         setStatus('Preview ready');
@@ -410,10 +416,11 @@ export default function Sources() {
               <InspectorSection title="API key">
                 <input
                   type="password"
-                  value={settings.unsplashKey}
-                  onChange={(e) => update({ unsplashKey: e.target.value })}
+                  value={unsplashKey}
+                  onChange={(e) => setUnsplashKey(e.target.value)}
                   placeholder="get one at unsplash.com/developers"
                   aria-label="Unsplash API key"
+                  disabled={!unsplashKeyLoaded}
                 />
               </InspectorSection>
             )}
@@ -422,10 +429,11 @@ export default function Sources() {
               <InspectorSection title="API key">
                 <input
                   type="password"
-                  value={settings.pexelsKey}
-                  onChange={(e) => update({ pexelsKey: e.target.value })}
+                  value={pexelsKey}
+                  onChange={(e) => setPexelsKey(e.target.value)}
                   placeholder="get one at pexels.com/api"
                   aria-label="Pexels API key"
+                  disabled={!pexelsKeyLoaded}
                 />
               </InspectorSection>
             )}

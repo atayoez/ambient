@@ -1,166 +1,98 @@
+// Settings and Library are Rust-owned in Phase 1 — every read/write is
+// a single Tauri command. Rust holds the authoritative in-memory state
+// behind a RwLock and persists to ambient-settings.json /
+// ambient-library.json (atomic temp-file + rename). Concurrent patches
+// serialize through the lock, which structurally rules out the
+// cross-tab clobber bug that the old mutateSettings/mutateLibrary
+// closure chains were built to work around.
+//
+// Per-tab draft state (patterns.config, generate.prompt, app.tab,
+// generate.lastResult, patterns.themeMode) is single-writer and stays
+// on the legacy tauri-plugin-store path via loadKey / saveKey below.
+
+import { invoke } from '@tauri-apps/api/core';
 import { load, type Store } from '@tauri-apps/plugin-store';
-import { DEFAULT_SETTINGS, type Settings, type Wallpaper } from './types';
+import type { Settings, Wallpaper } from './types';
+
+// ---------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------
+
+export async function loadSettings(): Promise<Settings> {
+  return invoke<Settings>('get_settings');
+}
+
+// Apply a partial settings update under the Rust RwLock. Returns the
+// post-patch Settings so callers can update their local view without a
+// follow-up load. The Rust side also emits a `settings-changed` Tauri
+// event which a bridge in App.tsx forwards onto the typed event bus —
+// callers that just want "refresh on any change" subscribe there.
+export async function patchSettings(patch: Partial<Settings>): Promise<Settings> {
+  return invoke<Settings>('patch_settings', { patch });
+}
+
+// ---------------------------------------------------------------------
+// Library
+// ---------------------------------------------------------------------
+
+// Discrete mutations matching Rust's library_store::LibraryOp enum.
+// Sending an op instead of an arbitrary closure keeps the wire format
+// small (no full-list round-trip per mutation) and serializes naturally.
+export type LibraryOp =
+  | { op: 'prepend'; data: Wallpaper }
+  | { op: 'remove'; data: { path: string } }
+  | { op: 'promoteToHead'; data: { path: string } }
+  | { op: 'removeOrphans'; data: { existing: string[] } };
+
+export async function loadLibrary(): Promise<Wallpaper[]> {
+  return invoke<Wallpaper[]>('get_library');
+}
+
+export async function patchLibrary(op: LibraryOp): Promise<Wallpaper[]> {
+  return invoke<Wallpaper[]>('patch_library', { op });
+}
+
+// Helpers for the four discrete mutations — call sites read clearer
+// than constructing the op shape inline.
+export async function prependLibrary(entry: Wallpaper): Promise<Wallpaper[]> {
+  return patchLibrary({ op: 'prepend', data: entry });
+}
+
+export async function removeFromLibrary(path: string): Promise<Wallpaper[]> {
+  return patchLibrary({ op: 'remove', data: { path } });
+}
+
+export async function promoteInLibrary(path: string): Promise<Wallpaper[]> {
+  return patchLibrary({ op: 'promoteToHead', data: { path } });
+}
+
+export async function removeLibraryOrphans(existing: string[]): Promise<Wallpaper[]> {
+  return patchLibrary({ op: 'removeOrphans', data: { existing } });
+}
+
+// ---------------------------------------------------------------------
+// Per-tab draft KV (legacy tauri-plugin-store)
+// ---------------------------------------------------------------------
 
 let _store: Store | null = null;
 
 async function getStore(): Promise<Store> {
   if (!_store) {
-    // autoSave is OFF. Every persisting call site is explicit: saveKey,
-    // saveSettings, saveLibrary all flush to disk via store.save(). High
-    // frequency UI state (Patterns slider tweaks, the Generate prompt)
-    // doesn't auto-persist — it's saved only when the user clicks the
-    // Apply tick, matching the explicit "draft → commit" model.
+    // autoSave OFF — the few callers (usePersistedState, useDraftState)
+    // explicitly call save() on user gestures. High-frequency state
+    // like Patterns slider drags lives in useDraftState and is flushed
+    // only when the user clicks Apply.
     _store = await load('ambient.json', { defaults: {}, autoSave: false });
   }
   return _store;
 }
 
-export async function loadSettings(): Promise<Settings> {
-  const store = await getStore();
-  // The widened type covers the migration case: pre-rotationSource
-  // installs persisted a boolean `rotationEnabled` field instead. Read
-  // both and translate the legacy form below.
-  const saved = await store.get<
-    Partial<Settings> & { rotationEnabled?: boolean; unsplashTopic?: string }
-  >('settings');
-  const merged: Settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
-  if (saved && 'rotationEnabled' in saved && !('rotationSource' in saved)) {
-    // Legacy: only Sources rotation existed and it was gated by a bool.
-    merged.rotationSource = saved.rotationEnabled ? 'sources' : 'off';
-  }
-  // Field rename: unsplashTopic → unsplashQuery (matches pexelsQuery
-  // naming, and "query" is closer to Unsplash's own API parameter).
-  if (
-    saved &&
-    'unsplashTopic' in saved &&
-    !('unsplashQuery' in saved) &&
-    saved.unsplashTopic
-  ) {
-    merged.unsplashQuery = saved.unsplashTopic;
-  }
-  return merged;
-}
-
-export async function saveSettings(settings: Settings): Promise<void> {
-  const store = await getStore();
-  await store.set('settings', settings);
-  await store.save();
-}
-
-// Serialized read-modify-write for settings. Each call loads fresh
-// from disk, applies the mutator, and writes back — chained via a
-// promise so concurrent callers serialize cleanly. Use this instead
-// of `loadSettings() → modify → saveSettings(full)` because the
-// full-write pattern races whenever two components hold local copies
-// of Settings and their saves interleave: the slower writer clobbers
-// any field the faster writer touched between the two reads.
-//
-// Concrete bug it fixes: changing themeMode in Library while Sources
-// or Generate still held a local Settings with the old themeMode, then
-// any debouncedSave from those tabs would overwrite themeMode back to
-// the stale value. mutateSettings reads fresh each time, so a patch
-// like { themeMode: 'light' } only changes that one field — concurrent
-// writes to other fields are preserved.
-let _settingsChain: Promise<unknown> = Promise.resolve();
-
-export function mutateSettings(
-  mutator: (current: Settings) => Settings,
-): Promise<Settings> {
-  const next = _settingsChain.then(async () => {
-    const current = await loadSettings();
-    const updated = mutator(current);
-    await saveSettings(updated);
-    return updated;
-  });
-  _settingsChain = next.catch(() => {});
-  return next;
-}
-
-// Patch helper — apply a partial settings update through the
-// serialized mutator. The most common pattern across update handlers.
-export function patchSettings(patch: Partial<Settings>): Promise<Settings> {
-  return mutateSettings((s) => ({ ...s, ...patch }));
-}
-
-export async function loadLibrary(): Promise<Wallpaper[]> {
-  const store = await getStore();
-  return (await store.get<Wallpaper[]>('library')) ?? [];
-}
-
-export async function saveLibrary(library: Wallpaper[]): Promise<void> {
-  const store = await getStore();
-  await store.set('library', library);
-  await store.save();
-}
-
-// Serialized read-modify-write for the library. All callers that previously
-// did `const lib = await loadLibrary(); await saveLibrary(mutator(lib))`
-// should use this instead — that pattern races whenever two callers (e.g.
-// rotation-timer + user delete) interleave their reads and writes, causing
-// the slower writer to clobber the faster one's change. Symptom in v0.1:
-// deleted Library entries reappearing after rotation fired in the background.
-//
-// A simple Promise chain enforces sequential execution. Each pending
-// mutation waits for the previous to finish before reading. Errors are
-// caught on the chain so one failed mutation doesn't permanently jam
-// subsequent ones, but the caller still gets the rejection on its own
-// returned promise.
-//
-// After the mutator runs, the result is deduplicated by `path` (keeping
-// the first occurrence, which is typically the freshest because callers
-// prepend new entries). This silently absorbs the re-fetch-same-NASA-image
-// case where the same path would otherwise produce duplicate cards.
-let _libraryChain: Promise<unknown> = Promise.resolve();
-
-export function mutateLibrary(
-  mutator: (current: Wallpaper[]) => Wallpaper[],
-): Promise<Wallpaper[]> {
-  const next = _libraryChain.then(async () => {
-    const current = await loadLibrary();
-    const updated = dedupByPath(mutator(current));
-    await saveLibrary(updated);
-    try {
-      // Notify subscribers (Library tab) so they pick up reorders /
-      // adds / deletes from other code paths — e.g. setWallpaper's
-      // "move applied to top" mutator runs even when the Library tab
-      // isn't visible. Detail carries the post-dedup array so listeners
-      // can swap state in one shot without re-loading from disk.
-      window.dispatchEvent(
-        new CustomEvent('ambient-library-changed', { detail: updated }),
-      );
-    } catch {
-      // No window context (SSR, worker) — non-fatal.
-    }
-    return updated;
-  });
-  _libraryChain = next.catch(() => {});
-  return next;
-}
-
-function dedupByPath(list: Wallpaper[]): Wallpaper[] {
-  const seen = new Set<string>();
-  const out: Wallpaper[] = [];
-  for (const entry of list) {
-    if (seen.has(entry.path)) continue;
-    seen.add(entry.path);
-    out.push(entry);
-  }
-  return out;
-}
-
-// Generic key/value access for component-level persisted state. Used by
-// usePersistedState so each consumer can pick a unique key (e.g.
-// "patterns.config", "generate.prompt") without growing this file.
 export async function loadKey<T>(key: string): Promise<T | null> {
   const store = await getStore();
   return ((await store.get<T>(key)) as T | undefined) ?? null;
 }
 
 export async function saveKey<T>(key: string, value: T): Promise<void> {
-  // Explicit set + save. The plugin's autoSave is off (see getStore),
-  // so this is the only path that persists key/value state. Callers
-  // are expected to be explicit user gestures: useDraftState's save(),
-  // license validation, theme-mode click, etc. — none high frequency.
   const store = await getStore();
   await store.set(key, value);
   await store.save();

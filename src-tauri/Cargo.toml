@@ -13,7 +13,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
-tauri-plugin-http = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
 tauri-plugin-notification = "2"
@@ -23,13 +22,10 @@ tauri-plugin-notification = "2"
 # update-signing keypair are in place.
 tauri-plugin-updater = "2"
 wallpaper = "3"
-# Pinned to 0.12 to share the tauri-plugin-http transitive (the
-# heavier of the two HTTP consumers). tauri-plugin-updater still
-# pulls reqwest 0.13 of its own, so two versions still coexist —
-# bumping our direct dep wouldn't dedupe either way until both
-# plugins align. We only use reqwest::get for one-shot downloads,
-# so the version pick is functionally indifferent.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# Rust-side HTTP client for license validation, source APIs (NASA,
+# Unsplash, Pexels), AI generation (OpenAI), and image downloads.
+# Phase 6 dropped tauri-plugin-http when all JS-side HTTP moved to Rust.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Image decoding for Library thumbnail cache. Minimal feature set: just
@@ -37,6 +33,49 @@ serde_json = "1"
 # downloads, WEBP thumbnails). Lossless WebP encoder ships in
 # image-webp under the `webp` feature.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+# Tokio's sync primitives (RwLock, watch channel) own the in-memory
+# state for settings + library. The rest of tokio comes in transitively
+# via tauri's async_runtime; we only need the sync feature explicitly.
+tokio = { version = "1", features = ["sync"] }
+# OS keyring for BYO API keys (Unsplash, Pexels, OpenAI). Falls back to
+# a mode-0600 JSON file at ambient-secrets.json when the platform
+# keyring is unavailable (e.g. headless Linux without a DBus session).
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+# URL encoding for the Pollinations prompt-in-URL pattern. Tiny crate,
+# nothing else fits the bill — reqwest's .query() handles query-string
+# encoding but not path-segment encoding.
+urlencoding = "2"
+# Local-date formatting for the NASA APOD daily cache key. clock feature
+# only — no parsing, no serde, no timezone DB.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# Software 2D rasterizer for the Pattern renderer (Phase 5 — replaces
+# the JS Canvas implementation). Pure Rust, no GPU dependency, fast
+# enough for live preview at thumbnail res + native-res export via
+# spawn_blocking.
+tiny-skia = "0.11"
+# base64-encoded data URLs for the preview pipeline. Tauri's
+# ipc::Response/ArrayBuffer round-trip was producing blank previews
+# (likely a quirk of the 2.x bytes-to-JS bridge) so we ship the JPEG
+# as a data:image/jpeg;base64,… string instead. ~33% wire overhead is
+# negligible for ~30-50KB preview frames and the <img src=…> binding
+# becomes trivial — no Blob, no ObjectURL, no revoke bookkeeping.
+base64 = "0.22"
+# AVIF encoder for HDR wallpaper output (Phase 5c). Pure Rust under
+# rav1e — heavy first compile but no system libavif/libheif needed.
+# We use the 10-bit raw-planes API to encode BT.2020 primaries + PQ
+# (ST.2084) transfer so HDR-capable monitors display brightness above
+# the 100-nit SDR ceiling. Fallback PNG is always written alongside.
+#
+# `default-features = false` drops the `asm` feature so we don't need
+# a system nasm install — encode time roughly doubles but Apply is a
+# one-shot operation, not a per-frame loop.
+ravif = { version = "0.11", default-features = false, features = ["threading"] }
+rgb = "0.8"
+# rav1e direct dep so we can reach `PixelRange` (ravif only re-exports
+# `MatrixCoefficients` at its crate root, but encode_raw_planes_10_bit
+# wants both). default-features=false drops the asm feature for the
+# same nasm-not-installed reason as ravif.
+rav1e = { version = "0.7", default-features = false }
 
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting
@@ -49,4 +88,11 @@ lto = "fat"
 codegen-units = 1
 strip = true
 panic = "abort"
+opt-level = 3
+
+# Optimize third-party crates even in debug builds — image / tiny-skia /
+# png are CPU-bound and ~50× slower at opt-level=0, which made the first
+# preview render under `tauri dev` take 10+ seconds. Our own crate stays
+# at opt-level=0 so debugger/incremental compile remain fast.
+[profile.dev.package."*"]
 opt-level = 3

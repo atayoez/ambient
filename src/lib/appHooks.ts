@@ -1,20 +1,20 @@
 // App-level hooks. Each owns one of the cross-cutting concerns that
 // used to live as a giant useEffect inside App.tsx: license gating,
-// update check, rotation timer, theme-follow listener, window
-// maximize tracking, and Cmd+N tab switching. Splitting these out
-// shrinks App.tsx to mostly JSX and makes each concern testable in
-// isolation.
+// update check, window maximize tracking, system accent, tray theme
+// sync, and Cmd+N tab switching. Splitting these out shrinks App.tsx
+// to mostly JSX and makes each concern testable in isolation.
+//
+// Auto-rotation + theme-follow moved to Rust tokio tasks in Phase 4
+// so they survive webview destroy/rebuild (the pre-Phase-4 JS
+// setInterval / matchMedia listener died when the user closed to tray).
 
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
+import { listen as listenTauri } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useCallback, useEffect, useState } from 'react';
-import { type LicenseInfo, loadLicense, validateLicense } from './license';
-import { rotateNow } from './rotation';
-import { loadSettings, mutateSettings } from './store';
-import type { RotationSource } from './types';
+import { getStartupLicense, type LicenseInfo } from './license';
 import { checkForUpdate, type UpdateInfo } from './updater';
-import { setWallpaper } from './wallpaper';
 
 // ---------------------------------------------------------------------
 // License gate
@@ -34,28 +34,31 @@ export function useLicenseGate(): UseLicenseGate {
 
   useEffect(() => {
     let cancelled = false;
+    let unlistenRevoked: (() => void) | null = null;
     (async () => {
-      const stored = await loadLicense();
+      // Rust resolved the gate decision in setup() before the webview
+      // painted. The invoke is just a ~ms RAM read — no Polar call,
+      // no loading flash. Background revalidation (if the cache was
+      // stale) is already running; if it rejects, we'll get a
+      // `license-revoked` Tauri event below.
+      const startup = await getStartupLicense();
       if (cancelled) return;
-      if (!stored) {
-        setLicenseLoaded(true);
-        return;
+      if (startup.status === 'valid') {
+        setLicense(startup.info);
+      } else if (startup.status === 'invalid') {
+        setRevokedMsg(startup.message);
       }
-      // Show the app immediately on the cached license; revalidate in
-      // the background. If validation explicitly rejects, kick back to
-      // the gate. Transient (network) failures are ignored — see
-      // lib/license.ts for the policy.
-      setLicense(stored);
       setLicenseLoaded(true);
-      const result = await validateLicense(stored);
-      if (cancelled) return;
-      if (!result.valid && !result.transient) {
+
+      unlistenRevoked = await listenTauri<string>('license-revoked', (event) => {
+        if (cancelled) return;
         setLicense(null);
-        setRevokedMsg(result.message ?? 'Your license is no longer valid.');
-      }
+        setRevokedMsg(event.payload ?? 'Your license is no longer valid.');
+      });
     })();
     return () => {
       cancelled = true;
+      unlistenRevoked?.();
     };
   }, []);
 
@@ -99,138 +102,6 @@ export function useUpdateBanner(license: LicenseInfo | null): UseUpdateBanner {
   const dismiss = useCallback(() => setUpdateInfo(null), []);
 
   return { updateInfo, dismiss };
-}
-
-// ---------------------------------------------------------------------
-// Auto-rotate timer
-// ---------------------------------------------------------------------
-
-async function rotateAndAnnounce(): Promise<void> {
-  try {
-    const entry = await rotateNow();
-    window.dispatchEvent(new CustomEvent('ambient-wallpaper-rotated', { detail: entry }));
-  } catch {
-    // Common causes: source API rate-limited, network offline, BYOK
-    // missing. Sources tab will surface a fresh error on its next
-    // manual re-fetch; we don't toast here so the background timer
-    // stays quiet.
-  }
-}
-
-export function useAutoRotate(): void {
-  const [cfg, setCfg] = useState<{
-    source: RotationSource;
-    intervalMinutes: number;
-  } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function reload() {
-      const s = await loadSettings();
-      if (cancelled) return;
-      setCfg({
-        source: s.rotationSource,
-        intervalMinutes: s.rotationIntervalMinutes,
-      });
-    }
-    void reload();
-    const onChange = () => void reload();
-    window.addEventListener('ambient-settings-changed', onChange);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('ambient-settings-changed', onChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    // Auto-rotate timer. Silent — no tab switch, so we don't yank the
-    // user around mid-task. Failures swallowed; the next tick retries.
-    if (!cfg || cfg.source === 'off') return;
-    const ms = Math.max(1, cfg.intervalMinutes) * 60 * 1000;
-    const id = window.setInterval(() => {
-      void rotateAndAnnounce();
-    }, ms);
-    return () => clearInterval(id);
-  }, [cfg?.source, cfg?.intervalMinutes]);
-}
-
-// ---------------------------------------------------------------------
-// Theme-follow background
-// ---------------------------------------------------------------------
-
-export function useThemeFollow(): void {
-  const [cfg, setCfg] = useState<{
-    mode: 'auto' | 'light' | 'dark';
-    lightPath: string | null;
-    darkPath: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function reload() {
-      const s = await loadSettings();
-      if (cancelled) return;
-      setCfg({
-        mode: s.themeMode,
-        lightPath: s.themeFollowLightPath,
-        darkPath: s.themeFollowDarkPath,
-      });
-    }
-    void reload();
-    const onChange = () => void reload();
-    window.addEventListener('ambient-settings-changed', onChange);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('ambient-settings-changed', onChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    // System prefers-color-scheme flip — only matters in 'auto' mode,
-    // where the wallpaper follows the system. 'light' and 'dark' are
-    // locked, so we don't react. matchMedia keeps firing while the
-    // window is hidden to tray (Tauri keeps the WebView alive after
-    // the destroy/rebuild cycle until the next close).
-    if (cfg?.mode !== 'auto') return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    function onChange() {
-      const path = mql.matches ? cfg?.darkPath : cfg?.lightPath;
-      if (path) void setWallpaper(path);
-    }
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, [cfg]);
-
-  useEffect(() => {
-    // Slot capture: every wallpaper apply stamps the path into the slot
-    // matching the current mode. In 'auto' that's the system theme;
-    // in 'light' / 'dark' it's locked to that slot regardless of system
-    // theme. Reads themeMode fresh from disk via mutateSettings so the
-    // closure can't capture a stale mode — the cfg useState lags the
-    // disk write that just happened in onChangeThemeMode by one render
-    // tick, and binding to it here would race the slot capture with
-    // the React commit cycle.
-    function onApplied(e: Event) {
-      const path = (e as CustomEvent<string>).detail;
-      if (!path) return;
-      void mutateSettings((s) => {
-        if (s.themeMode === 'auto') {
-          const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          return dark
-            ? { ...s, themeFollowDarkPath: path }
-            : { ...s, themeFollowLightPath: path };
-        }
-        if (s.themeMode === 'light') {
-          return { ...s, themeFollowLightPath: path };
-        }
-        return { ...s, themeFollowDarkPath: path };
-      }).then(() => {
-        window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
-      });
-    }
-    window.addEventListener('ambient-wallpaper-applied', onApplied);
-    return () => window.removeEventListener('ambient-wallpaper-applied', onApplied);
-  }, []);
 }
 
 // ---------------------------------------------------------------------
@@ -349,8 +220,8 @@ export function useSystemAccent(): void {
 // macOS template inversion handles tray-icon theming automatically;
 // Windows and Linux tray hosts don't, so we detect prefers-color-scheme
 // changes here and call the Rust side to swap the glyph. The matchMedia
-// listener only fires while the webview is alive — when the user is
-// in tray-only state, the icon stays at whatever it was last set to.
+// listener only fires while the webview is alive — when the user is in
+// tray-only state, the icon stays at whatever it was last set to.
 // Cold launches get the right initial icon via tray_icon::is_system_dark()
 // in lib.rs setup(), so the only stale-icon case is "user changed theme
 // while tray-only, then opened the window" — and matchMedia fires on

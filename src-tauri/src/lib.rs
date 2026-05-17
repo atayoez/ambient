@@ -1,12 +1,24 @@
 mod accent;
+mod aigen;
 mod desktop;
+mod emojis;
+mod hdr;
 mod integrate;
 mod library;
+mod library_store;
+mod license;
 mod monitor;
+mod renderer;
+mod rotation;
+mod secrets;
+mod settings;
+mod sources;
 mod tray_icon;
+mod types;
+mod util;
 
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, RunEvent,
 };
@@ -26,7 +38,6 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -38,8 +49,23 @@ pub fn run() {
             library::list_wallpapers,
             library::delete_wallpaper,
             library::get_or_create_thumbnail,
+            library_store::get_library,
+            library_store::patch_library,
+            license::get_startup_license,
+            license::activate_license,
+            license::clear_license,
             monitor::get_primary_monitor_pixels,
             accent::get_system_accent,
+            secrets::get_secret,
+            secrets::set_secret,
+            secrets::clear_secret,
+            settings::get_settings,
+            settings::patch_settings,
+            sources::fetch_source_wallpaper,
+            aigen::generate_wallpaper,
+            renderer::apply_pattern,
+            renderer::render_preview,
+            rotation::rotate_now,
             tray_icon::update_tray_theme,
         ])
         .setup(|app| {
@@ -49,18 +75,99 @@ pub fn run() {
             // macOS / Windows.
             integrate::integrate_if_needed();
 
+            // Rust-owned Settings + Library state. Phase 1 — every later
+            // phase reads from here via the watch channel (rotation task)
+            // or via the get_settings / patch_settings commands (TS UI).
+            // load_or_default migrates from the legacy tauri-plugin-store
+            // `ambient.json` on first run, leaving per-tab draft keys
+            // (patterns.config, generate.prompt, app.tab) intact so the
+            // JS plugin path keeps working for those.
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("resolve app_data_dir for state load");
+            let _ = std::fs::create_dir_all(&app_data_dir);
+
+            // Secrets backend MUST init before settings::load_or_default
+            // — the key-migration step looks for BYO keys in the
+            // settings JSON (whether legacy ambient.json or fresh
+            // ambient-settings.json) and pushes them into the chosen
+            // backend (OS keyring, or JSON fallback on headless Linux).
+            // Running before settings::load means the migrated file is
+            // already clean by the time Settings deserializes — no
+            // dropped-on-the-floor secrets.
+            secrets::init(&app_data_dir);
+            secrets::migrate_from_settings(&app_data_dir);
+
+            // Emoji asset cache directory — bundled set ships in the
+            // binary, non-bundled glyphs land here after CDN fetch.
+            emojis::init(&app_data_dir);
+
+            let loaded_settings = settings::load_or_default(&app_data_dir);
+            let loaded_library = library_store::load_or_default(&app_data_dir);
+            app.manage(settings::SettingsState::new(
+                loaded_settings,
+                app_data_dir.join("ambient-settings.json"),
+            ));
+            app.manage(library_store::LibraryState::new(
+                loaded_library,
+                app_data_dir.join("ambient-library.json"),
+            ));
+
+            // License gate runs before the webview's first paint. Disk
+            // load is synchronous (~ms), Polar revalidation runs in a
+            // background task so cold launches don't pay the network
+            // round-trip — the frontend mounts on cached state and
+            // listens for `license-revoked` if Polar rejects later.
+            let (license_info, startup_state, needs_reval) =
+                license::load_at_startup(&app_data_dir);
+            app.manage(license::LicenseState::new(
+                license_info,
+                startup_state,
+                app_data_dir.join("ambient-license.json"),
+            ));
+            if needs_reval {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    license::revalidate_background(handle).await;
+                });
+            }
+
+            // Background rotation + theme-follow tasks. Both survive
+            // webview destroy/rebuild (the whole reason these moved
+            // out of JS in Phase 4 — pre-Phase-4 the rotation timer
+            // silently died the moment the user closed to tray).
+            rotation::spawn(app.handle().clone());
+
             #[cfg(desktop)]
             {
+                let next_i = MenuItem::with_id(
+                    app,
+                    "next",
+                    "Next wallpaper",
+                    true,
+                    None::<&str>,
+                )?;
+                let sep = PredefinedMenuItem::separator(app)?;
                 let show_i =
                     MenuItem::with_id(app, "show", "Open Ambient", true, None::<&str>)?;
                 let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+                let menu = Menu::with_items(app, &[&next_i, &sep, &show_i, &quit_i])?;
 
                 let mut tray = TrayIconBuilder::with_id("main")
                     .menu(&menu)
                     .show_menu_on_left_click(true)
                     .tooltip("Ambient")
                     .on_menu_event(|app, event| match event.id.as_ref() {
+                        "next" => {
+                            // Tray-triggered rotation works in tray-only
+                            // mode because rotation::trigger_once is
+                            // Rust — the pre-Phase-4 JS timer couldn't.
+                            let app = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let _ = rotation::trigger_once(&app).await;
+                            });
+                        }
                         "show" => show_main_window(app),
                         "quit" => app.exit(0),
                         _ => {}

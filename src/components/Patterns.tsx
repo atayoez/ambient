@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDraftState, useKeydown, usePersistedState } from '../lib/hooks';
 import {
   COLOR_PRESETS,
@@ -7,8 +7,7 @@ import {
   PATTERN_TYPES,
   type PatternConfig,
   type PatternType,
-  preloadEmojis,
-  renderPattern,
+  renderPreview,
   SLIDER_RANGES,
   TYPE_DEFAULTS,
 } from '../lib/patterns';
@@ -17,7 +16,6 @@ import { AutoThemeIcon, CheckIcon, MoonIcon, ShuffleIcon, SunIcon } from './Icon
 import {
   ControlRow,
   InspectorSection,
-  PreviewFrame,
   Segmented,
   Select,
   StatusInline,
@@ -61,28 +59,89 @@ export default function Patterns() {
     'auto',
   );
   // patterns.config is draft state: tweaks live in memory only until
-  // the user clicks Apply, which calls saveConfig() to commit. This is
-  // the "tick = save" model — slider drags don't thrash the disk, and
-  // switching tabs without applying drops any unapplied tweaks.
+  // the user clicks Apply, which calls saveConfig() to commit. Slider
+  // drags don't thrash the disk; tab switch without applying drops
+  // any unapplied tweaks.
   const [config, setConfig, saveConfig] = useDraftState<PatternConfig>(
     'patterns.config',
     pickInitialConfig(isDarkForMode('auto', systemDark)),
   );
-  const [emojiVersion, setEmojiVersion] = useState(0);
-  const previewRef = useRef<HTMLCanvasElement | null>(null);
 
   // Apply pipeline (busy/status/error + the render-save-set flow).
   const { busy, status, error, apply } = useApplyPattern(config, saveConfig);
 
-  // Defer the config used by the renderer so high-frequency slider input
-  // doesn't trigger a render per pixel of drag — React schedules the
-  // deferred update at lower priority, smoothing the slider thumb.
-  const deferredConfig = useDeferredValue(config);
+  // Preview wrapper element + measured pixel size. We pass the live
+  // CSS size × devicePixelRatio to the Rust renderer so the image
+  // arrives at exactly the displayed pixel grid — no browser scaling
+  // (which used to make dots look mushy + made geometric shape counts
+  // unreadable in preview vs apply).
+  const previewWrapRef = useRef<HTMLDivElement>(null);
+  // Default to 1280×720 (16:9 at 1.5K) so the render attempts on first
+  // mount even before the ResizeObserver has reported a real size —
+  // otherwise on slow HMR or weird layout timing we'd sit with a blank
+  // preview waiting for measurement that never comes.
+  const [previewSize, setPreviewSize] = useState({ w: 1280, h: 720 });
 
-  // Hold the render closure in a ref so the ResizeObserver effect can be
-  // set up once (mount) but always call the latest closure with the
-  // current config.
-  const renderRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const wrap = previewWrapRef.current;
+    if (!wrap) return;
+    const dpr = window.devicePixelRatio || 1;
+    const measure = () => {
+      const rect = wrap.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      setPreviewSize((prev) => {
+        const next = {
+          w: Math.round(rect.width * dpr),
+          h: Math.round(rect.height * dpr),
+        };
+        if (prev.w === next.w && prev.h === next.h) return prev;
+        return next;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+
+  // Preview pipeline. Rust renders at monitor resolution and downscales
+  // to the wrapper size, then ships back a data:image/jpeg;base64,…
+  // URL that binds straight to <img src>.
+  //
+  // Single-worker pattern: only one Rust render runs at a time. If the
+  // user keeps changing config mid-render, the latest version is stashed
+  // in pendingRef and consumed when the current render finishes. This
+  // gives O(1) renders per "drag burst" rather than one per slider tick,
+  // which kept the tokio blocking pool from piling up while still
+  // feeling responsive — the last frame the user sees is always current.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
+  const pendingRef = useRef<{
+    config: PatternConfig;
+    w: number;
+    h: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (previewSize.w === 0 || previewSize.h === 0) return;
+    pendingRef.current = { config, w: previewSize.w, h: previewSize.h };
+    if (inFlightRef.current) return;
+
+    inFlightRef.current = true;
+    void (async () => {
+      while (pendingRef.current) {
+        const job = pendingRef.current;
+        pendingRef.current = null;
+        try {
+          const dataUrl = await renderPreview(job.config, job.w, job.h);
+          setPreviewUrl(dataUrl);
+        } catch (e) {
+          console.warn('[Patterns] preview render failed:', e);
+        }
+      }
+      inFlightRef.current = false;
+    })();
+  }, [config, previewSize.w, previewSize.h]);
 
   // Re-apply the active preset's variant when the resolved theme flips.
   // Custom palettes (where the user manually edited a chip and
@@ -94,57 +153,6 @@ export default function Patterns() {
       return { ...c, colors: paletteFor(effectiveDark, c.colorPresetId) };
     });
   }, [effectiveDark, setConfig]);
-
-  // Pre-paint render: useLayoutEffect runs synchronously after the DOM is
-  // ready but before the browser paints, so the canvas never flashes empty.
-  useLayoutEffect(() => {
-    renderRef.current = () => {
-      const canvas = previewRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      const wrap = canvas.parentElement;
-      if (!wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      renderPattern(ctx, canvas.width, canvas.height, deferredConfig);
-    };
-    renderRef.current();
-  }, [deferredConfig, emojiVersion]);
-
-  // Re-render when the window resizes — the wrap's size changes but
-  // config doesn't, so the existing layout-effect wouldn't pick it up.
-  useEffect(() => {
-    const canvas = previewRef.current;
-    const wrap = canvas?.parentElement;
-    if (!wrap) return;
-    let raf = 0;
-    const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => renderRef.current());
-    });
-    ro.observe(wrap);
-    return () => {
-      ro.disconnect();
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (config.type !== 'emoji') return;
-    let cancelled = false;
-    preloadEmojis(config.emojis)
-      .then(() => {
-        if (!cancelled) setEmojiVersion((v) => v + 1);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [config.emojis, config.type]);
 
   function patch(p: Partial<PatternConfig>) {
     setConfig((c) => ({ ...c, ...p }));
@@ -222,9 +230,12 @@ export default function Patterns() {
     <div className="patterns">
       <TabLayout
         preview={
-          <PreviewFrame>
-            <canvas ref={previewRef} />
-          </PreviewFrame>
+          // Inlined .preview-wrap so we can put a ref on the element
+          // and measure it for the renderPreview call. Other tabs
+          // (Sources, Generate) still use the PreviewFrame helper.
+          <div className="preview-wrap" ref={previewWrapRef}>
+            {previewUrl ? <img src={previewUrl} alt="" /> : null}
+          </div>
         }
         inspector={
           <>
@@ -334,6 +345,9 @@ export default function Patterns() {
                         { id: 'circles', label: 'Circles' },
                         { id: 'triangles', label: 'Triangles' },
                         { id: 'squares', label: 'Squares' },
+                        { id: 'hexagons', label: 'Hexagons' },
+                        { id: 'stars', label: 'Stars' },
+                        { id: 'plus', label: 'Plus' },
                       ]}
                       value={config.geometricShape ?? 'mix'}
                       onChange={(v) => patch({ geometricShape: v })}

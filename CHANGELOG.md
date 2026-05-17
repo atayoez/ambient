@@ -14,10 +14,113 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **HDR wallpaper output.** Pattern apply writes a 10-bit AVIF
+  alongside the PNG: BT.2020 primaries, PQ (ST.2084) transfer, and a
+  smooth highlight-boost curve that pushes max-channel pixels above
+  the SDR 100-nit ceiling toward ~400 nits. HDR monitors light up
+  bright pattern highlights past SDR peak; SDR monitors automatically
+  fall back to the PNG sibling. `set_wallpaper` prefers the `.avif`
+  when present, transparently falls back to the `.png` if the OS
+  rejects AVIF. tiny-skia is still 8-bit internally so this isn't a
+  full float-color pipeline (flagged for a later iteration) but the
+  output file is genuine HDR with correct container metadata.
+- **16-bit lossless PNG** for the Pattern apply path (was 8-bit).
+  Lanczos3 downscale from the 4× SSAA intermediate produces fractional
+  sub-byte values; saving them at 16-bit per channel eliminates the
+  banding the old 8-bit save introduced in mesh gradients.
+- **Tray "Next wallpaper" menu item** — advance the wallpaper without
+  reopening the window. Works in tray-only state because rotation
+  itself is now a Rust tokio task.
+- **Pattern shapes: hexagons, stars (5-point), plus.** Geometric mode
+  now has 7 base shapes (was 4). Mix mode draws from the full set
+  including rotated squares, triangles, and lines.
+- **OS keyring storage for BYO API keys.** Unsplash / Pexels / OpenAI
+  keys live in macOS Keychain / Windows Credential Manager / libsecret
+  on Linux (with a mode-0600 JSON fallback for headless setups). One-
+  time migration on first launch lifts existing keys out of
+  `ambient-settings.json`.
+- **Pre-webview license gate.** Polar license validation happens in
+  Rust `setup()` so the first frame already shows the right state —
+  no more "loading" flash. Cached license valid <24h skips the
+  network call; stale caches kick off a background revalidation that
+  emits `license-revoked` if Polar explicitly rejects.
+- **84 bundled Fluent 3D emojis** (was 41) — every glyph in every
+  COLOR_PRESET ships in the binary so all preset emoji patterns
+  render offline.
+- **`render_preview` Tauri command** for the Patterns tab — WYSIWYG
+  preview at the live `.preview-wrap` size × DPR, encoded as JPEG
+  q75 base64 data URL.
 
 ### Changed
+- **Massive Rust migration.** Settings, Library index, License,
+  Sources HTTP (NASA / Unsplash / Pexels), AI generation (Pollinations
+  / OpenAI), auto-rotation, theme-follow, and the Pattern renderer
+  all moved from TypeScript to Rust:
+  - Single `tokio::sync::RwLock<Settings>` replaces the
+    `mutateSettings` / `mutateLibrary` Promise-chain workaround for
+    cross-tab races.
+  - Rotation + theme-follow run as background tokio tasks subscribed
+    to the settings watch channel; both survive webview destroy/
+    rebuild (the tray-only-mode-rotation bug is fixed).
+  - License validation, source fetch, AI generation, image download
+    all in `reqwest` from Rust — `tauri-plugin-http` removed entirely.
+  - JS Canvas renderer deleted; tiny-skia + `image` crate handles
+    every pattern type, with the LCG seed bit-exact to the old JS
+    implementation so saved configs render identically.
+- **Pattern preview is WYSIWYG with apply.** Same code path renders
+  both, just at different sizes — the "preview shows 5 shapes but
+  the wallpaper has 80" mismatch is gone.
+- **Preview latency.** Single-worker pattern + JPEG transport +
+  rendering at wrapper pixel size (× DPR, no browser scaling) +
+  `image::imageops::fast_blur` instead of true Gaussian gives sub-
+  100 ms render on the cold-cache first frame, ~30 ms after.
+- **`apply_pattern` uses 4× SSAA** for non-emoji renders (was 2×),
+  capped so the intermediate render stays under ~8K even on 5K
+  monitors. Sharper edges on triangles, hexagons, stars, plus, and
+  lines.
+- **Apply notification + library-promote** are Rust side-effects of
+  `desktop::set_wallpaper` now, not JS-orchestrated. Apply pipeline
+  is one Tauri invoke from the frontend's perspective.
+- **Typed in-process event bus** (`src/lib/events.ts`) replaces the
+  string-based `'ambient-*'` CustomEvent surface. Rust mutations
+  emit Tauri events; a single bridge in `App.tsx` forwards onto the
+  typed bus so every consumer reacts uniformly.
+- **`tauri-plugin-store` retired for Settings + Library**; persistence
+  moved to Rust-owned `ambient-settings.json` / `ambient-library.json`
+  files with atomic temp-file + rename writes. Per-tab draft state
+  (`patterns.config`, `generate.prompt`, etc.) still uses the plugin.
+- **`Cargo.toml` `[profile.dev.package."*"] opt-level = 3`** —
+  third-party crates run at release speed even in `tauri dev`. First
+  preview render dropped from 10+ seconds (debug `image::blur`) to
+  sub-second.
 
 ### Fixed
+- **Auto-rotation works in tray-only mode.** The pre-0.6 JS
+  `setInterval` died the moment the user closed the window to tray
+  (because the webview was destroyed). Rotation runs in Rust now.
+- **Theme-follow works in tray-only mode.** Same story — the JS
+  `matchMedia` listener died on tray-close. The Rust theme-check
+  task polls every 5 minutes regardless of webview state.
+- **Settings cross-tab clobber.** Multiple tabs writing partial
+  settings used to race through the `mutate*` Promise chain;
+  occasionally one tab's stale local copy would overwrite another
+  tab's just-saved field. Rust's `RwLock<Settings>` serializes
+  patches structurally.
+- **Pattern dots blurry.** The old 0.85→1.0 radial-gradient fade was
+  dominating tiny dots at low preview resolution and reading as a
+  blur halo; switched to solid anti-aliased circles via
+  `fill_path` — tiny-skia's edge AA handles the smoothing cleanly.
+- **Dots density slider dead zone.** Values 6–7 were clamped to 8 in
+  the renderer; the slider min is now 8 so every position changes
+  the output.
+- **Geometric / Mesh sliders.** Preview now renders at a useful
+  resolution and uses `image::imageops::fast_blur` (was Gaussian
+  blur, painfully slow in debug builds for the mesh softness range),
+  so density/size/bubbles/softness changes are immediately visible.
+- **Shape + Fill selectors centered** under the eyebrow label in the
+  geometric pattern's inspector card (was left-aligned). The Shape
+  picker also flex-wraps to a second row when the inspector is
+  narrow.
 
 ## [0.5.0] — 2026-05-17
 

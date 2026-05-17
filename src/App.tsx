@@ -1,3 +1,4 @@
+import { listen as listenTauri } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -9,16 +10,16 @@ import Patterns from './components/Patterns';
 import Sources from './components/Sources';
 import UpdateBanner from './components/UpdateBanner';
 import {
-  useAutoRotate,
   useLicenseGate,
   useSystemAccent,
   useTabKeybindings,
-  useThemeFollow,
   useTrayThemeSync,
   useUpdateBanner,
   useWindowMaximized,
 } from './lib/appHooks';
+import { dispatch } from './lib/events';
 import { usePersistedState } from './lib/hooks';
+import type { Wallpaper } from './lib/types';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate';
 
@@ -52,13 +53,46 @@ export default function App() {
     setVisited((prev) => (prev.has(tab) ? prev : new Set([...prev, tab])));
   }, [tab]);
 
+  // Rust → typed-bus bridge. Rust modules emit Tauri events on every
+  // state-changing operation (settings.patch, library_store.patch,
+  // desktop::apply_wallpaper, rotation::tick); this effect forwards
+  // them onto the in-process typed bus so every consumer (Library,
+  // RotationControl, Sources, etc.) stays uniform regardless of where
+  // the originating mutation came from (JS invoke vs background task).
+  useEffect(() => {
+    const unlistens: Array<() => void> = [];
+    void (async () => {
+      unlistens.push(
+        await listenTauri('settings-changed', () => {
+          dispatch('settings-changed');
+        }),
+      );
+      unlistens.push(
+        await listenTauri<Wallpaper[]>('library-changed', (event) => {
+          dispatch('library-changed', event.payload);
+        }),
+      );
+      unlistens.push(
+        await listenTauri<Wallpaper>('wallpaper-rotated', (event) => {
+          dispatch('wallpaper-rotated', event.payload);
+        }),
+      );
+      unlistens.push(
+        await listenTauri<string>('wallpaper-applied', (event) => {
+          dispatch('wallpaper-applied', event.payload);
+        }),
+      );
+    })();
+    return () => {
+      for (const u of unlistens) u();
+    };
+  }, []);
+
   // Cross-cutting app concerns. Each hook owns one effect; App.tsx
   // stays declarative.
   const isMaximized = useWindowMaximized();
   const { license, licenseLoaded, revokedMsg, onActivated } = useLicenseGate();
   const { updateInfo, dismiss: dismissUpdate } = useUpdateBanner(license);
-  useAutoRotate();
-  useThemeFollow();
   useSystemAccent();
   useTrayThemeSync();
   useTabKeybindings<Tab>(TAB_IDS, setTab);

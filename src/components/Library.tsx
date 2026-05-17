@@ -1,26 +1,24 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { loadLibrary, loadSettings, mutateLibrary, patchSettings } from '../lib/store';
+import { dispatch, listen } from '../lib/events';
+import {
+  loadLibrary,
+  loadSettings,
+  patchSettings,
+  removeFromLibrary,
+  removeLibraryOrphans,
+} from '../lib/store';
 import type { ThemeMode } from '../lib/theme';
 import { DEFAULT_SETTINGS, type Settings, type Wallpaper } from '../lib/types';
 import {
   deleteWallpaper,
   getThumbnail,
-  LAST_APPLIED_KEY,
   listLocalWallpapers,
   setWallpaper,
 } from '../lib/wallpaper';
 import { AutoThemeIcon, CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
 import { InspectorSection, Segmented, StatusInline } from './layout';
 import RotationControl from './RotationControl';
-
-function readLastApplied(): string | null {
-  try {
-    return localStorage.getItem(LAST_APPLIED_KEY);
-  } catch {
-    return null;
-  }
-}
 
 const THEME_MODE_OPTIONS = [
   { id: 'auto' as const, label: 'Auto', icon: <AutoThemeIcon size={16} /> },
@@ -175,21 +173,16 @@ export default function Library() {
   // Two-step confirmation avoids the click-once-destroy-immediately UX
   // without pulling in a modal library.
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  // Path of the desktop wallpaper that's currently applied. Refreshed
-  // on mount, on rotation events, and whenever the user applies a
-  // wallpaper from this tab. Used to disable the delete button on the
-  // active card — deleting the file the OS is showing leaves a black
-  // desktop, so we block it and let the user pick a different
-  // wallpaper first.
-  const [currentPath, setCurrentPath] = useState<string | null>(readLastApplied);
   // wallpaper.path → cached thumbnail path (resolved via Rust). Empty
   // until the first invoke round-trips; the card falls back to the
   // full-resolution original until the thumb URL is in here.
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  // Settings — drives the Auto/Light/Dark segmented control and the
-  // per-card light/dark slot indicators. Stays in sync with the rest
-  // of the app via the ambient-settings-changed event bus.
+  // Settings — drives the Auto/Light/Dark segmented control, per-card
+  // light/dark slot indicators, AND the "currently applied" indicator
+  // (via settings.lastApplied, owned by Rust). Stays in sync with the
+  // rest of the app via the typed event bus (settings-changed).
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const currentPath = settings.lastApplied ?? null;
 
   useEffect(() => {
     // Two-stage load: render whatever is in the persisted library
@@ -204,9 +197,7 @@ export default function Library() {
         const existing = new Set(await listLocalWallpapers());
         const orphanCount = stored.filter((w) => !existing.has(w.path)).length;
         if (orphanCount === 0) return;
-        const cleaned = await mutateLibrary((cur) =>
-          cur.filter((w) => existing.has(w.path)),
-        );
+        const cleaned = await removeLibraryOrphans([...existing]);
         if (cancelled) return;
         setLibrary(cleaned);
       } catch {
@@ -227,29 +218,22 @@ export default function Library() {
       setSettings(s);
     }
     void reload();
-    const onChange = () => void reload();
-    window.addEventListener('ambient-settings-changed', onChange);
+    const unsub = listen('settings-changed', () => void reload());
     return () => {
       cancelled = true;
-      window.removeEventListener('ambient-settings-changed', onChange);
+      unsub();
     };
   }, []);
 
   useEffect(() => {
-    function onApplied(e: Event) {
-      const path = (e as CustomEvent<string>).detail;
-      if (path) setCurrentPath(path);
-    }
-    function onLibraryChanged(e: Event) {
-      const lib = (e as CustomEvent<Wallpaper[]>).detail;
+    // wallpaper-applied no longer drives state directly: applying a
+    // wallpaper writes settings.lastApplied via Rust, which fires
+    // settings-changed → the reload above picks it up. We still want
+    // library-changed (prepend/remove/promote) so the grid refreshes
+    // from other tabs without a manual reload.
+    return listen('library-changed', (lib) => {
       if (lib) setLibrary(lib);
-    }
-    window.addEventListener('ambient-wallpaper-applied', onApplied);
-    window.addEventListener('ambient-library-changed', onLibraryChanged);
-    return () => {
-      window.removeEventListener('ambient-wallpaper-applied', onApplied);
-      window.removeEventListener('ambient-library-changed', onLibraryChanged);
-    };
+    });
   }, []);
 
   useEffect(() => {
@@ -307,7 +291,7 @@ export default function Library() {
     }
   }, []);
 
-  const removeFromLibrary = useCallback(async (w: Wallpaper) => {
+  const deleteEntry = useCallback(async (w: Wallpaper) => {
     let alreadyBusy = false;
     setBusy((b) => {
       if (b) alreadyBusy = true;
@@ -325,7 +309,7 @@ export default function Library() {
           throw e;
         }
       }
-      const updated = await mutateLibrary((cur) => cur.filter((x) => x.path !== w.path));
+      const updated = await removeFromLibrary(w.path);
       setLibrary(updated);
       setStatus('Deleted');
       setTimeout(() => setStatus(null), 1500);
@@ -349,7 +333,7 @@ export default function Library() {
     async (mode: ThemeMode) => {
       const next = await patchSettings({ themeMode: mode });
       setSettings(next);
-      window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+      dispatch('settings-changed');
 
       let target: string | null = null;
       if (mode === 'auto') {
@@ -420,7 +404,7 @@ export default function Library() {
             busy={busy}
             onApply={applyExisting}
             onRequestDelete={onRequestDelete}
-            onConfirmDelete={removeFromLibrary}
+            onConfirmDelete={deleteEntry}
             onCancelDelete={onCancelDelete}
           />
         ))}

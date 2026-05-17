@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { dispatch, listen } from '../lib/events';
 import { loadSettings, patchSettings } from '../lib/store';
 import { DEFAULT_SETTINGS, type Settings } from '../lib/types';
 
@@ -24,7 +25,7 @@ interface Props {
 
 // Shared rotation toggle + interval. Renders in both Sources inspector and
 // Library top bar. Each instance loads its own copy of the settings on
-// mount and listens for 'ambient-settings-changed' so toggling rotation
+// mount and listens for 'settings-changed' so toggling rotation
 // in one tab keeps the other tab's instance in sync without prop drilling.
 export default function RotationControl({ mode, ariaLabel, otherInUseHint }: Props) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -43,11 +44,10 @@ export default function RotationControl({ mode, ariaLabel, otherInUseHint }: Pro
       setIntervalDraft(String(s.rotationIntervalMinutes));
     }
     void reload();
-    const onChange = () => void reload();
-    window.addEventListener('ambient-settings-changed', onChange);
+    const unsub = listen('settings-changed', () => void reload());
     return () => {
       cancelled = true;
-      window.removeEventListener('ambient-settings-changed', onChange);
+      unsub();
     };
   }, []);
 
@@ -59,7 +59,7 @@ export default function RotationControl({ mode, ariaLabel, otherInUseHint }: Pro
     // (and any other concurrent change) with a stale local copy.
     await patchSettings(patch);
     // App.tsx's rotation timer re-reads settings on this event.
-    window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+    dispatch('settings-changed');
   }
 
   function commitInterval() {
