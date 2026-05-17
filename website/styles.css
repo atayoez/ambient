@@ -420,7 +420,7 @@ code {
  * upscale, beyond which the rendering visibly softens. */
 .hero-demo {
   margin-top: 56px;
-  width: min(100vw - 48px, 1500px);
+  width: min(100vw - 48px, 1280px);
   position: relative;
   left: 50%;
   transform: translateX(-50%);
