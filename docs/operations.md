@@ -60,15 +60,17 @@ R2 bucket     ambient-releases (US-East, but free egress globally)
 DNS zone      oezcan.me  (zone ID 07bcaf6bb2065f0bab0e2f99984bb9ff)
 ```
 
-R2 file scheme:
+R2 file scheme (since 0.4):
 ```
-Ambient_<VERSION>_aarch64.dmg
-Ambient_<VERSION>_x64-setup.exe
-Ambient_<VERSION>_x86_64.AppImage
+Ambient-<VERSION>-macOS-aarch64.dmg
+Ambient-<VERSION>-Windows-x86_64.msi
+Ambient-<VERSION>-Windows-aarch64.msi
+Ambient-<VERSION>-Linux-x86_64.AppImage
+Ambient-<VERSION>-Linux-aarch64.AppImage
 latest.json
 ```
 
-The Worker's `/downloads/latest/{macos,windows,linux}` aliases read `latest.json` and 302 to the current versioned URL, so the homepage Download cards never need touching across releases.
+The Worker's `/downloads/latest/{macos,windows,windows-arm64,linux,linux-arm64}` aliases read `latest.json` and 302 to the current versioned URL, so the homepage Download cards never need touching across releases.
 
 ## Cutting a release
 
@@ -80,14 +82,15 @@ Runs `scripts/release.sh`. Sequence:
 
 1. Reads `CHANGELOG.md` `[Unreleased]` section, promotes it to `[0.X.0] - DATE`, saves the body as release notes
 2. Bumps version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`
-3. Commits + pushes to main → triggers CI
-4. Waits for CI to complete (~6-10 min for mac+win)
-5. Downloads the mac .dmg and win .exe artifacts
-6. Builds the Linux AppImage locally (with the linuxdeploy fallback below)
-7. Uploads all three installers to R2 with versioned filenames
-8. Generates + uploads a fresh `latest.json`
-9. Tags `vX.Y.Z` and pushes the tag
-10. `gh release create` with notes + all three installers attached
+3. Commits + pushes to main → triggers the cheap `check` CI job
+4. Dispatches `build.yml` via `gh workflow run` (workflow_dispatch-gated) and waits — 4-job matrix (macOS aarch64, Windows x86_64, Windows aarch64, Linux aarch64 on native ARM runner) takes ~10 min
+5. Downloads the 4 CI artifacts
+6. Builds Linux x86_64 locally against host webkit2gtk-4.1 (with the linuxdeploy fallback below)
+7. Signs all 5 artifacts with the Tauri updater key at `~/.config/ambient/updater-private.key` if present
+8. Uploads all 5 installers to R2 with the `Ambient-VERSION-Platform-Arch.ext` naming
+9. Writes a dual-shape `latest.json` (legacy `downloads.*` keys + plugin-format `platforms.*` block with minisign signatures)
+10. Tags `vX.Y.Z` and pushes the tag
+11. `gh release create` with notes + all 5 installers attached
 
 **Prerequisites**: `gh` CLI authenticated, `wrangler` authenticated, working tree clean. Script refuses to run on a dirty tree.
 
@@ -132,9 +135,9 @@ PATH="$HOME/.bun/bin:$PATH" bun run tauri build
 
 The release script handles this.
 
-### 4. Flatpak is shelved
+### 4. Flatpak is deleted (post-0.4)
 
-`flatpak/com.ambient.app.yaml` exists but the GNOME-46 SDK extension branch resolution is painful. Linux ships as AppImage. CI's `build-flatpak` job is gated to tags / `workflow_dispatch` so push velocity isn't bottlenecked. Don't try to rebuild flatpak unless heading to Flathub submission.
+`flatpak/com.ambient.app.yaml`, `.flatpak-builder/`, the `build-flatpak` CI job, and the `flatpak:build` npm script are all gone. Linux ships as AppImage only — both x86_64 and aarch64. Restore from git history if Flathub re-enters scope.
 
 ## When DNS to `*.oezcan.me` doesn't resolve
 

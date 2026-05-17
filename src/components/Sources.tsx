@@ -2,7 +2,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
 import { useDebouncedCallback, useKeydown } from '../lib/hooks';
 import { fetchRandomFromSource } from '../lib/sources';
-import { loadLibrary, loadSettings, mutateLibrary, saveSettings } from '../lib/store';
+import { loadLibrary, loadSettings, mutateLibrary, patchSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
   type Settings,
@@ -225,8 +225,16 @@ export default function Sources() {
   // debounce, every keystroke into the Unsplash/Pexels query inputs
   // nagged the user with a fresh notification. App.tsx + RotationControl
   // listen for the dispatched event so cross-tab settings stay in sync.
-  const debouncedSave = useDebouncedCallback((next: Settings) => {
-    void saveSettings(next).then(() => {
+  //
+  // Patches accumulate in pendingPatchRef so the flush only writes the
+  // fields the user actually touched — going through patchSettings (a
+  // serialized read-modify-write) keeps Library's themeMode change
+  // from being clobbered by this tab's stale local Settings copy.
+  const pendingPatchRef = useRef<Partial<Settings>>({});
+  const debouncedFlush = useDebouncedCallback(() => {
+    const patch = pendingPatchRef.current;
+    pendingPatchRef.current = {};
+    void patchSettings(patch).then(() => {
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1200);
       window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
@@ -234,9 +242,9 @@ export default function Sources() {
   }, 400);
 
   function update(patch: Partial<Settings>) {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    debouncedSave(next);
+    setSettings((s) => ({ ...s, ...patch }));
+    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
+    debouncedFlush();
   }
 
   async function fetchNew(apply: boolean, s?: Settings) {
@@ -329,78 +337,60 @@ export default function Sources() {
             </InspectorSection>
 
             {settings.source === 'unsplash' && (
-              <InspectorSection title="Unsplash">
-                <label className="field">
-                  <span>API key</span>
-                  <input
-                    type="password"
-                    value={settings.unsplashKey}
-                    onChange={(e) => update({ unsplashKey: e.target.value })}
-                    placeholder="get one at unsplash.com/developers"
-                  />
-                </label>
-                <label className="field">
-                  <span>Search query</span>
-                  <input
-                    type="text"
-                    value={unsplashQueryDraft}
-                    onChange={(e) => setUnsplashQueryDraft(e.target.value)}
-                    onBlur={commitUnsplashQuery}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        commitUnsplashQuery();
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    placeholder="nature"
-                  />
-                </label>
+              <InspectorSection title="Search">
+                <input
+                  type="text"
+                  value={unsplashQueryDraft}
+                  onChange={(e) => setUnsplashQueryDraft(e.target.value)}
+                  onBlur={commitUnsplashQuery}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      commitUnsplashQuery();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="nature"
+                  aria-label="Unsplash search query"
+                />
               </InspectorSection>
             )}
 
             {settings.source === 'pexels' && (
-              <InspectorSection title="Pexels">
-                <label className="field">
-                  <span>API key</span>
-                  <input
-                    type="password"
-                    value={settings.pexelsKey}
-                    onChange={(e) => update({ pexelsKey: e.target.value })}
-                    placeholder="get one at pexels.com/api"
-                  />
-                </label>
-                <label className="field">
-                  <span>Search query</span>
-                  <input
-                    type="text"
-                    value={pexelsQueryDraft}
-                    onChange={(e) => setPexelsQueryDraft(e.target.value)}
-                    onBlur={commitPexelsQuery}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        commitPexelsQuery();
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    placeholder="mountains"
-                  />
-                </label>
+              <InspectorSection title="Search">
+                <input
+                  type="text"
+                  value={pexelsQueryDraft}
+                  onChange={(e) => setPexelsQueryDraft(e.target.value)}
+                  onBlur={commitPexelsQuery}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      commitPexelsQuery();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder="mountains"
+                  aria-label="Pexels search query"
+                />
               </InspectorSection>
             )}
 
             <InspectorSection title="Auto-rotate">
               {settings.source === 'nasa-apod' ? (
                 <div className="rotation-control">
-                  <label className="row-toggle">
+                  <div
+                    className="rotation-row"
+                    data-enabled={settings.rotationSource === 'sources'}
+                  >
                     <input
                       type="checkbox"
                       checked={settings.rotationSource === 'sources'}
+                      aria-label="Refresh from NASA APOD daily"
                       onChange={(e) =>
                         update({ rotationSource: e.target.checked ? 'sources' : 'off' })
                       }
                     />
-                    <span>Refresh every day</span>
-                  </label>
+                    <span>daily</span>
+                  </div>
                   {settings.rotationSource === 'library' && (
                     <p className="muted small">
                       Library shuffle is on — this will replace it.
@@ -410,11 +400,35 @@ export default function Sources() {
               ) : (
                 <RotationControl
                   mode="sources"
-                  label="Pull a new image from this source"
+                  ariaLabel="Pull a new image from this source"
                   otherInUseHint="Library shuffle is on — this will replace it."
                 />
               )}
             </InspectorSection>
+
+            {settings.source === 'unsplash' && (
+              <InspectorSection title="API key">
+                <input
+                  type="password"
+                  value={settings.unsplashKey}
+                  onChange={(e) => update({ unsplashKey: e.target.value })}
+                  placeholder="get one at unsplash.com/developers"
+                  aria-label="Unsplash API key"
+                />
+              </InspectorSection>
+            )}
+
+            {settings.source === 'pexels' && (
+              <InspectorSection title="API key">
+                <input
+                  type="password"
+                  value={settings.pexelsKey}
+                  onChange={(e) => update({ pexelsKey: e.target.value })}
+                  placeholder="get one at pexels.com/api"
+                  aria-label="Pexels API key"
+                />
+              </InspectorSection>
+            )}
           </>
         }
         actions={

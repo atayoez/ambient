@@ -141,7 +141,7 @@ textarea,
   padding: 3px;
   gap: 0;
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgb(var(--shadow-tint) / 0.18),
     inset 0 1px 0 var(--highlight-edge);
   z-index: 50;
   transform: translateX(-50%);
@@ -167,8 +167,8 @@ textarea,
   border-radius: var(--radius-pill);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-    0 1px 3px rgba(0, 0, 0, 0.18);
+    inset 0 -1px 0 rgb(var(--shadow-tint) / 0.08),
+    0 1px 3px rgb(var(--shadow-tint) / 0.18);
   /* Transition is intentionally disabled until App.tsx adds the
      `initialized` class on .tabs after the first measurement runs.
      Without this guard, the indicator visibly animates from its
@@ -245,6 +245,26 @@ textarea,
 
 .tab.active {
   color: var(--text);
+}
+
+/* Tab pill icon override for light mode. The pill chrome itself stays
+   on its default white-tint glass (correct per design feedback); the
+   icons get forced light + a drop-shadow halo so they read against
+   tabs where there's no other content behind the pill (Patterns /
+   Sources / Generate land directly on the bright app bg, vs Library
+   which has cards underneath providing contrast). The shadow uses
+   --shadow-tint so it follows the OS accent when one is set,
+   otherwise falls back to a soft achromatic dark halo. */
+@media (prefers-color-scheme: light) {
+  .tab {
+    color: rgba(255, 255, 255, 0.7);
+    filter: drop-shadow(0 1px 2px rgb(var(--shadow-tint) / 0.45));
+  }
+  .tab:hover:not(.active),
+  .tab.active {
+    color: #ffffff;
+    filter: drop-shadow(0 1px 3px rgb(var(--shadow-tint) / 0.55));
+  }
 }
 
 .wc {
@@ -390,7 +410,7 @@ select {
   font: inherit;
   outline: none;
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgb(var(--shadow-tint) / 0.18),
     inset 0 1px 0 var(--highlight-edge);
   transition:
     border-color var(--t-fast) ease,
@@ -403,7 +423,11 @@ input[type='number']:focus,
 input[type='search']:focus,
 textarea:focus,
 select:focus {
-  border-color: var(--accent);
+  /* Focus border is a "functional" accent — falls through to the
+     achromatic --accent when no OS accent is exposed, otherwise picks
+     up the system tint set by useSystemAccent() at launch. Same
+     fallback pattern is used everywhere else --accent-os appears. */
+  border-color: var(--accent-os, var(--accent));
 }
 
 /* Textareas are tall and growable, so the full pill radius clipped
@@ -448,7 +472,7 @@ input[type='checkbox'] {
   flex-shrink: 0;
   margin: 0;
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.15),
+    0 1px 3px rgb(var(--shadow-tint) / 0.15),
     inset 0 1px 0 var(--highlight-edge);
   transition:
     background var(--t-fast) ease,
@@ -456,7 +480,7 @@ input[type='checkbox'] {
 }
 
 input[type='checkbox']:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-os, var(--accent));
 }
 
 input[type='checkbox']:checked {
@@ -498,15 +522,17 @@ input[type='range']:focus {
    if one prefix is unknown). The filled portion is painted via a gradient
    driven by the --p CSS var set inline by the component. */
 input[type='range']::-webkit-slider-runnable-track {
-  /* Track unfilled portion uses the glass tint; filled portion stays
-     accent so the slider's level is still readable at a glance. */
+  /* Track unfilled portion uses the glass tint; filled portion uses
+     --accent-os when the OS exposes one, falling back to the achromatic
+     --accent otherwise. The slider's level needs to read at a glance
+     either way. */
   height: 6px;
   border-radius: var(--radius-pill);
   background:
     linear-gradient(
       90deg,
-      var(--accent) 0,
-      var(--accent) var(--p),
+      var(--accent-os, var(--accent)) 0,
+      var(--accent-os, var(--accent)) var(--p),
       rgba(255, 255, 255, 0.06) var(--p),
       rgba(255, 255, 255, 0.06) 100%
     );
@@ -525,7 +551,7 @@ input[type='range']::-moz-range-track {
 input[type='range']::-moz-range-progress {
   height: 6px;
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--accent-os, var(--accent));
 }
 
 input[type='range']::-webkit-slider-thumb {
@@ -537,7 +563,7 @@ input[type='range']::-webkit-slider-thumb {
   background: linear-gradient(180deg, #ffffff, #e6e6ee);
   border: 1px solid var(--border-strong);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 1px 2px rgb(var(--shadow-tint) / 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   margin-top: -6px; /* center on 6px track */
   transition: transform 80ms ease;
@@ -550,7 +576,7 @@ input[type='range']::-moz-range-thumb {
   background: linear-gradient(180deg, #ffffff, #e6e6ee);
   border: 1px solid var(--border-strong);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 1px 2px rgb(var(--shadow-tint) / 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition: transform 80ms ease;
 }
@@ -571,9 +597,9 @@ input[type='range']:focus-visible::-moz-range-thumb {
    to confirm the drag is active. */
 input[type='range']:active::-moz-range-thumb {
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgb(var(--shadow-tint) / 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 0 0 4px color-mix(in oklch, var(--accent) 25%, transparent);
+    0 0 0 4px color-mix(in oklch, var(--accent-os, var(--accent)) 25%, transparent);
 }
 
 /* --- Library --- */
@@ -616,7 +642,7 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-container);
   overflow: hidden;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.10),
+    0 2px 6px rgb(var(--shadow-tint) / 0.10),
     inset 0 1px 0 var(--highlight-edge);
   transition:
     transform var(--t-base) ease,
@@ -626,7 +652,7 @@ input[type='range']:active::-moz-range-thumb {
 
 .card:hover {
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.16),
+    0 4px 12px rgb(var(--shadow-tint) / 0.16),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -673,7 +699,7 @@ input[type='range']:active::-moz-range-thumb {
   font-size: var(--fs-body);
   letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.45));
+  background: linear-gradient(180deg, transparent, rgb(var(--shadow-tint) / 0.45));
   opacity: 0;
   transition: opacity var(--t-base) ease;
   pointer-events: none;
@@ -690,15 +716,42 @@ input[type='range']:active::-moz-range-thumb {
   padding: 6px;
 }
 
-/* Currently-applied wallpaper gets an accent ring + dimmed delete state.
-   The .current class is appended in Library.tsx based on the
-   ambient-last-applied localStorage key, which lib/wallpaper.ts updates
-   on every setWallpaper call. */
-.card.current {
-  border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
+/* Selection ring for "this card matches one of the active wallpaper
+   slots" — currently applied (.current), the theme-mode light slot
+   (.light-slot), or the dark slot (.dark-slot). All three share the
+   same accent ring so the visual treatment is uniform; the bottom-bar
+   icons (CheckIcon / SunIcon / MoonIcon) disambiguate which kind. A
+   card can carry multiple classes (e.g. the dark slot might also be
+   currently applied) and the ring just stays single. */
+.card.current,
+.card.light-slot,
+.card.dark-slot {
+  border-color: color-mix(in oklch, var(--accent-os, var(--accent)) 55%, var(--border));
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklch, var(--accent) 45%, transparent),
+    inset 0 0 0 1px color-mix(in oklch, var(--accent-os, var(--accent)) 45%, transparent),
     inset 0 1px 0 var(--highlight-edge);
+}
+
+/* Card actions bar: indicator chips on the left, delete button on the
+   right. The indicators are non-interactive — they're just at-a-glance
+   markers — so they sit ahead of the delete button via margin-left
+   on the action button. */
+.card-indicators {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-os, var(--accent));
+  margin-right: auto;
+}
+
+.card-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-inline);
+  background: color-mix(in oklch, var(--accent-os, var(--accent)) 14%, transparent);
 }
 
 /* Ghost-style danger — same red on hover but neutral at rest, so the
@@ -737,7 +790,7 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .empty em {
-  color: var(--accent);
+  color: var(--accent-os, var(--accent));
   font-style: normal;
   font-weight: var(--fw-semibold);
 }
@@ -817,7 +870,7 @@ input[type='range']:active::-moz-range-thumb {
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow:
-    0 6px 18px rgba(0, 0, 0, 0.12),
+    0 6px 18px rgb(var(--shadow-tint) / 0.12),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
 }
@@ -933,7 +986,7 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-container);
   padding: 14px 16px;
   box-shadow:
-    0 3px 8px rgba(0, 0, 0, 0.10),
+    0 3px 8px rgb(var(--shadow-tint) / 0.10),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -944,6 +997,11 @@ input[type='range']:active::-moz-range-thumb {
   letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
   color: var(--muted);
+  /* Centered eyebrow — anchors the section visually above whatever
+     content follows (sliders / chips / toggles / inputs). The tile's
+     contents still left-align by default, so the title floats over the
+     top edge like a label rather than a left-aligned header. */
+  text-align: center;
 }
 
 /* Stretch text-shaped inputs to fill the inspector column. Checkbox,
@@ -977,7 +1035,13 @@ input[type='range']:active::-moz-range-thumb {
 .segmented {
   /* Glass-pill style — matches .tabs and select dropdowns. The inner
      .segment buttons are still rounded with their own radius (6px) and
-     gain a glassy active state via .segment.active below. */
+     gain a glassy active state via .segment.active below. Default
+     align-self: flex-start keeps it left-aligned when it lives inside
+     a labeled .field (Patterns shape/fill rows, where the eyebrow
+     above is also left-aligned). The .inspector-section > .segmented
+     override below re-centers it when it's a direct section child —
+     i.e. the Palette theme picker and Library System-theme picker,
+     where there's no inner eyebrow to fight against. */
   display: inline-flex;
   align-self: flex-start;
   background: rgba(255, 255, 255, 0.06);
@@ -988,8 +1052,12 @@ input[type='range']:active::-moz-range-thumb {
   padding: 2px;
   gap: 2px;
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgb(var(--shadow-tint) / 0.18),
     inset 0 1px 0 var(--highlight-edge);
+}
+
+.inspector-section > .segmented {
+  align-self: center;
 }
 
 .segmented .segment {
@@ -1087,7 +1155,7 @@ input[type='range']:active::-moz-range-thumb {
   user-select: none;
   -webkit-user-select: none;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgb(var(--shadow-tint) / 0.12),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -1112,7 +1180,7 @@ input[type='range']:active::-moz-range-thumb {
   cursor: pointer;
   overflow: hidden;
   box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgb(var(--shadow-tint) / 0.12),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -1169,8 +1237,8 @@ input[type='range']:active::-moz-range-thumb {
 .emoji-row .add-emoji:focus,
 .emoji-row .add-emoji[aria-expanded='true'] {
   border-style: solid;
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--accent-os, var(--accent));
+  border-color: var(--accent-os, var(--accent));
   background: var(--surface);
 }
 
@@ -1206,7 +1274,7 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-container);
   padding: 10px;
   box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 12px 32px rgb(var(--shadow-tint) / 0.4),
     inset 0 1px 0 var(--highlight-edge);
   z-index: 200;
   display: flex;
@@ -1251,7 +1319,7 @@ input[type='range']:active::-moz-range-thumb {
 
 @media (prefers-color-scheme: light) {
   .emoji-picker-item:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: rgb(var(--shadow-tint) / 0.06);
   }
 }
 
@@ -1260,6 +1328,10 @@ input[type='range']:active::-moz-range-thumb {
   gap: 4px;
   flex-wrap: wrap;
   margin-top: 4px;
+  /* Center the palette preset chips within the Palette inspector tile
+     so they sit visually under the centered "PALETTE" eyebrow and
+     Auto/Light/Dark segmented above. */
+  justify-content: center;
 }
 
 .preset-btn {
@@ -1276,7 +1348,7 @@ input[type='range']:active::-moz-range-thumb {
   font-size: var(--fs-caption);
   color: var(--muted);
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgb(var(--shadow-tint) / 0.18),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -1288,7 +1360,7 @@ input[type='range']:active::-moz-range-thumb {
   color: var(--text);
   background: var(--surface-3);
   border-color: var(--border-strong);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent-os, var(--accent)) 30%, transparent);
 }
 
 .preset-emoji {
@@ -1316,36 +1388,34 @@ button.primary.icon-btn {
   height: 36px;
 }
 
-/* Horizontal label + checkbox row, used by RotationControl for things
-   like "Shuffle saved wallpapers" — distinct from .field, which
-   stacks an eyebrow label above its input. */
-.row-toggle {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-body);
-  color: var(--text);
-  line-height: 1.3;
-}
-
-/* Rotation toggle + interval. Inline "every [60] min" reads better than
-   the stacked uppercase eyebrow + full-width number input that came out
-   of dropping RotationControl into an InspectorSection. The number field
-   gets a hard width override; the selector below has high enough
-   specificity to beat .inspector-section input { width: 100% }. */
+/* Rotation toggle + interval, collapsed to a single row: the checkbox
+   IS the on/off, the inline "every [60] min" IS the interval. The
+   redundant "Auto-rotate from this source" label that used to live
+   above this row was dropped — the section title (Auto-rotate /
+   Shuffle / System theme) already says what the toggle does, and
+   stacking another sentence underneath was visual noise. */
 .rotation-control {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
 }
 
-.rotation-interval {
+.rotation-row {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: var(--fs-caption);
   color: var(--muted);
+}
+
+/* When the checkbox is off, the surrounding "every"/"min" copy and the
+   number field fade out — same visual grammar as macOS sub-settings
+   that gray themselves when their parent toggle is disabled. The
+   checkbox itself stays at full opacity so the user can still flick
+   it back on. */
+.rotation-row[data-enabled='false'] > :not(input[type='checkbox']) {
+  opacity: 0.4;
 }
 
 /* width / padding use !important because the broad `.inspector-section
@@ -1354,7 +1424,7 @@ button.primary.icon-btn {
    override is genuinely an exception, not a competing pattern. flex: 0 0
    auto locks the input as a non-growing, non-shrinking flex item so it
    keeps its 64px even when the row container has slack space. */
-.rotation-interval input[type='number'] {
+.rotation-row input[type='number'] {
   width: 64px !important;
   padding: 6px 8px !important;
   flex: 0 0 auto;
@@ -1570,15 +1640,17 @@ button.primary.icon-btn {
 
 .license-footer a {
   /* Links use the regular text colour — the underline is the affordance,
-     in line with macOS Tahoe's "no colour on chrome" stance. */
+     in line with macOS Tahoe's "no colour on chrome" stance. The
+     underline picks up --accent-os when the OS exposes one so the link
+     blends with the user's chosen system accent. */
   color: var(--text);
   text-decoration: underline;
-  text-decoration-color: color-mix(in oklch, var(--accent) 40%, transparent);
+  text-decoration-color: color-mix(in oklch, var(--accent-os, var(--accent)) 40%, transparent);
   text-underline-offset: 3px;
 }
 
 .license-footer a:hover {
-  text-decoration-color: var(--accent);
+  text-decoration-color: var(--accent-os, var(--accent));
 }
 
 .splash {
@@ -1731,8 +1803,8 @@ button.primary.icon-btn {
 
 @media (prefers-contrast: more) and (prefers-color-scheme: light) {
   :root {
-    --border: rgba(0, 0, 0, 0.32);
-    --border-strong: rgba(0, 0, 0, 0.52);
+    --border: rgb(var(--shadow-tint) / 0.32);
+    --border-strong: rgb(var(--shadow-tint) / 0.52);
     --muted: #18181b;
     --text: #000000;
   }

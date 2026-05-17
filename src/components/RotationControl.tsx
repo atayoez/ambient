@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { loadSettings, saveSettings } from '../lib/store';
+import { loadSettings, patchSettings } from '../lib/store';
 import { DEFAULT_SETTINGS, type Settings } from '../lib/types';
 
 interface Props {
@@ -11,11 +11,11 @@ interface Props {
   // which automatically disables whichever other tab's RotationControl
   // was enabled before.
   mode: 'sources' | 'library';
-  // Sentence shown next to the checkbox, e.g. "Auto-rotate from this
-  // source" or "Shuffle saved wallpapers". Kept verbose so users can
-  // tell at a glance what this particular instance does, since the same
-  // component renders in two places.
-  label: string;
+  // Used as the checkbox's aria-label only — there's no visible label
+  // text. The section title above (Auto-rotate / Shuffle) tells the
+  // user what the toggle does; the screen-reader name disambiguates
+  // between the two instances when navigating without sight.
+  ariaLabel: string;
   // Shown when the OTHER mode is currently active, to make the mutual
   // exclusion legible: "Currently shuffling Library — enabling here
   // switches" (or vice versa).
@@ -26,7 +26,7 @@ interface Props {
 // Library top bar. Each instance loads its own copy of the settings on
 // mount and listens for 'ambient-settings-changed' so toggling rotation
 // in one tab keeps the other tab's instance in sync without prop drilling.
-export default function RotationControl({ mode, label, otherInUseHint }: Props) {
+export default function RotationControl({ mode, ariaLabel, otherInUseHint }: Props) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   // Decoupled draft for the interval input — clamping happens on blur
   // only, so the user can type "30" without "3" snapping to "5" mid-edit.
@@ -52,9 +52,12 @@ export default function RotationControl({ mode, label, otherInUseHint }: Props) 
   }, []);
 
   async function update(patch: Partial<Settings>) {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    await saveSettings(next);
+    setSettings((s) => ({ ...s, ...patch }));
+    // patchSettings is a serialized read-modify-write — only the
+    // fields in `patch` are written; everything else is preserved
+    // from fresh disk state. Avoids clobbering Library's themeMode
+    // (and any other concurrent change) with a stale local copy.
+    await patchSettings(patch);
     // App.tsx's rotation timer re-reads settings on this event.
     window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
   }
@@ -74,22 +77,21 @@ export default function RotationControl({ mode, label, otherInUseHint }: Props) 
 
   return (
     <div className="rotation-control">
-      <label className="row-toggle">
+      <div className="rotation-row" data-enabled={enabled}>
         <input
           type="checkbox"
           checked={enabled}
+          aria-label={ariaLabel}
           onChange={(e) =>
             void update({ rotationSource: e.target.checked ? mode : 'off' })
           }
         />
-        <span>{label}</span>
-      </label>
-      <div className="rotation-interval">
         <span>every</span>
         <input
           type="number"
           min={5}
           value={intervalDraft}
+          disabled={!enabled}
           onChange={(e) => setIntervalDraft(e.target.value)}
           onBlur={commitInterval}
           onKeyDown={(e) => {

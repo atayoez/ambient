@@ -1,12 +1,14 @@
+mod accent;
 mod desktop;
 mod integrate;
 mod library;
 mod monitor;
+mod tray_icon;
 
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    AppHandle, Manager, RunEvent,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,6 +39,8 @@ pub fn run() {
             library::delete_wallpaper,
             library::get_or_create_thumbnail,
             monitor::get_primary_monitor_pixels,
+            accent::get_system_accent,
+            tray_icon::update_tray_theme,
         ])
         .setup(|app| {
             // Self-integrate when launched from an AppImage on Linux —
@@ -57,30 +61,80 @@ pub fn run() {
                     .show_menu_on_left_click(true)
                     .tooltip("Ambient")
                     .on_menu_event(|app, event| match event.id.as_ref() {
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
+                        "show" => show_main_window(app),
                         "quit" => app.exit(0),
                         _ => {}
                     });
 
-                if let Some(icon) = app.default_window_icon().cloned() {
-                    tray = tray.icon(icon);
-                }
+                // Symbolic monochrome glyph. macOS gets the white glyph
+                // + template flag and the system handles inversion
+                // against the menubar's effective theme. Windows/Linux
+                // tray hosts don't invert, so we detect the system's
+                // color scheme at launch and ship the right variant
+                // (dark glyph for light themes, white for dark). The
+                // frontend's useTrayThemeSync() hook keeps the icon in
+                // step with subsequent theme flips while the window is
+                // open via the `update_tray_theme` command.
+                #[cfg(target_os = "macos")]
+                let glyph_light = true;
+                #[cfg(not(target_os = "macos"))]
+                let glyph_light = tray_icon::is_system_dark();
+                tray = tray
+                    .icon(tray_icon::symbolic_icon(!glyph_light))
+                    .icon_as_template(true);
 
                 let _ = tray.build(app)?;
             }
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+            // Window close (chrome X, OS close, frontend .close()) destroys
+            // the webview entirely — on WebKitGTK a hidden webview keeps
+            // its GPU layers, backdrop-filter surfaces, and decoded image
+            // cache resident (~150-200 MB), which is what users see when
+            // the tray-only process still shows up large in `nvidia-smi`
+            // or Task Manager. Destroying drops all of that; the tray
+            // icon stays alive via the prevent_exit handler below, and
+            // the next "Open Ambient" rebuilds a fresh webview from
+            // tauri.conf.json's window definition.
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let _ = window.destroy();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            // Last-window-close would normally exit the process. Keep it
+            // alive so the tray icon survives; the user explicitly quits
+            // via the tray menu (which calls app.exit(0), bypassing this
+            // because ExitRequested.code is Some in that path).
+            if let RunEvent::ExitRequested { code, api, .. } = event {
+                if code.is_none() {
+                    api.prevent_exit();
+                }
+            }
+        });
+}
+
+/// Show the main window, creating it on demand if a prior close destroyed it.
+/// Called from the tray "Open Ambient" menu item.
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+
+    // Rebuild from the same window definition as tauri.conf.json — keeps
+    // dimensions, decorations, transparency, and label in sync without
+    // duplicating the config here.
+    let config = app.config();
+    if let Some(window_config) = config.app.windows.first() {
+        if let Ok(builder) =
+            tauri::WebviewWindowBuilder::from_config(app, window_config)
+        {
+            let _ = builder.build();
+        }
+    }
 }

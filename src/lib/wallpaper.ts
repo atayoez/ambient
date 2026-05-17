@@ -5,6 +5,7 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
+import { mutateLibrary } from './store';
 
 // localStorage key holding the path of the most-recently-applied
 // wallpaper. Exported so the Library tab can read it directly (to
@@ -61,6 +62,23 @@ export async function setWallpaper(localPath: string): Promise<void> {
       new CustomEvent('ambient-wallpaper-applied', { detail: localPath }),
     );
   } catch {}
+  // Promote the just-applied entry to the head of the library so the
+  // grid is ordered by most-recently-applied. No-op when the path
+  // isn't in the library (one-off apply from outside the app, or
+  // mid-flight before Sources/Generate's prepend has committed). The
+  // mutation dispatches `ambient-library-changed`, which the Library
+  // tab listens for — so even applies from other tabs (Patterns Apply,
+  // rotation tick, Sources fetch) re-sort the persisted order.
+  try {
+    await mutateLibrary((cur) => {
+      const idx = cur.findIndex((w) => w.path === localPath);
+      if (idx <= 0) return cur;
+      return [cur[idx], ...cur.slice(0, idx), ...cur.slice(idx + 1)];
+    });
+  } catch {
+    // Reorder failed (disk error) — non-fatal, the wallpaper is still
+    // applied on-screen; the grid just stays in its old order.
+  }
   void maybeNotifyApplied(localPath);
 }
 

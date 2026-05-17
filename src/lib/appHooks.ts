@@ -6,11 +6,12 @@
 // isolation.
 
 import { getVersion } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useCallback, useEffect, useState } from 'react';
 import { type LicenseInfo, loadLicense, validateLicense } from './license';
 import { rotateNow } from './rotation';
-import { loadSettings, saveSettings } from './store';
+import { loadSettings, mutateSettings } from './store';
 import type { RotationSource } from './types';
 import { checkForUpdate, type UpdateInfo } from './updater';
 import { setWallpaper } from './wallpaper';
@@ -159,7 +160,7 @@ export function useAutoRotate(): void {
 
 export function useThemeFollow(): void {
   const [cfg, setCfg] = useState<{
-    enabled: boolean;
+    mode: 'auto' | 'light' | 'dark';
     lightPath: string | null;
     darkPath: string | null;
   } | null>(null);
@@ -170,7 +171,7 @@ export function useThemeFollow(): void {
       const s = await loadSettings();
       if (cancelled) return;
       setCfg({
-        enabled: s.themeFollow,
+        mode: s.themeMode,
         lightPath: s.themeFollowLightPath,
         darkPath: s.themeFollowDarkPath,
       });
@@ -185,12 +186,12 @@ export function useThemeFollow(): void {
   }, []);
 
   useEffect(() => {
-    // Reapply the matching slot whenever the system prefers-color-scheme
-    // flips. Listener gated on the toggle so it doesn't do anything
-    // when the feature is off. The check runs even if the app is
-    // hidden to tray — Tauri keeps the WebView alive, so matchMedia
-    // listeners still fire.
-    if (!cfg?.enabled) return;
+    // System prefers-color-scheme flip — only matters in 'auto' mode,
+    // where the wallpaper follows the system. 'light' and 'dark' are
+    // locked, so we don't react. matchMedia keeps firing while the
+    // window is hidden to tray (Tauri keeps the WebView alive after
+    // the destroy/rebuild cycle until the next close).
+    if (cfg?.mode !== 'auto') return;
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     function onChange() {
       const path = mql.matches ? cfg?.darkPath : cfg?.lightPath;
@@ -201,28 +202,35 @@ export function useThemeFollow(): void {
   }, [cfg]);
 
   useEffect(() => {
-    // Slot capture: every wallpaper apply (dispatched via the
-    // 'ambient-wallpaper-applied' event from lib/wallpaper.ts) stamps
-    // its path into the slot matching the current system theme.
-    // Listener is gated so we don't churn settings writes when the
-    // feature is off.
-    if (!cfg?.enabled) return;
+    // Slot capture: every wallpaper apply stamps the path into the slot
+    // matching the current mode. In 'auto' that's the system theme;
+    // in 'light' / 'dark' it's locked to that slot regardless of system
+    // theme. Reads themeMode fresh from disk via mutateSettings so the
+    // closure can't capture a stale mode — the cfg useState lags the
+    // disk write that just happened in onChangeThemeMode by one render
+    // tick, and binding to it here would race the slot capture with
+    // the React commit cycle.
     function onApplied(e: Event) {
       const path = (e as CustomEvent<string>).detail;
       if (!path) return;
-      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      void (async () => {
-        const s = await loadSettings();
-        const next = { ...s };
-        if (dark) next.themeFollowDarkPath = path;
-        else next.themeFollowLightPath = path;
-        await saveSettings(next);
+      void mutateSettings((s) => {
+        if (s.themeMode === 'auto') {
+          const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          return dark
+            ? { ...s, themeFollowDarkPath: path }
+            : { ...s, themeFollowLightPath: path };
+        }
+        if (s.themeMode === 'light') {
+          return { ...s, themeFollowLightPath: path };
+        }
+        return { ...s, themeFollowDarkPath: path };
+      }).then(() => {
         window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
-      })();
+      });
     }
     window.addEventListener('ambient-wallpaper-applied', onApplied);
     return () => window.removeEventListener('ambient-wallpaper-applied', onApplied);
-  }, [cfg?.enabled]);
+  }, []);
 }
 
 // ---------------------------------------------------------------------
@@ -265,6 +273,102 @@ export function useWindowMaximized(): boolean {
   }, []);
 
   return isMaximized;
+}
+
+// ---------------------------------------------------------------------
+// System accent color
+// ---------------------------------------------------------------------
+
+// Parses #rrggbb into a space-separated RGB triplet ("200 136 0"),
+// which is the format the CSS `rgb(var(--shadow-tint) / α)` syntax
+// expects. Returns null on malformed input so the caller knows to
+// leave the default black triplet in place rather than half-apply.
+function parseHexTriplet(hex: string): string | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return `${(v >> 16) & 0xff} ${(v >> 8) & 0xff} ${v & 0xff}`;
+}
+
+// Pulls the OS accent (macOS AppleAccentColor / Windows DWM AccentColor /
+// GNOME accent-color) once at app launch and writes it into TWO CSS
+// custom properties on <html>:
+//
+//   --accent-os    — full color string ("#c88800"), used at sites that
+//                    want the accent as a standalone color (focus
+//                    border, slider track, selection ring).
+//   --shadow-tint  — RGB triplet ("200 136 0"), composed via
+//                    `rgb(var(--shadow-tint) / α)` everywhere a shadow,
+//                    border, or fill used to be `rgba(0,0,0,α)`. This
+//                    is the channel that flips the whole app's
+//                    chromaticity from achromatic-black to accent-tinted
+//                    when the OS exposes an accent. Defaults to `0 0 0`
+//                    (black) in colors_and_type.css so the cascade stays
+//                    visually unchanged for users without an accent.
+//
+// Also stamps the resolved value (or "none") into
+// `<html data-system-accent="…">` so it's inspectable without the
+// devtools console — handy for debugging "is the accent actually
+// being applied" without enabling the full inspector.
+export function useSystemAccent(): void {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const color = await invoke<string | null>('get_system_accent');
+        if (cancelled) return;
+        document.documentElement.dataset.systemAccent = color ?? 'none';
+        if (color) {
+          document.documentElement.style.setProperty('--accent-os', color);
+          const triplet = parseHexTriplet(color);
+          if (triplet) {
+            document.documentElement.style.setProperty('--shadow-tint', triplet);
+          }
+        }
+        console.info(
+          '[Ambient] system accent:',
+          color ?? 'none (using achromatic --accent)',
+        );
+      } catch (e) {
+        if (!cancelled) {
+          document.documentElement.dataset.systemAccent = 'error';
+          console.warn('[Ambient] get_system_accent failed:', e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+}
+
+// ---------------------------------------------------------------------
+// Tray icon ↔ system theme sync
+// ---------------------------------------------------------------------
+
+// macOS template inversion handles tray-icon theming automatically;
+// Windows and Linux tray hosts don't, so we detect prefers-color-scheme
+// changes here and call the Rust side to swap the glyph. The matchMedia
+// listener only fires while the webview is alive — when the user is
+// in tray-only state, the icon stays at whatever it was last set to.
+// Cold launches get the right initial icon via tray_icon::is_system_dark()
+// in lib.rs setup(), so the only stale-icon case is "user changed theme
+// while tray-only, then opened the window" — and matchMedia fires on
+// next paint there, catching it within a frame.
+export function useTrayThemeSync(): void {
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const update = () => {
+      void invoke('update_tray_theme', { isDark: mql.matches }).catch(() => {
+        // Tray command can fail in dev (HMR mid-restart, no tray host on
+        // headless CI). Swallow — next theme flip will retry.
+      });
+    };
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
 }
 
 // ---------------------------------------------------------------------

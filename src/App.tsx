@@ -11,11 +11,14 @@ import UpdateBanner from './components/UpdateBanner';
 import {
   useAutoRotate,
   useLicenseGate,
+  useSystemAccent,
   useTabKeybindings,
   useThemeFollow,
+  useTrayThemeSync,
   useUpdateBanner,
   useWindowMaximized,
 } from './lib/appHooks';
+import { usePersistedState } from './lib/hooks';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate';
 
@@ -32,7 +35,12 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 const TAB_IDS = TABS.map((t) => t.id) as readonly Tab[];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('patterns');
+  // Active tab is persisted so reopening the window lands the user on
+  // the same tab they were last on (closing-to-tray and reopening
+  // counts as "reopening" — the webview is destroyed on hide and
+  // rebuilt on tray-click, so without persistence every reopen would
+  // snap back to Patterns).
+  const [tab, setTab] = usePersistedState<Tab>('app.tab', 'patterns');
 
   // Tabs are mounted lazily on first visit and stay mounted thereafter
   // (toggling display:contents → none on switch). This preserves
@@ -51,6 +59,8 @@ export default function App() {
   const { updateInfo, dismiss: dismissUpdate } = useUpdateBanner(license);
   useAutoRotate();
   useThemeFollow();
+  useSystemAccent();
+  useTrayThemeSync();
   useTabKeybindings<Tab>(TAB_IDS, setTab);
 
   function onTitlebarMouseDown(e: React.MouseEvent) {
@@ -64,10 +74,13 @@ export default function App() {
     await getCurrentWindow().minimize();
   }
   async function closeWindow() {
-    // We want hide-to-tray, not actual quit. Calling .hide() directly skips
-    // the CloseRequested → prevent_close round-trip and works with the
-    // allow-hide capability we already have.
-    await getCurrentWindow().hide();
+    // Close (not hide) — the CloseRequested handler in Rust destroys the
+    // webview entirely so the tray-resident process doesn't keep
+    // ~150 MB of GPU layers, backdrop-filter surfaces, and decoded
+    // image caches alive. Tray "Open Ambient" rebuilds the window
+    // lazily. Process survival on last-window-close is handled by the
+    // RunEvent::ExitRequested prevent_exit in lib.rs.
+    await getCurrentWindow().close();
   }
 
   const activeTabIndex = TABS.findIndex((t) => t.id === tab);

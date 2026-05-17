@@ -1,8 +1,8 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { generateWallpaper } from '../lib/aigen';
 import { useDebouncedCallback, useDraftState, useKeydown } from '../lib/hooks';
-import { loadSettings, mutateLibrary, saveSettings } from '../lib/store';
+import { loadSettings, mutateLibrary, patchSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
   type GenProvider,
@@ -68,20 +68,23 @@ export default function Generate() {
   }, []);
 
   // Generic settings patcher used by every config field in this tab.
-  // setSettings is synchronous (UI stays responsive); disk save +
-  // ambient-settings-changed dispatch are debounced 400ms via the
-  // shared useDebouncedCallback so a burst of keystrokes resolves to
-  // a single write.
-  const debouncedSave = useDebouncedCallback((next: Settings) => {
-    void saveSettings(next).then(() => {
+  // Patches accumulate in a ref and flush through patchSettings (a
+  // serialized read-modify-write) so concurrent changes from other
+  // tabs — Library's themeMode picker is the canonical example —
+  // aren't clobbered by this tab's stale full-Settings copy.
+  const pendingPatchRef = useRef<Partial<Settings>>({});
+  const debouncedFlush = useDebouncedCallback(() => {
+    const patch = pendingPatchRef.current;
+    pendingPatchRef.current = {};
+    void patchSettings(patch).then(() => {
       window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
     });
   }, 400);
 
   function update(patch: Partial<Settings>) {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    debouncedSave(next);
+    setSettings((s) => ({ ...s, ...patch }));
+    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
+    debouncedFlush();
   }
 
   async function go() {
@@ -135,16 +138,6 @@ export default function Generate() {
     }
   }
 
-  const modelLine =
-    settings.genProvider === 'pollinations'
-      ? `Model: ${settings.pollinationsModel}`
-      : `Model: ${settings.openaiModel || 'dall-e-3'} HD · ~$0.08/image`;
-
-  const providerHint =
-    settings.genProvider === 'pollinations'
-      ? 'Pollinations.ai — free, anonymous, capped at ~2048/side.'
-      : 'OpenAI DALL-E 3 HD — set your API key in Settings.';
-
   // Cmd/Ctrl+Enter kicks off a generation from anywhere in the tab,
   // including inside the prompt textarea — matches the iMessage /
   // Chat-style "send" gesture.
@@ -168,7 +161,6 @@ export default function Generate() {
                 disabled={busy}
                 ariaLabel="Provider"
               />
-              <p className="muted small">{modelLine}</p>
             </InspectorSection>
 
             <InspectorSection title="Output">
@@ -184,8 +176,8 @@ export default function Generate() {
               />
             </InspectorSection>
 
-            {settings.genProvider === 'pollinations' && (
-              <InspectorSection title="Model">
+            <InspectorSection title="Model">
+              {settings.genProvider === 'pollinations' ? (
                 <Select
                   options={POLLINATIONS_MODELS.map((m) => ({
                     id: m.value,
@@ -196,36 +188,17 @@ export default function Generate() {
                   disabled={busy}
                   ariaLabel="Pollinations model"
                 />
-              </InspectorSection>
-            )}
-
-            {settings.genProvider === 'openai' && (
-              <InspectorSection title="OpenAI">
-                <label className="field">
-                  <span>API key</span>
-                  <input
-                    type="password"
-                    value={settings.openaiKey}
-                    onChange={(e) => update({ openaiKey: e.target.value })}
-                    placeholder="sk-..."
-                    disabled={busy}
-                  />
-                </label>
-                <label className="field">
-                  <span>Model</span>
-                  <input
-                    type="text"
-                    value={settings.openaiModel}
-                    onChange={(e) => update({ openaiModel: e.target.value })}
-                    placeholder="dall-e-3"
-                    disabled={busy}
-                  />
-                </label>
-                <p className="muted small">
-                  HD quality, ~$0.08 per image, capped at 1792×1024.
-                </p>
-              </InspectorSection>
-            )}
+              ) : (
+                <input
+                  type="text"
+                  value={settings.openaiModel}
+                  onChange={(e) => update({ openaiModel: e.target.value })}
+                  placeholder="dall-e-3"
+                  disabled={busy}
+                  aria-label="OpenAI model"
+                />
+              )}
+            </InspectorSection>
 
             <InspectorSection title="Prompt">
               <textarea
@@ -235,8 +208,20 @@ export default function Generate() {
                 placeholder="describe the wallpaper you want…"
                 disabled={busy}
               />
-              <p className="muted small">{providerHint}</p>
             </InspectorSection>
+
+            {settings.genProvider === 'openai' && (
+              <InspectorSection title="API key">
+                <input
+                  type="password"
+                  value={settings.openaiKey}
+                  onChange={(e) => update({ openaiKey: e.target.value })}
+                  placeholder="sk-..."
+                  disabled={busy}
+                  aria-label="OpenAI API key"
+                />
+              </InspectorSection>
+            )}
           </>
         }
         actions={

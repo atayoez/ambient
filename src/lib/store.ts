@@ -47,6 +47,41 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await store.save();
 }
 
+// Serialized read-modify-write for settings. Each call loads fresh
+// from disk, applies the mutator, and writes back — chained via a
+// promise so concurrent callers serialize cleanly. Use this instead
+// of `loadSettings() → modify → saveSettings(full)` because the
+// full-write pattern races whenever two components hold local copies
+// of Settings and their saves interleave: the slower writer clobbers
+// any field the faster writer touched between the two reads.
+//
+// Concrete bug it fixes: changing themeMode in Library while Sources
+// or Generate still held a local Settings with the old themeMode, then
+// any debouncedSave from those tabs would overwrite themeMode back to
+// the stale value. mutateSettings reads fresh each time, so a patch
+// like { themeMode: 'light' } only changes that one field — concurrent
+// writes to other fields are preserved.
+let _settingsChain: Promise<unknown> = Promise.resolve();
+
+export function mutateSettings(
+  mutator: (current: Settings) => Settings,
+): Promise<Settings> {
+  const next = _settingsChain.then(async () => {
+    const current = await loadSettings();
+    const updated = mutator(current);
+    await saveSettings(updated);
+    return updated;
+  });
+  _settingsChain = next.catch(() => {});
+  return next;
+}
+
+// Patch helper — apply a partial settings update through the
+// serialized mutator. The most common pattern across update handlers.
+export function patchSettings(patch: Partial<Settings>): Promise<Settings> {
+  return mutateSettings((s) => ({ ...s, ...patch }));
+}
+
 export async function loadLibrary(): Promise<Wallpaper[]> {
   const store = await getStore();
   return (await store.get<Wallpaper[]>('library')) ?? [];
@@ -84,6 +119,18 @@ export function mutateLibrary(
     const current = await loadLibrary();
     const updated = dedupByPath(mutator(current));
     await saveLibrary(updated);
+    try {
+      // Notify subscribers (Library tab) so they pick up reorders /
+      // adds / deletes from other code paths — e.g. setWallpaper's
+      // "move applied to top" mutator runs even when the Library tab
+      // isn't visible. Detail carries the post-dedup array so listeners
+      // can swap state in one shot without re-loading from disk.
+      window.dispatchEvent(
+        new CustomEvent('ambient-library-changed', { detail: updated }),
+      );
+    } catch {
+      // No window context (SSR, worker) — non-fatal.
+    }
     return updated;
   });
   _libraryChain = next.catch(() => {});

@@ -14,10 +14,82 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **OS accent color** is read at launch and tints the entire chrome.
+  macOS `AppleAccentColor`, Windows DWM `AccentColor`, and GNOME /
+  COSMIC `accent-color` are parsed into both `--accent-os` (CSS color)
+  and a new `--shadow-tint` RGB triplet on `<html>`. Every shadow,
+  border, and previously-near-black fill across the app now flows
+  through `rgb(var(--shadow-tint) / α)`, so primary buttons, focus
+  rings, slider tracks, selection indicators, and even drop shadows
+  follow the user's system accent. Default `0 0 0` triplet keeps the
+  achromatic look on platforms without an accent.
+- **Theme-aware tray icon.** macOS uses template-mode inversion
+  automatically; Windows and GNOME/COSMIC detect the system theme at
+  launch and ship the right-color glyph. The frontend's
+  `useTrayThemeSync` calls a new `update_tray_theme` command on
+  prefers-color-scheme flips so the icon stays in step while the
+  window is open. Redesigned glyph: a filled landscape silhouette
+  (mountain + foothill + sun) that survives the tray host's downscale
+  to 16-22 px far better than the prior thin curve.
+- **Library indicators on cards.** Currently-applied gets a check,
+  the active light slot gets a sun, the dark slot gets a moon — all
+  in the card's action bar, all sharing the accent ring. Icons stack
+  when a card matches multiple slots.
+- **Library list orders by most-recently-applied.** Every apply path
+  (Library click, Patterns Apply, Sources fetch, Generate, rotation,
+  tray) moves the entry to the head of the stored library. Sort is
+  permanent — survives reopens.
+- **Active tab persists** across reopens. Closing to tray and
+  reopening (which destroys + rebuilds the webview) now lands you on
+  the same tab.
 
 ### Changed
+- **Hide-to-tray destroys the webview entirely** instead of just
+  hiding it. WebKitGTK keeps GPU layers, decoded image cache, and
+  backdrop-filter surfaces resident on `.hide()` — `nvidia-smi` after
+  tray-close drops from ~200 MB to ~38 MB. Window rebuilds lazily on
+  tray "Open Ambient" via `WebviewWindowBuilder::from_config`;
+  `RunEvent::ExitRequested.prevent_exit` keeps the process alive
+  after the last window closes so the tray icon survives.
+- **Library theme-follow → Auto / Light / Dark segmented**, same
+  shape as the Patterns palette mode picker. Auto follows system
+  `prefers-color-scheme`; Light / Dark lock to that slot and the
+  capture-on-apply target follows the mode. Replaces the verbose
+  `ThemeFollowControl` (gone).
+- **AI tab restructured.** Sections in order: Provider → Output →
+  Model → Prompt → API key (only when OpenAI). Pollinations / OpenAI
+  inner sections collapsed into a single Model section that switches
+  its control by provider. Clarifying paragraphs under sections
+  dropped.
+- **Sources tab restructured.** Unsplash / Pexels combined sections
+  split into separate "Search" (top, with the workflow) and
+  "API key" (bottom, with setup). Inner field labels dropped —
+  section titles carry the meaning.
+- **Section titles centered** across all inspector tiles. Palette
+  section's segmented + presets row also centered.
+- **Rotation control collapsed into one row.** `☑ every [60] min`
+  instead of a redundant "Auto-rotate from this source" sentence
+  stacked above the interval. Disabled UI (interval + flanking text)
+  fades to 0.4 opacity when the checkbox is off.
+- **Tab pill icons stay light in light mode** with a drop-shadow
+  halo so they read against the bright app surface on the
+  Patterns / Sources / Generate tabs, not just over Library cards.
+- **`patchSettings` / `mutateSettings`** added to `lib/store.ts` —
+  serialized read-modify-write for settings, mirroring the existing
+  `mutateLibrary`. Every settings update now only writes the fields
+  it actually touched.
 
 ### Fixed
+- **Theme mode no longer resets** after switching. Root cause was
+  Sources / Generate / RotationControl saving their full local
+  `Settings` copy on every update, which clobbered concurrent changes
+  from other tabs (most visibly Library's `themeMode`). Fixed via
+  `patchSettings` at every call site.
+- **`useThemeFollow` stale-closure race** — the capture mode was
+  bound at effect setup, so changing the mode and immediately
+  applying a wallpaper captured into the wrong slot. The on-applied
+  handler now reads the live `themeMode` from disk inside the
+  mutator.
 
 ## [0.4.0] — 2026-05-16
 

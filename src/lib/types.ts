@@ -1,3 +1,5 @@
+import type { ThemeMode } from './theme';
+
 export type SourceKind = 'nasa-apod' | 'unsplash' | 'pexels';
 export type GenProvider = 'pollinations' | 'openai';
 // 'off' = no auto-rotation. 'sources' = fetch a new image from the
@@ -33,13 +35,18 @@ export interface Settings {
   openaiModel: string;
   rotationSource: RotationSource;
   rotationIntervalMinutes: number;
-  /** When true, App.tsx listens for `prefers-color-scheme` changes and
-   * reapplies whichever wallpaper was last applied in the new mode
-   * (themeFollowLightPath / themeFollowDarkPath). The two slots get
-   * populated automatically: every time a wallpaper is applied while
-   * the app is running, the slot for the current system theme
-   * captures its path. */
-  themeFollow: boolean;
+  /** Theme mode for wallpaper switching, picked via the Auto/Light/Dark
+   * segmented control on the Library tab. Mirrors the Patterns palette
+   * mode for visual consistency.
+   *  - 'auto'  — follow system prefers-color-scheme; apply lightPath
+   *              when system is light, darkPath when system is dark
+   *  - 'light' — locked to lightPath; system theme is ignored
+   *  - 'dark'  — locked to darkPath
+   * In all three modes, applying a wallpaper from the library captures
+   * its path into the slot matching the current mode (so picking a
+   * wallpaper while in Light mode populates lightPath). The two slots
+   * persist independently. */
+  themeMode: ThemeMode;
   themeFollowLightPath: string | null;
   themeFollowDarkPath: string | null;
 }
@@ -65,7 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openaiModel: 'dall-e-3',
   rotationSource: 'off',
   rotationIntervalMinutes: 60,
-  themeFollow: false,
+  themeMode: 'auto',
   themeFollowLightPath: null,
   themeFollowDarkPath: null,
 };

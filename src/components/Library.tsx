@@ -1,7 +1,8 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { memo, useCallback, useEffect, useState } from 'react';
-import { loadLibrary, mutateLibrary } from '../lib/store';
-import type { Wallpaper } from '../lib/types';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { loadLibrary, loadSettings, mutateLibrary, patchSettings } from '../lib/store';
+import type { ThemeMode } from '../lib/theme';
+import { DEFAULT_SETTINGS, type Settings, type Wallpaper } from '../lib/types';
 import {
   deleteWallpaper,
   getThumbnail,
@@ -9,10 +10,9 @@ import {
   listLocalWallpapers,
   setWallpaper,
 } from '../lib/wallpaper';
-import { TrashIcon, XIcon } from './Icons';
-import { InspectorSection, StatusInline } from './layout';
+import { AutoThemeIcon, CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
+import { InspectorSection, Segmented, StatusInline } from './layout';
 import RotationControl from './RotationControl';
-import ThemeFollowControl from './ThemeFollowControl';
 
 function readLastApplied(): string | null {
   try {
@@ -22,10 +22,18 @@ function readLastApplied(): string | null {
   }
 }
 
+const THEME_MODE_OPTIONS = [
+  { id: 'auto' as const, label: 'Auto', icon: <AutoThemeIcon size={16} /> },
+  { id: 'light' as const, label: 'Light', icon: <SunIcon size={16} /> },
+  { id: 'dark' as const, label: 'Dark', icon: <MoonIcon size={16} /> },
+];
+
 interface LibraryCardProps {
   wallpaper: Wallpaper;
   thumbSrc: string;
   isCurrent: boolean;
+  isLightSlot: boolean;
+  isDarkSlot: boolean;
   isConfirming: boolean;
   busy: boolean;
   onApply: (w: Wallpaper) => void;
@@ -36,14 +44,16 @@ interface LibraryCardProps {
 
 // Memoized per-wallpaper card. Custom comparator ignores callback identity
 // (callbacks are stable enough by inspection — see parent useCallback wrappers
-// — and the meaningful props are wallpaper / thumbSrc / isCurrent /
-// isConfirming / busy). Without this, every status / error / confirmDelete
-// toggle would re-render all 20+ cards.
+// — and the meaningful props are wallpaper / thumbSrc / isCurrent / isLightSlot /
+// isDarkSlot / isConfirming / busy). Without this, every status / error /
+// confirmDelete toggle would re-render all 20+ cards.
 const LibraryCard = memo(
   function LibraryCard({
     wallpaper: w,
     thumbSrc,
     isCurrent,
+    isLightSlot,
+    isDarkSlot,
     isConfirming,
     busy,
     onApply,
@@ -51,8 +61,17 @@ const LibraryCard = memo(
     onConfirmDelete,
     onCancelDelete,
   }: LibraryCardProps) {
+    const hasIndicator = isCurrent || isLightSlot || isDarkSlot;
+    const cardClass = [
+      'card',
+      isCurrent && 'current',
+      isLightSlot && 'light-slot',
+      isDarkSlot && 'dark-slot',
+    ]
+      .filter(Boolean)
+      .join(' ');
     return (
-      <div className={isCurrent ? 'card current' : 'card'}>
+      <div className={cardClass}>
         <button
           type="button"
           className="card-thumb"
@@ -75,6 +94,25 @@ const LibraryCard = memo(
           <span className="card-thumb-hint">{isCurrent ? 'Applied' : 'Apply'}</span>
         </button>
         <div className="card-actions">
+          {hasIndicator && (
+            <div className="card-indicators" aria-hidden="true">
+              {isCurrent && (
+                <span className="card-indicator" title="Currently applied">
+                  <CheckIcon size={14} />
+                </span>
+              )}
+              {isLightSlot && (
+                <span className="card-indicator" title="Light-mode wallpaper">
+                  <SunIcon size={14} />
+                </span>
+              )}
+              {isDarkSlot && (
+                <span className="card-indicator" title="Dark-mode wallpaper">
+                  <MoonIcon size={14} />
+                </span>
+              )}
+            </div>
+          )}
           {isConfirming ? (
             <>
               {/* Destructive confirmation stays textual — icon-only
@@ -122,6 +160,8 @@ const LibraryCard = memo(
     prev.wallpaper === next.wallpaper &&
     prev.thumbSrc === next.thumbSrc &&
     prev.isCurrent === next.isCurrent &&
+    prev.isLightSlot === next.isLightSlot &&
+    prev.isDarkSlot === next.isDarkSlot &&
     prev.isConfirming === next.isConfirming &&
     prev.busy === next.busy,
 );
@@ -144,18 +184,17 @@ export default function Library() {
   const [currentPath, setCurrentPath] = useState<string | null>(readLastApplied);
   // wallpaper.path → cached thumbnail path (resolved via Rust). Empty
   // until the first invoke round-trips; the card falls back to the
-  // full-resolution original until the thumb URL is in here. 480×300
-  // WebP thumbs cap WebKit's image cache footprint dramatically vs the
-  // 2880×1800 originals.
+  // full-resolution original until the thumb URL is in here.
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  // Settings — drives the Auto/Light/Dark segmented control and the
+  // per-card light/dark slot indicators. Stays in sync with the rest
+  // of the app via the ambient-settings-changed event bus.
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     // Two-stage load: render whatever is in the persisted library
     // immediately so the grid doesn't flash empty, then prune orphan
     // entries — rows whose underlying file no longer exists on disk.
-    // Without the prune those stick around as broken thumbs forever
-    // (common after a data-dir wipe, reinstall, or external manual
-    // delete).
     let cancelled = false;
     (async () => {
       const stored = await loadLibrary();
@@ -181,24 +220,42 @@ export default function Library() {
   }, []);
 
   useEffect(() => {
-    // Keep currentPath in sync with any apply / rotation happening
-    // anywhere in the app. setWallpaper() dispatches this event with
-    // the new path; rotation timer + tray + Library applyExisting all
-    // route through setWallpaper, so this is a single funnel.
+    let cancelled = false;
+    async function reload() {
+      const s = await loadSettings();
+      if (cancelled) return;
+      setSettings(s);
+    }
+    void reload();
+    const onChange = () => void reload();
+    window.addEventListener('ambient-settings-changed', onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('ambient-settings-changed', onChange);
+    };
+  }, []);
+
+  useEffect(() => {
     function onApplied(e: Event) {
       const path = (e as CustomEvent<string>).detail;
       if (path) setCurrentPath(path);
     }
+    function onLibraryChanged(e: Event) {
+      const lib = (e as CustomEvent<Wallpaper[]>).detail;
+      if (lib) setLibrary(lib);
+    }
     window.addEventListener('ambient-wallpaper-applied', onApplied);
-    return () => window.removeEventListener('ambient-wallpaper-applied', onApplied);
+    window.addEventListener('ambient-library-changed', onLibraryChanged);
+    return () => {
+      window.removeEventListener('ambient-wallpaper-applied', onApplied);
+      window.removeEventListener('ambient-library-changed', onLibraryChanged);
+    };
   }, []);
 
   useEffect(() => {
     // Resolve a thumbnail path per library entry. Generation happens
     // once per file (Rust mtime-checks before re-encoding); subsequent
-    // mounts are pure cache hits. Errors fall through to the original
-    // file path so the card still shows something. Cards render as
-    // soon as their thumb resolves — no batch wait.
+    // mounts are pure cache hits.
     if (library.length === 0) {
       setThumbs({});
       return;
@@ -221,11 +278,17 @@ export default function Library() {
     };
   }, [library]);
 
+  // Sort the current wallpaper to the top so the user can see what's
+  // applied without scrolling. Everything else stays in its original
+  // (newest-first) order — only one card moves.
+  const sortedLibrary = useMemo(() => {
+    if (!currentPath) return library;
+    const idx = library.findIndex((w) => w.path === currentPath);
+    if (idx <= 0) return library;
+    return [library[idx], ...library.slice(0, idx), ...library.slice(idx + 1)];
+  }, [library, currentPath]);
+
   const applyExisting = useCallback(async (w: Wallpaper) => {
-    // Functional setBusy lets the callback be stable while still bailing
-    // out on a re-entrant click — without this useCallback would have to
-    // depend on `busy`, the closure would re-bind every render, and the
-    // memoized LibraryCard's callback identity would be useless anyway.
     let alreadyBusy = false;
     setBusy((b) => {
       if (b) alreadyBusy = true;
@@ -254,17 +317,10 @@ export default function Library() {
     setConfirmDelete(null);
     setError(null);
     try {
-      // Delete the file BEFORE the library mutation. If the OS refuses
-      // (permission, file in use), we bail without touching the JSON, so
-      // the entry stays and the user can retry. Previously a swallowed
-      // catch on the file-delete left orphan files on disk while the
-      // library JSON had already forgotten about them.
       try {
         await deleteWallpaper(w.path);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        // ENOENT (file already gone) is fine — proceed with library
-        // cleanup. Other errors (permission, etc.) bubble up.
         if (!/no such file|not found|enoent/i.test(msg)) {
           throw e;
         }
@@ -283,20 +339,58 @@ export default function Library() {
   const onRequestDelete = useCallback((path: string) => setConfirmDelete(path), []);
   const onCancelDelete = useCallback(() => setConfirmDelete(null), []);
 
+  // Mode switch: persist the new mode AND immediately apply the slot
+  // that matches it, so the user gets visible feedback rather than
+  // having to wait for a system theme flip (Auto) or fish for the
+  // right wallpaper (Light/Dark). Uses patchSettings (serialized
+  // read-modify-write) so a stale Sources / Generate local Settings
+  // can't overwrite the new mode in their next debouncedSave.
+  const onChangeThemeMode = useCallback(
+    async (mode: ThemeMode) => {
+      const next = await patchSettings({ themeMode: mode });
+      setSettings(next);
+      window.dispatchEvent(new CustomEvent('ambient-settings-changed'));
+
+      let target: string | null = null;
+      if (mode === 'auto') {
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        target = dark ? next.themeFollowDarkPath : next.themeFollowLightPath;
+      } else if (mode === 'light') {
+        target = next.themeFollowLightPath;
+      } else {
+        target = next.themeFollowDarkPath;
+      }
+      if (target && target !== currentPath) {
+        try {
+          await setWallpaper(target);
+        } catch {
+          // Apply failed (file deleted out from under us, OS refused) —
+          // non-fatal, the mode is still saved.
+        }
+      }
+    },
+    [currentPath],
+  );
+
   return (
     <div className="library">
       <div className="library-controls">
         <InspectorSection title="Shuffle">
           <RotationControl
             mode="library"
-            label="Shuffle saved wallpapers"
+            ariaLabel="Shuffle saved wallpapers"
             otherInUseHint="Sources auto-rotate is on — this will replace it."
           />
         </InspectorSection>
       </div>
       <div className="library-controls">
         <InspectorSection title="System theme">
-          <ThemeFollowControl />
+          <Segmented
+            options={THEME_MODE_OPTIONS}
+            value={settings.themeMode}
+            onChange={onChangeThemeMode}
+            ariaLabel="Theme mode"
+          />
         </InspectorSection>
       </div>
 
@@ -307,19 +401,21 @@ export default function Library() {
       )}
 
       <div className="library-grid">
-        {library.length === 0 && (
+        {sortedLibrary.length === 0 && (
           <div className="empty">
             Empty library. Generate one from <em>Patterns</em>, pull from a curated
             <em> Source</em>, or prompt an AI in <em>Generate</em> — anything you apply
             lands here for re-use.
           </div>
         )}
-        {library.map((w) => (
+        {sortedLibrary.map((w) => (
           <LibraryCard
             key={w.path}
             wallpaper={w}
             thumbSrc={convertFileSrc(thumbs[w.path] ?? w.path)}
             isCurrent={currentPath === w.path}
+            isLightSlot={settings.themeFollowLightPath === w.path}
+            isDarkSlot={settings.themeFollowDarkPath === w.path}
             isConfirming={confirmDelete === w.path}
             busy={busy}
             onApply={applyExisting}

@@ -109,9 +109,34 @@
   --accent-fill: rgba(255, 255, 255, 0.88);
   --accent-fill-hover: rgba(255, 255, 255, 0.96);
   --accent-text: #1c1c1e;
-  --accent-glow: rgba(0, 0, 0, 0.28);
+  --accent-glow: rgb(var(--shadow-tint) / 0.28);
+
+  /* --accent-os: the user's OS accent color (macOS AppleAccentColor,
+   * Windows DWM AccentColor, GNOME accent-color). NOT set at the token
+   * level — useSystemAccent() in src/lib/appHooks.ts writes it onto
+   * document.documentElement at launch when the OS exposes one.
+   *
+   * Use `var(--accent-os, var(--accent))` at call sites so the chain
+   * falls through to the achromatic --accent on platforms that don't
+   * expose an accent (most Linux DEs, sandboxed envs). Originally
+   * reserved for FUNCTIONAL surfaces only, but the design has since
+   * shifted to treating accent as the universal tint — every shadow,
+   * border, and fill that used to be black now reads through the
+   * --shadow-tint triplet (set to the parsed accent RGB by the same
+   * hook), which composes alpha via `rgb(var(--shadow-tint) / X)` at
+   * call sites. The achromatic primary-button / checkbox-fill tokens
+   * still exist for cases where a colored fill would harm readability,
+   * but new chrome should prefer accent-tinted shadows. */
   --danger: #ff7a90;
   --success: #6ee7a3;
+
+  /* Shadow / border tint as an RGB triplet (no alpha). Default is pure
+   * black, so shadows and borders read achromatically; useSystemAccent()
+   * overrides this with the parsed accent RGB at launch when the OS
+   * exposes an accent. Consumed via `rgb(var(--shadow-tint) / X)` so
+   * each call site composes its own alpha — keeps the existing shadow
+   * stack opacities while letting the hue follow the system accent. */
+  --shadow-tint: 0 0 0;
 
   /* Cosmic palette — the canonical brand 5-stop used in Patterns.
    * Also referenced as the dark-mode preset default. */
@@ -137,10 +162,10 @@
   --blur-tabs: blur(20px) saturate(180%);
   --blur-overlay: blur(24px) saturate(180%);
 
-  --shadow-window: 0 32px 80px rgba(0, 0, 0, 0.35);
-  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.35);
-  --shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.2);
-  --shadow-primary: 0 6px 16px rgba(0, 0, 0, 0.28);
+  --shadow-window: 0 32px 80px rgb(var(--shadow-tint) / 0.35);
+  --shadow-overlay: 0 12px 32px rgb(var(--shadow-tint) / 0.35);
+  --shadow-toast: 0 8px 24px rgb(var(--shadow-tint) / 0.2);
+  --shadow-primary: 0 6px 16px rgb(var(--shadow-tint) / 0.28);
   --inset-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --inset-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
@@ -199,18 +224,20 @@
     --surface: rgba(255, 255, 255, 0.5);
     --surface-2: rgba(255, 255, 255, 0.7);
     --surface-3: rgba(255, 255, 255, 0.95);
-    --border: rgba(0, 0, 0, 0.08);
-    --border-strong: rgba(0, 0, 0, 0.14);
-    --highlight-edge: rgba(0, 0, 0, 0.04);
+    --border: rgb(var(--shadow-tint) / 0.08);
+    --border-strong: rgb(var(--shadow-tint) / 0.14);
+    --highlight-edge: rgb(var(--shadow-tint) / 0.04);
     --text: #1c1c1e;
     --muted: #6e6e73;
-    /* Light-mode mirror of the accent tokens — same achromatic role,
-     * dark-on-light variants. */
-    --accent: rgba(0, 0, 0, 0.82);
-    --accent-fill: rgba(0, 0, 0, 0.85);
-    --accent-fill-hover: rgba(0, 0, 0, 0.95);
+    /* Light-mode mirror of the accent tokens. Originally achromatic
+     * (dark-on-light) variants; now compose through --shadow-tint so
+     * the primary button + checkbox fill follow the OS accent when one
+     * is exposed, and fall back to near-black otherwise. */
+    --accent: rgb(var(--shadow-tint) / 0.82);
+    --accent-fill: rgb(var(--shadow-tint) / 0.85);
+    --accent-fill-hover: rgb(var(--shadow-tint) / 0.95);
     --accent-text: #f5f5f7;
-    --accent-glow: rgba(0, 0, 0, 0.22);
+    --accent-glow: rgb(var(--shadow-tint) / 0.22);
     --danger: #dc2626;
     --success: #16a34a;
   }
