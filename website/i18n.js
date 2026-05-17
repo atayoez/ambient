@@ -484,24 +484,15 @@
     IE: 1, IT: 1, LT: 1, LU: 1, LV: 1, MT: 1, NL: 1, PT: 1, SI: 1, SK: 1,
   };
 
-  function detectRegion() {
-    // 1. Cloudflare cf.country, injected onto <html data-country=".."
-    //    by the Worker. Most accurate — it's the actual request IP's
-    //    country, not whatever locale the user set in their browser.
-    var injected = document.documentElement.getAttribute('data-country');
-    if (injected) return injected.toUpperCase();
-
-    // 2. Time-zone fallback for cases where the Worker didn't run
-    //    (e.g. wrangler dev, static preview). TZ usually mirrors
-    //    physical location even when the browser language doesn't.
+  // Sync best-guess region for the initial paint — used before the
+  // /cdn-cgi/trace fetch returns. Order: TZ (mirrors physical
+  // location better than browser language) → browser locale region.
+  function detectRegionSync() {
     try {
       var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       var tzRegion = tzToRegion(tz);
       if (tzRegion) return tzRegion;
     } catch (_) {}
-
-    // 3. Browser-locale region — last resort; lies whenever the user
-    //    has e.g. en-US set in their browser while sitting in Berlin.
     try {
       var loc = new Intl.Locale(navigator.language || 'en');
       if (loc && loc.region) return loc.region.toUpperCase();
@@ -529,7 +520,7 @@
     return TZ_TO_COUNTRY[tz] || '';
   }
 
-  var currentRegion = detectRegion();
+  var currentRegion = detectRegionSync();
   var currentCurrency = EUROZONE[currentRegion] ? 'EUR' : 'USD';
   // Both displayed as "$15" / "€15" with the symbol before the digits —
   // matches the existing price-card layout and reads consistently across
@@ -589,9 +580,35 @@
     });
   }
 
+  // Cloudflare exposes the visitor's country at /cdn-cgi/trace on
+  // every CF-hosted domain. We hit it AFTER initial paint so the
+  // first render uses the best-guess (TZ/locale) region, then snap
+  // to the truth once the trace responds. Free, no JSON parse —
+  // text key=value lines.
+  function refineCurrencyFromTrace() {
+    fetch('/cdn-cgi/trace', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (text) {
+        if (!text) return;
+        var m = text.match(/^loc=([A-Z]{2})$/m) || text.match(/^country=([A-Z]{2})$/m);
+        if (!m) return;
+        var region = m[1].toUpperCase();
+        var nextCurrency = EUROZONE[region] ? 'EUR' : 'USD';
+        if (nextCurrency === currentCurrency) return;
+        currentRegion = region;
+        currentCurrency = nextCurrency;
+        applyCurrency();
+        // Re-run language so {PRICE} placeholders pick up the new
+        // currency without a page reload.
+        applyLanguage(currentLang);
+      })
+      .catch(function () {});
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     applyCurrency();
     applyLanguage(currentLang);
+    refineCurrencyFromTrace();
 
     var langSel = document.getElementById('lang-switcher');
     if (langSel) langSel.addEventListener('change', function () { applyLanguage(langSel.value); });
