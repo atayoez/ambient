@@ -145,7 +145,10 @@ code {
 #lang-switcher {
   appearance: none;
   -webkit-appearance: none;
-  padding: 6px 28px 6px 10px;
+  /* Globe leads the label so it reads as a language switcher at a
+   * glance — the prior dropdown chevron was being misread as a pair
+   * of down-pointing arrows. */
+  padding: 6px 10px 6px 28px;
   font-size: 13px;
   font-family: inherit;
   color: var(--text);
@@ -153,10 +156,10 @@ code {
   border: 1px solid var(--border);
   border-radius: var(--radius-inline);
   cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpolyline points='2,4 5,7 8,4' fill='none' stroke='%23a1a1aa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a1a1aa' stroke-width='1.3' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='M2 8h12M8 2v12M4 4.5c1.4 1.5 6.2 1.5 7.6 0M4 11.5c1.4-1.5 6.2-1.5 7.6 0'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 10px 10px;
+  background-position: left 9px center;
+  background-size: 12px 12px;
   transition: border-color var(--t-base) ease, background-color var(--t-base) ease;
 }
 
@@ -219,7 +222,9 @@ code {
 
 .hero {
   position: relative;
-  min-height: 100vh;
+  /* Was min-height: 100vh; pulling the demo gallery inside the hero
+   * means the section is now content-sized — the screenshot frame
+   * acts as the visual anchor instead of empty vertical space. */
   padding: 120px 24px 80px;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -403,28 +408,24 @@ code {
   justify-content: center;
 }
 
+/* App-preview block right below the headline. Same demo-frame
+ * primitive that used to live in the standalone #demo section —
+ * just promoted into the hero so the first screen shows the actual
+ * product instead of empty atmosphere. */
+.hero-demo {
+  margin-top: 56px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 /* ============================================================ */
-/* Interactive sneak-peek demo                                    */
+/* Demo gallery — embedded in the hero                            */
 /* ============================================================ */
 /* PNG gallery — each tab swaps between screenshots captured from
-   the live app at 868x648 (window + drop shadow). The earlier
-   live-canvas + CSS-stock mocks are gone; visitors see the real
-   product chrome. */
-
-.demo {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 20px 24px 80px;
-  text-align: center;
-}
-
-.demo-sub {
-  color: var(--muted);
-  margin: -16px auto 36px;
-  font-size: 15px;
-  max-width: 560px;
-  line-height: 1.55;
-}
+   the live app at 868x648 (window + drop shadow). The primitives
+   live here so the same .demo-frame markup could be reused
+   elsewhere; it's currently only rendered inside .hero-demo. */
 
 .demo-frame {
   max-width: 900px;
@@ -1343,7 +1344,7 @@ footer {
 }
 
 .theme-light #lang-switcher {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpolyline points='2,4 5,7 8,4' fill='none' stroke='%235e5e63' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%235e5e63' stroke-width='1.3' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='M2 8h12M8 2v12M4 4.5c1.4 1.5 6.2 1.5 7.6 0M4 11.5c1.4-1.5 6.2-1.5 7.6 0'/%3E%3C/svg%3E");
 }
 
 .theme-light #lang-switcher option {

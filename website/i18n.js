@@ -8,18 +8,14 @@
   /* eslint-disable @stylistic/quotes */
   var I18N = {
     en: {
-      nav: { demo: 'Demo', features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
+      nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       theme: { auto: 'Auto', dark: 'Dark', light: 'Light' },
-      demo: {
-        eyebrow: 'Sneak peek',
-        sub: 'The same four tabs you get after install. Click between them.',
-      },
       hero: {
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A small desktop app for changing your wallpaper. Built-in patterns, a few photo sources, and an AI generator if you'd rather just describe one.",
         ctaBuy: 'Buy for {PRICE}',
-        ctaDemo: 'Try the demo →',
+        ctaDownload: 'Download →',
         ctaFeatures: "See what's in it →",
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
       },
@@ -167,18 +163,14 @@
     },
 
     de: {
-      nav: { demo: 'Demo', features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
+      nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       theme: { auto: 'Auto', dark: 'Dunkel', light: 'Hell' },
-      demo: {
-        eyebrow: 'Vorschau',
-        sub: 'Dieselben vier Tabs, die du nach der Installation siehst. Klick dich durch.',
-      },
       hero: {
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Eine kleine Desktop-App zum Wechseln deines Hintergrundbilds. Eingebaute Muster, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
         ctaBuy: 'Für {PRICE} kaufen',
-        ctaDemo: 'Demo ausprobieren →',
+        ctaDownload: 'Herunterladen →',
         ctaFeatures: 'Was drin steckt →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
       },
@@ -326,18 +318,14 @@
     },
 
     tr: {
-      nav: { demo: 'Demo', features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
+      nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       theme: { auto: 'Otomatik', dark: 'Koyu', light: 'Açık' },
-      demo: {
-        eyebrow: 'Ön izleme',
-        sub: 'Kurulumdan sonra göreceğin aynı dört sekme. Aralarında tıkla.',
-      },
       hero: {
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Bilgisayarının duvar kağıdını değiştirmek için küçük bir masaüstü uygulaması. Hazır desenler, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
         ctaBuy: '{PRICE}\'a satın al',
-        ctaDemo: 'Demoyu dene →',
+        ctaDownload: 'İndir →',
         ctaFeatures: 'İçinde neler var →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
       },

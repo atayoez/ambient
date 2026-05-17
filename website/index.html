@@ -90,7 +90,6 @@
         <span>Ambient</span>
       </a>
       <nav class="nav-links">
-        <a href="#demo" data-i18n="nav.demo">Demo</a>
         <a href="#features" data-i18n="nav.features">Features</a>
         <a href="#pricing" data-i18n="nav.pricing">Pricing</a>
         <a href="#download" data-i18n="nav.download">Download</a>
@@ -154,67 +153,63 @@
               class="btn btn-primary"
               data-i18n="hero.ctaBuy"
             >Buy for $15</a>
-            <a href="#demo" class="btn btn-ghost" data-i18n="hero.ctaDemo">Try the demo →</a>
+            <a href="#download" class="btn btn-ghost" data-i18n="hero.ctaDownload">Download →</a>
           </div>
           <div class="hero-meta">
             <span class="dot"></span>
             <span data-i18n-html="hero.meta">macOS · Windows · Linux &nbsp;·&nbsp; <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry</span>
           </div>
         </div>
-      </section>
 
-      <!-- Sneak peek: PNG gallery captured from the live app, one shot
-           per tab. Tab buttons crossfade between the images via demo.js. -->
-      <section id="demo" class="demo">
-        <h2 class="section-eyebrow" data-i18n="demo.eyebrow">Sneak peek</h2>
-        <p class="demo-sub" data-i18n="demo.sub">
-          The same four tabs you get after install. Click between them.
-        </p>
+        <!-- App preview right in the hero — PNG gallery captured from
+             the live app, one shot per tab. Tab buttons crossfade
+             between the images via demo.js. -->
+        <div class="hero-demo">
+          <div class="demo-frame">
+            <nav class="demo-tabs" role="tablist">
+              <button class="demo-tab active" data-tab="patterns" role="tab" type="button">Patterns</button>
+              <button class="demo-tab" data-tab="sources"  role="tab" type="button">Sources</button>
+              <button class="demo-tab" data-tab="generate" role="tab" type="button">Generate</button>
+              <button class="demo-tab" data-tab="library"  role="tab" type="button">Library</button>
+            </nav>
 
-        <div class="demo-frame">
-          <nav class="demo-tabs" role="tablist">
-            <button class="demo-tab active" data-tab="patterns" role="tab" type="button">Patterns</button>
-            <button class="demo-tab" data-tab="sources"  role="tab" type="button">Sources</button>
-            <button class="demo-tab" data-tab="generate" role="tab" type="button">Generate</button>
-            <button class="demo-tab" data-tab="library"  role="tab" type="button">Library</button>
-          </nav>
-
-          <div class="demo-stage">
-            <img
-              class="demo-shot active"
-              data-shot="patterns"
-              src="./screenshots/patterns.png"
-              alt="Patterns tab: emoji-pattern preview with the categorized emoji picker popover open."
-              width="868"
-              height="648"
-            />
-            <img
-              class="demo-shot"
-              data-shot="sources"
-              src="./screenshots/sources.png"
-              alt="Sources tab: NASA Astronomy Picture of the Day preview with a daily auto-refresh toggle."
-              width="868"
-              height="648"
-              loading="lazy"
-            />
-            <img
-              class="demo-shot"
-              data-shot="generate"
-              src="./screenshots/generate.png"
-              alt="Generate tab: AI-generated misty mountain valley wallpaper with provider and prompt fields."
-              width="868"
-              height="648"
-              loading="lazy"
-            />
-            <img
-              class="demo-shot"
-              data-shot="library"
-              src="./screenshots/library.png"
-              alt="Library tab: grid of saved wallpapers with shuffle and system-theme follow toggles."
-              width="868"
-              height="648"
-              loading="lazy"
-            />
+            <div class="demo-stage">
+              <img
+                class="demo-shot active"
+                data-shot="patterns"
+                src="./screenshots/patterns.png"
+                alt="Patterns tab: emoji-pattern preview with the categorized emoji picker popover open."
+                width="868"
+                height="648"
+              />
+              <img
+                class="demo-shot"
+                data-shot="sources"
+                src="./screenshots/sources.png"
+                alt="Sources tab: NASA Astronomy Picture of the Day preview with a daily auto-refresh toggle."
+                width="868"
+                height="648"
+                loading="lazy"
+              />
+              <img
+                class="demo-shot"
+                data-shot="generate"
+                src="./screenshots/generate.png"
+                alt="Generate tab: AI-generated misty mountain valley wallpaper with provider and prompt fields."
+                width="868"
+                height="648"
+                loading="lazy"
+              />
+              <img
+                class="demo-shot"
+                data-shot="library"
+                src="./screenshots/library.png"
+                alt="Library tab: grid of saved wallpapers with shuffle and system-theme follow toggles."
+                width="868"
+                height="648"
+                loading="lazy"
+              />
+            </div>
           </div>
         </div>
       </section>
