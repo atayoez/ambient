@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.5.0] — 2026-05-17
+
+### Added
 - **OS accent color** is read at launch and tints the entire chrome.
   macOS `AppleAccentColor`, Windows DWM `AccentColor`, and GNOME /
   COSMIC `accent-color` are parsed into both `--accent-os` (CSS color)
