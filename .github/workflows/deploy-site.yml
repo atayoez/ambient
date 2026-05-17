@@ -1,0 +1,57 @@
+# Deploy the ambient-site Cloudflare Worker on every push to main that
+# touches website/. The Worker code + static marketing assets live
+# under website/; wrangler.jsonc in that directory carries the script
+# name, custom domain, and R2 binding so this job is essentially:
+#
+#   cd website && wrangler deploy
+#
+# Triggered only on website-relevant changes — the Tauri app's release
+# flow (scripts/release.sh) handles R2 uploads + latest.json + the
+# GitHub Release independently, so we don't redeploy the Worker on
+# every app commit.
+#
+# Required GH repo secret: CLOUDFLARE_API_TOKEN
+# Create at https://dash.cloudflare.com/profile/api-tokens with these
+# scopes:
+#   - Account → Workers Scripts:Edit
+#   - Account → Workers Routes:Edit (to manage the ambient.oezcan.me
+#     custom domain attachment if it ever needs reattaching)
+#   - Zone → Workers Routes:Edit on oezcan.me
+# Then: Settings → Secrets and variables → Actions → New repository
+# secret named CLOUDFLARE_API_TOKEN.
+
+name: Deploy Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-site.yml'
+  workflow_dispatch:
+
+# Concurrency: never run two deploys against the same branch. If a new
+# push arrives mid-deploy, queue the new one and cancel any older
+# pending run so we always land the latest commit.
+concurrency:
+  group: deploy-site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy ambient-site Worker
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via wrangler
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: website
+          # wrangler reads wrangler.jsonc from workingDirectory and
+          # picks up the script name, assets dir, R2 binding, and the
+          # custom-domain route automatically. No extra flags needed.
+          command: deploy
