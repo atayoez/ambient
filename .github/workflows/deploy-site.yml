@@ -51,6 +51,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: website
+          # wrangler-action defaults to wrangler 3.x; pinning v4 because
+          # wrangler.jsonc uses the `assets` static-asset binding +
+          # jsonc parsing that landed properly in 4.x. v3 silently
+          # ignores the main + assets fields and fails with
+          # "Missing entry-point".
+          wranglerVersion: '4'
           # wrangler reads wrangler.jsonc from workingDirectory and
           # picks up the script name, assets dir, R2 binding, and the
           # custom-domain route automatically. No extra flags needed.
