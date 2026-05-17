@@ -39,6 +39,11 @@ export default {
       const headers = new Headers(res.headers);
       headers.append('link', '</sitemap.xml>; rel="sitemap"; type="application/xml"');
       headers.append('link', '<https://ambient.oezcan.me/>; rel="canonical"');
+      // Bypass Cloudflare's edge cache for the homepage — it's now
+      // personalised per-country (data-country attr below) so caching
+      // it edge-wide would freeze the first visitor's country on
+      // everyone else.
+      headers.set('cache-control', 'private, no-store');
       const country = request.cf?.country || '';
       const rewritten = new HTMLRewriter()
         .on('html', {
