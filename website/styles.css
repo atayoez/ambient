@@ -222,9 +222,10 @@ code {
 
 .hero {
   position: relative;
-  /* Was min-height: 100vh; pulling the demo gallery inside the hero
-   * means the section is now content-sized — the screenshot frame
-   * acts as the visual anchor instead of empty vertical space. */
+  /* min-height returns now that the demo lives behind the text
+   * rather than below it — the hero needs vertical room for both
+   * the headline column and the backdrop screenshot. */
+  min-height: 92vh;
   padding: 120px 24px 80px;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -233,9 +234,13 @@ code {
   margin: 0 auto;
   align-items: center;
   isolation: isolate;
+  overflow: hidden;
 }
 
 .hero-content {
+  /* z-index: 1 keeps the headline/CTAs above the .hero-demo-bg
+   * backdrop layer (which sits at z-index: 0). */
+  z-index: 1;
   position: relative;
   z-index: 1;
 }
@@ -408,24 +413,100 @@ code {
   justify-content: center;
 }
 
-/* App-preview block right below the headline. Same demo-frame
- * primitive that used to live in the standalone #demo section —
- * just promoted into the hero so the first screen shows the actual
- * product instead of empty atmosphere.
- *
- * Bleeds wider than the hero's --content-w: pushed out via the
- * negative-margin / translate breakout trick so the screenshot
- * spans nearly the full viewport with a 24px gutter on each side.
- * Capped at 1500px to keep the 868px-native PNG within ~1.7x
- * upscale, beyond which the rendering visibly softens. */
-.hero-demo {
-  margin-top: 56px;
-  width: min(100vw - 48px, 1280px);
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
+/* App-preview backdrop. The PNG gallery now sits BEHIND the hero
+ * text instead of below it — provides product context without
+ * stealing the first screen. A radial mask softens the edges and
+ * a partial-opacity overlay keeps the headline readable. */
+.hero-demo-bg {
+  position: absolute;
+  inset: 60px 0 auto 0;
+  z-index: 0;
   display: flex;
   justify-content: center;
+  pointer-events: none;
+}
+
+.hero-demo-bg .demo-stage {
+  width: min(92vw, 920px);
+  opacity: 0.32;
+  filter: blur(0.5px);
+  /* Fade out at the edges so the screenshot reads as a soft
+   * environmental layer instead of a hard rectangle. */
+  -webkit-mask-image: radial-gradient(
+    ellipse 75% 70% at 50% 50%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 75% 70% at 50% 50%,
+    rgba(0, 0, 0, 1) 35%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.theme-light .hero-demo-bg .demo-stage {
+  opacity: 0.55;
+}
+
+/* Glass-pill arrow scroller — sits inline below the hero meta.
+ * Replaces the earlier tab strip; one tap moves the backdrop
+ * forward / back through the four screenshots. */
+.demo-scroller {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 28px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 var(--highlight-edge);
+}
+
+.demo-arrow {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--t-fast) ease, transform var(--t-fast) ease;
+}
+
+.demo-arrow:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.demo-arrow:active {
+  transform: translateY(1px);
+}
+
+.demo-label {
+  min-width: 84px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  text-align: center;
+  /* Don't let label jitter the pill width as it changes. */
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-light .demo-scroller {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .demo-arrow:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* ============================================================ */
@@ -541,8 +622,23 @@ code {
 
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  /* Locked to 3 columns at desktop so the six features land as 3x2
+   * (the old auto-fit drifted to 4x2 once --content-w widened).
+   * Collapses to 2 then 1 as the viewport narrows. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 580px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .feature {

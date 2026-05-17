@@ -137,6 +137,50 @@
         <div class="hero-aurora" aria-hidden="true"></div>
         <div class="hero-stars" aria-hidden="true"></div>
 
+        <!-- App preview lives behind the hero text now — acts as a
+             muted backdrop layer the text floats on top of, instead
+             of stacking below it. The glass-pill arrow scroller
+             cycles through one PNG per tab. -->
+        <div class="hero-demo-bg" aria-hidden="true">
+          <div class="demo-stage">
+            <img
+              class="demo-shot active"
+              data-shot="patterns"
+              src="./screenshots/patterns.png"
+              alt=""
+              width="868"
+              height="648"
+            />
+            <img
+              class="demo-shot"
+              data-shot="sources"
+              src="./screenshots/sources.png"
+              alt=""
+              width="868"
+              height="648"
+              loading="lazy"
+            />
+            <img
+              class="demo-shot"
+              data-shot="generate"
+              src="./screenshots/generate.png"
+              alt=""
+              width="868"
+              height="648"
+              loading="lazy"
+            />
+            <img
+              class="demo-shot"
+              data-shot="library"
+              src="./screenshots/library.png"
+              alt=""
+              width="868"
+              height="648"
+              loading="lazy"
+            />
+          </div>
+        </div>
+
         <div class="hero-content">
           <h1>
             <span data-i18n="hero.title">Wallpapers</span>
@@ -159,58 +203,23 @@
             <span class="dot"></span>
             <span data-i18n-html="hero.meta">macOS · Windows · Linux &nbsp;·&nbsp; <strong>$15 one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry</span>
           </div>
-        </div>
 
-        <!-- App preview right in the hero — PNG gallery captured from
-             the live app, one shot per tab. Tab buttons crossfade
-             between the images via demo.js. -->
-        <div class="hero-demo">
-          <div class="demo-frame">
-            <nav class="demo-tabs" role="tablist">
-              <button class="demo-tab active" data-tab="patterns" role="tab" type="button">Patterns</button>
-              <button class="demo-tab" data-tab="sources"  role="tab" type="button">Sources</button>
-              <button class="demo-tab" data-tab="generate" role="tab" type="button">Generate</button>
-              <button class="demo-tab" data-tab="library"  role="tab" type="button">Library</button>
-            </nav>
-
-            <div class="demo-stage">
-              <img
-                class="demo-shot active"
-                data-shot="patterns"
-                src="./screenshots/patterns.png"
-                alt="Patterns tab: emoji-pattern preview with the categorized emoji picker popover open."
-                width="868"
-                height="648"
-              />
-              <img
-                class="demo-shot"
-                data-shot="sources"
-                src="./screenshots/sources.png"
-                alt="Sources tab: NASA Astronomy Picture of the Day preview with a daily auto-refresh toggle."
-                width="868"
-                height="648"
-                loading="lazy"
-              />
-              <img
-                class="demo-shot"
-                data-shot="generate"
-                src="./screenshots/generate.png"
-                alt="Generate tab: AI-generated misty mountain valley wallpaper with provider and prompt fields."
-                width="868"
-                height="648"
-                loading="lazy"
-              />
-              <img
-                class="demo-shot"
-                data-shot="library"
-                src="./screenshots/library.png"
-                alt="Library tab: grid of saved wallpapers with shuffle and system-theme follow toggles."
-                width="868"
-                height="648"
-                loading="lazy"
-              />
-            </div>
-          </div>
+          <!-- Liquid-glass arrow scroller — sits inline below the
+               meta line so visitors discover it without the demo
+               needing its own visual real estate. -->
+          <nav class="demo-scroller" aria-label="Cycle app preview">
+            <button class="demo-arrow demo-prev" type="button" aria-label="Previous screenshot">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 4L6 8l4 4"/>
+              </svg>
+            </button>
+            <span class="demo-label" data-shot-label>Patterns</span>
+            <button class="demo-arrow demo-next" type="button" aria-label="Next screenshot">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 4l4 4-4 4"/>
+              </svg>
+            </button>
+          </nav>
         </div>
       </section>
 
