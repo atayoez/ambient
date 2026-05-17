@@ -1,6 +1,6 @@
-// i18n + theme controller for the Ambient marketing site.
-// Mirrors the en/de/tr pattern from oezcan.me and the auto/dark/light
-// theme cycle. State persists in localStorage.
+// i18n + currency controller for the Ambient marketing site.
+// en / de / tr translations + region-based currency detection.
+// Lang choice persists in localStorage; the site is dark-only.
 
 (function () {
   'use strict';
@@ -9,7 +9,6 @@
   var I18N = {
     en: {
       nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
-      theme: { auto: 'Auto', dark: 'Dark', light: 'Light' },
       hero: {
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
@@ -164,7 +163,6 @@
 
     de: {
       nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
-      theme: { auto: 'Auto', dark: 'Dunkel', light: 'Hell' },
       hero: {
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
@@ -319,7 +317,6 @@
 
     tr: {
       nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
-      theme: { auto: 'Otomatik', dark: 'Koyu', light: 'Açık' },
       hero: {
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
@@ -474,24 +471,7 @@
   };
   /* eslint-enable @stylistic/quotes */
 
-  // Sun icon (8 rays + center circle) for light, crescent moon for dark,
-  // half-light/half-dark disc for auto so the three states read at a
-  // glance instead of "light" and "auto" both showing a sun.
-  var THEME_ICONS = {
-    auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/>',
-    dark: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
-    light:
-      '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>',
-  };
-  var THEMES = ['auto', 'dark', 'light'];
-
-  var systemThemeQuery =
-    typeof window.matchMedia === 'function'
-      ? window.matchMedia('(prefers-color-scheme: light)')
-      : null;
-
   var currentLang = localStorage.getItem('ambient.lang') || detectLang();
-  var currentTheme = localStorage.getItem('ambient.theme') || 'auto';
 
   // Polar offers the product at €15 EUR + $15 USD (both round, not
   // FX-converted). Pick EUR for eurozone visitors so the checkout shows
@@ -558,43 +538,11 @@
       if (typeof v === 'string') el.placeholder = v;
     });
 
-    // theme label depends on both current language AND current theme.
-    updateThemeButton();
-
     localStorage.setItem('ambient.lang', lang);
     currentLang = lang;
 
     var sel = document.getElementById('lang-switcher');
     if (sel) sel.value = lang;
-  }
-
-  function applyTheme(theme) {
-    document.documentElement.classList.remove('theme-dark', 'theme-light');
-    var resolved = theme;
-    if (theme === 'auto') {
-      resolved = systemThemeQuery && systemThemeQuery.matches ? 'light' : 'dark';
-    }
-    if (resolved === 'dark') document.documentElement.classList.add('theme-dark');
-    if (resolved === 'light') document.documentElement.classList.add('theme-light');
-    localStorage.setItem('ambient.theme', theme);
-    currentTheme = theme;
-    updateThemeButton();
-  }
-
-  function updateThemeButton() {
-    var btn = document.getElementById('theme-toggle');
-    if (!btn) return;
-    var dict = I18N[currentLang] || I18N.en;
-    var icon = btn.querySelector('.theme-icon');
-    var label = btn.querySelector('.theme-label');
-    if (icon) icon.innerHTML = THEME_ICONS[currentTheme];
-    if (label) label.textContent = dict.theme[currentTheme];
-  }
-
-  function cycleTheme() {
-    var idx = THEMES.indexOf(currentTheme);
-    var next = THEMES[(idx + 1) % THEMES.length];
-    applyTheme(next);
   }
 
   function applyCurrency() {
@@ -608,19 +556,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     applyCurrency();
     applyLanguage(currentLang);
-    applyTheme(currentTheme);
 
     var langSel = document.getElementById('lang-switcher');
     if (langSel) langSel.addEventListener('change', function () { applyLanguage(langSel.value); });
-
-    var themeBtn = document.getElementById('theme-toggle');
-    if (themeBtn) themeBtn.addEventListener('click', cycleTheme);
-
-    // Re-resolve `auto` when the OS theme flips while the page is open.
-    if (systemThemeQuery && typeof systemThemeQuery.addEventListener === 'function') {
-      systemThemeQuery.addEventListener('change', function () {
-        if (currentTheme === 'auto') applyTheme('auto');
-      });
-    }
   });
 })();
