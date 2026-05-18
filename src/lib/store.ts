@@ -38,32 +38,23 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
 // Discrete mutations matching Rust's library_store::LibraryOp enum.
 // Sending an op instead of an arbitrary closure keeps the wire format
 // small (no full-list round-trip per mutation) and serializes naturally.
-export type LibraryOp =
-  | { op: 'prepend'; data: Wallpaper }
+// Only `remove` + `removeOrphans` ship from JS today — `prepend` and
+// `promoteToHead` are driven Rust-side from the apply/fetch/generate
+// pipelines, so JS never constructs those variants.
+type LibraryOp =
   | { op: 'remove'; data: { path: string } }
-  | { op: 'promoteToHead'; data: { path: string } }
   | { op: 'removeOrphans'; data: { existing: string[] } };
 
 export async function loadLibrary(): Promise<Wallpaper[]> {
   return invoke<Wallpaper[]>('get_library');
 }
 
-export async function patchLibrary(op: LibraryOp): Promise<Wallpaper[]> {
+async function patchLibrary(op: LibraryOp): Promise<Wallpaper[]> {
   return invoke<Wallpaper[]>('patch_library', { op });
-}
-
-// Helpers for the four discrete mutations — call sites read clearer
-// than constructing the op shape inline.
-export async function prependLibrary(entry: Wallpaper): Promise<Wallpaper[]> {
-  return patchLibrary({ op: 'prepend', data: entry });
 }
 
 export async function removeFromLibrary(path: string): Promise<Wallpaper[]> {
   return patchLibrary({ op: 'remove', data: { path } });
-}
-
-export async function promoteInLibrary(path: string): Promise<Wallpaper[]> {
-  return patchLibrary({ op: 'promoteToHead', data: { path } });
 }
 
 export async function removeLibraryOrphans(existing: string[]): Promise<Wallpaper[]> {

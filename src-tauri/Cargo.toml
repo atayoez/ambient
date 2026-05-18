@@ -70,7 +70,6 @@ base64 = "0.22"
 # a system nasm install — encode time roughly doubles but Apply is a
 # one-shot operation, not a per-frame loop.
 ravif = { version = "0.11", default-features = false, features = ["threading"] }
-rgb = "0.8"
 # rav1e direct dep so we can reach `PixelRange` (ravif only re-exports
 # `MatrixCoefficients` at its crate root, but encode_raw_planes_10_bit
 # wants both). default-features=false drops the asm feature for the
