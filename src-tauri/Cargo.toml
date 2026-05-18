@@ -2,7 +2,7 @@
 name = "ambient"
 version = "0.6.0"
 description = "Cross-platform wallpaper app with dynamic pattern generation."
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "ambient_lib"
@@ -76,6 +76,13 @@ rgb = "0.8"
 # wants both). default-features=false drops the asm feature for the
 # same nasm-not-installed reason as ravif.
 rav1e = { version = "0.7", default-features = false }
+# Structured logging — replaces scattered eprintln! calls so log
+# levels can be filtered at runtime via RUST_LOG and so future Sentry
+# / file-sink integrations are one-subscriber-add away. tracing-
+# subscriber's `env-filter` reads RUST_LOG, `fmt` is the terminal
+# printer; both default features are intentionally trimmed.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting

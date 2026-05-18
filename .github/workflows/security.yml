@@ -1,0 +1,51 @@
+# Security scans — keep them out of build.yml so they don't gate
+# releases. Runs on push to main, PRs, and a weekly cron so we hear
+# about newly-disclosed CVEs even on branches that aren't actively
+# being touched.
+
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays 06:00 UTC — early in the week so any new findings can
+    # be triaged during a working week.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  cargo-audit:
+    name: cargo audit (Rust dep CVEs)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # rustsec/audit-check is the maintained successor to
+      # actions-rs/audit-check. Reads ./src-tauri/Cargo.lock against
+      # the RustSec advisory database and fails the job on any
+      # advisory matching a dep we use.
+      - name: Run cargo audit
+        uses: rustsec/audit-check@v2
+        with:
+          working-directory: ./src-tauri
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  gitleaks:
+    name: gitleaks (secrets scan)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks can scan past commits, not just
+          # the latest diff. Catches secrets that slipped in
+          # historically and were never rotated.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

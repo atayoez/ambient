@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate config for Ambient — automated dependency-update PRs across the Rust + JS + GitHub Actions stacks.",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":semanticPrefixChore",
+    "group:allNonMajor"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 6am on monday"],
+  "labels": ["chore"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "packageRules": [
+    {
+      "description": "Tauri family travels together — major/minor jumps in the plugin set need to land in lockstep with the core crate.",
+      "matchPackagePatterns": ["^tauri", "^@tauri-apps/"],
+      "groupName": "tauri",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "rav1e + ravif both feed the HDR encoder; keep them aligned.",
+      "matchPackageNames": ["rav1e", "ravif"],
+      "groupName": "rav1e/ravif"
+    },
+    {
+      "description": "GitHub Actions get their own PR cadence so workflow bumps don't get buried in a chunk of code-dep updates.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "Patch + minor lockfile-only bumps auto-merge after CI passes — keeps the noise floor low. Major bumps still create PRs for review.",
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "automerge": true,
+      "automergeType": "branch",
+      "matchManagers": ["cargo", "npm"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "prPriority": 10
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on the first day of the month"]
+  }
+}

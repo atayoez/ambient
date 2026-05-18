@@ -1,0 +1,31 @@
+# Drafts the next release's notes incrementally as PRs land on main.
+# Each merged PR's title (categorized by labels or title-prefix
+# keywords) gets appended to a draft GitHub Release; whenever a
+# real release is cut (`bun run release X.Y.Z`), the draft can be
+# promoted or its body copied into CHANGELOG.md's [Unreleased]
+# section.
+#
+# For the current solo-direct-to-main workflow this is mostly
+# future-proofing: with no PRs, the draft stays empty. Once
+# contributions start arriving, the draft populates automatically.
+
+name: Release Drafter
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: write    # to update the draft release
+  pull-requests: write  # to apply labels on PR open
+
+jobs:
+  update_release_draft:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

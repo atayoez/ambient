@@ -56,9 +56,7 @@ pub fn init(app_data_dir: &Path) {
         }
         *BACKEND.write().expect("backend lock") =
             Some(Backend::JsonFallback(fallback_path));
-        eprintln!(
-            "[ambient] keyring unavailable; secrets falling back to plain JSON file"
-        );
+        tracing::warn!("keyring unavailable; secrets falling back to plain JSON file");
     }
 }
 

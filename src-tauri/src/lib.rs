@@ -25,6 +25,18 @@ use tauri::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Structured logging via the `tracing` crate. The env-filter reads
+    // RUST_LOG so dev can crank up verbosity for specific modules
+    // (`RUST_LOG=ambient_lib::rotation=debug tauri dev`) without
+    // recompiling. `try_init` rather than `init` because the test
+    // harness may have already installed a subscriber.
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("ambient_lib=info")),
+        )
+        .try_init();
+
     // Prefer native Wayland over XWayland on Linux. webkit2gtk picks up
     // GDK_BACKEND from the env, so this must be set before the tauri builder
     // initializes GTK. The ",x11" fallback keeps things working if the user
@@ -33,7 +45,14 @@ pub fn run() {
     {
         let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
         if session.eq_ignore_ascii_case("wayland") && std::env::var("GDK_BACKEND").is_err() {
-            std::env::set_var("GDK_BACKEND", "wayland,x11");
+            // SAFETY: Rust 2024 made set_var unsafe because env mutation
+            // can race with concurrent readers in other threads. This
+            // call runs in `run()` before any tauri/tokio thread is
+            // spawned and before the GTK backend reads the variable,
+            // so there is no concurrent reader.
+            unsafe {
+                std::env::set_var("GDK_BACKEND", "wayland,x11");
+            }
         }
     }
 

@@ -1,0 +1,81 @@
+# Release Drafter config — categorizes PRs into Added / Changed /
+# Fixed groups (matching CHANGELOG.md's section headings) by label.
+# Auto-labels apply from PR title keywords via `autolabeler` below,
+# so you don't have to remember to tag the PR.
+#
+# Promoting the draft into CHANGELOG.md is still manual — at release
+# time you can copy the draft body into the [Unreleased] section and
+# then run `bun run release X.Y.Z`.
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: '### Added'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: '### Changed'
+    labels:
+      - 'change'
+      - 'refactor'
+      - 'chore'
+      - 'docs'
+      - 'ci'
+  - title: '### Fixed'
+    labels:
+      - 'fix'
+      - 'bug'
+
+change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
+change-title-escapes: '\<*_&'
+
+# Auto-pick "feature" / "fix" / "ci" etc. based on PR title prefix —
+# matches conventional-commits style (feat:, fix:, ci:, docs:, ...).
+# No need to manually label PRs.
+autolabeler:
+  - label: 'feature'
+    title:
+      - '/^feat(\(.+\))?:/i'
+  - label: 'fix'
+    title:
+      - '/^fix(\(.+\))?:/i'
+  - label: 'chore'
+    title:
+      - '/^chore(\(.+\))?:/i'
+  - label: 'docs'
+    title:
+      - '/^docs(\(.+\))?:/i'
+  - label: 'refactor'
+    title:
+      - '/^refactor(\(.+\))?:/i'
+  - label: 'ci'
+    title:
+      - '/^ci(\(.+\))?:/i'
+      - '/^build(\(.+\))?:/i'
+
+# SemVer version bump inferred from labels. `major` → x+1.0.0,
+# `minor` → x.y+1.0, default → x.y.z+1.
+version-resolver:
+  major:
+    labels:
+      - 'major'
+      - 'breaking'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+  patch:
+    labels:
+      - 'fix'
+      - 'chore'
+      - 'docs'
+      - 'ci'
+  default: patch
+
+template: |
+  ## What's changed in v$RESOLVED_VERSION
+
+  $CHANGES
+
+  **Full changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION

@@ -54,7 +54,7 @@ async fn rotation_task(app: AppHandle) {
         tokio::select! {
             _ = sleep(interval) => {
                 if let Err(e) = tick(&app, &cfg).await {
-                    eprintln!("[ambient] rotation tick: {}", e);
+                    tracing::error!(error = %e, "rotation tick failed");
                 }
             }
             _ = rx.changed() => {
@@ -77,7 +77,7 @@ async fn theme_check_task(app: AppHandle) {
         tokio::select! {
             _ = sleep(Duration::from_secs(THEME_CHECK_INTERVAL_SECS)) => {
                 if let Err(e) = theme_check(&app, &cfg).await {
-                    eprintln!("[ambient] theme check: {}", e);
+                    tracing::error!(error = %e, "theme check failed");
                 }
             }
             _ = rx.changed() => {}
