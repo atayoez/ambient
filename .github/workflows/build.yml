@@ -1,24 +1,33 @@
 # Cross-platform CI for Ambient.
 #
-# - check: fast TypeScript + Biome pass on Ubuntu. Gates the build.
-# - build-tauri: four-arch matrix —
-#     macOS aarch64 (.dmg)
-#     Windows x86_64 (.msi)
-#     Windows aarch64 (.msi)
-#     Linux aarch64 (.AppImage)   ← native ARM runner, no QEMU
-#   Linux x86_64 is still built locally by scripts/release.sh against
-#   the host webkit2gtk-4.1 toolchain (free, fast). The build-tauri
-#   matrix is gated to workflow_dispatch so it only fires when
-#   release.sh kicks it off — saves macOS minutes (~10×-priced on
-#   free-tier) on every-push runs that don't need binaries.
+# - check: fast TypeScript + Biome + cargo tests on Ubuntu. Gates every
+#   downstream job. Runs on push, PR, dispatch, and tag-push.
+# - build-tauri: five-arch matrix —
+#     macOS aarch64 (.dmg + .dmg.sig)
+#     Windows x86_64 (.msi + .msi.sig)
+#     Windows aarch64 (.msi + .msi.sig)
+#     Linux aarch64 (.AppImage + .AppImage.sig)   ← native ARM runner
+#     Linux x86_64 (.AppImage + .AppImage.sig)
+#   Gated to tag pushes (`refs/tags/v*`) and manual dispatch so plain
+#   main pushes only spend the cheap `check` minutes — macOS runners
+#   are ~10× priced on the free tier.
+# - release: depends on the full matrix, runs only on tag push. Renames
+#   the 5 artifacts to the release filename convention, uploads them
+#   to R2, generates dual-shape latest.json (legacy `downloads.*` for
+#   the worker's /downloads/latest aliases + signed `platforms.*` for
+#   tauri-plugin-updater), and cuts the GitHub release with all 5
+#   attached + notes pulled from CHANGELOG.md.
 #
-# Triggered on push to main and on PRs.
+# Release flow from the developer's side: `bun run release X.Y.Z`,
+# which is now just version-bump + commit + tag + push. The tag-push
+# trigger here is what actually publishes.
 
 name: Build
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -72,10 +81,9 @@ jobs:
   build-tauri:
     name: Build (${{ matrix.platform }} / ${{ matrix.arch }})
     needs: check
-    # Dispatch-only. scripts/release.sh fires `gh workflow run` after
-    # the version-bump commit; pushes / PRs only spend the cheap
-    # `check` minutes above.
-    if: github.event_name == 'workflow_dispatch'
+    # Tag push OR manual dispatch only — main pushes get just the cheap
+    # `check` above.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -84,19 +92,29 @@ jobs:
             arch: aarch64
             artifact-glob: |
               src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/dmg/*.dmg.sig
               src-tauri/target/release/bundle/macos/*.app.tar.gz
+              src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
           - platform: windows-latest
             arch: x86_64
             artifact-glob: |
               src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
           - platform: windows-11-arm
             arch: aarch64
             artifact-glob: |
               src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
           - platform: ubuntu-22.04-arm
             arch: aarch64
             artifact-glob: |
               src-tauri/target/release/bundle/appimage/*.AppImage
+              src-tauri/target/release/bundle/appimage/*.AppImage.sig
+          - platform: ubuntu-22.04
+            arch: x86_64
+            artifact-glob: |
+              src-tauri/target/release/bundle/appimage/*.AppImage
+              src-tauri/target/release/bundle/appimage/*.AppImage.sig
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -140,13 +158,36 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri auto-signs each bundle when the env var is present.
-          # Stored as a GH repo secret; pasted contents of the
-          # ~/.config/ambient/updater-private.key file. Leave empty
-          # secret = signing skipped, plugin updater inactive that
-          # release.
+          # Tauri auto-signs each bundle when this env var is set. The
+          # .sig files end up next to the bundle artifact (.dmg.sig,
+          # .msi.sig, .AppImage.sig) and ship as part of the upload
+          # artifact for the release job to read into latest.json.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # tauri's bundling step occasionally fails the linuxdeploy
+      # invocation even though the AppDir is fine. Detect a missing
+      # .AppImage and re-run linuxdeploy manually using the extracted
+      # AppRun (CI runners don't have FUSE so we can't exec the
+      # AppImage directly).
+      - name: Fallback AppImage bundling for Linux
+        if: startsWith(matrix.platform, 'ubuntu-')
+        shell: bash
+        run: |
+          APPIMAGE_DIR="src-tauri/target/release/bundle/appimage"
+          if ls "$APPIMAGE_DIR"/*.AppImage >/dev/null 2>&1; then
+            echo "AppImage produced by tauri-action; no fallback needed."
+            exit 0
+          fi
+          echo "Tauri didn't emit AppImage. Running linuxdeploy manually."
+          ARCH=$(uname -m)
+          curl -L -o /tmp/linuxdeploy.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage"
+          chmod +x /tmp/linuxdeploy.AppImage
+          (cd /tmp && ./linuxdeploy.AppImage --appimage-extract >/dev/null)
+          cd "$GITHUB_WORKSPACE/$APPIMAGE_DIR"
+          NO_STRIP=true /tmp/squashfs-root/AppRun \
+            --appdir Ambient.AppDir --output appimage
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
@@ -154,3 +195,41 @@ jobs:
           name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
+
+  release:
+    name: Publish release
+    needs: build-tauri
+    # Tag push only. Manual dispatch builds without publishing — useful
+    # for testing the matrix on a feature branch without cutting a
+    # release.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write  # for gh release create
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Extract version from tag
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: ambient-*
+
+      - name: Publish to R2 + GitHub Releases
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Hardcoded so the token doesn't need /memberships access;
+          # same ID we use in deploy-site.yml. Not a secret.
+          CLOUDFLARE_ACCOUNT_ID: '848c6419822ef3e91b6f66d69ebe63eb'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/ci-publish.sh "${{ steps.ver.outputs.version }}"
