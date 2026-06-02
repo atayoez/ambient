@@ -2145,3 +2145,182 @@ button.primary.icon-btn {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* ============================================================ */
+/* Generate tab — full-bleed stage + floating glass controls     */
+/* ============================================================ */
+/* Mirrors the marketing site: the result (or a tinted empty field)
+   spans the whole pane as a backdrop, and the settings + prompt float
+   over it in tinted-glass panels instead of a side inspector. */
+
+.gen-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-container);
+  overflow: hidden;
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
+  box-shadow:
+    0 6px 18px rgb(var(--shadow-tint) / 0.12),
+    0 0 26px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12),
+    inset 0 1px 0 var(--highlight-edge);
+  transition:
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
+}
+
+.gen-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* Empty state — a soft tinted mesh so the pane never reads as a blank
+   grey box before the first generation. */
+.gen-bg-empty {
+  background:
+    radial-gradient(60% 60% at 24% 26%, rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.55) 0%, transparent 70%),
+    radial-gradient(58% 58% at 80% 82%, rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.38) 0%, transparent 70%),
+    var(--bg-base);
+}
+
+.gen-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.28) 0%,
+    rgba(0, 0, 0, 0.1) 36%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* Shared floating-glass panel for the controls tray + prompt composer. */
+.gen-panel {
+  position: absolute;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.14);
+  backdrop-filter: var(--blur-overlay);
+  -webkit-backdrop-filter: var(--blur-overlay);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.3);
+  box-shadow:
+    0 10px 30px rgb(var(--shadow-tint) / 0.3),
+    0 6px 22px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18),
+    inset 0 1px 0 var(--highlight-edge);
+  transition:
+    background 600ms var(--ease-pill),
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
+}
+
+.gen-controls {
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-container);
+}
+
+/* Controls sit flat on the tray — translucent tint chips rather than the
+   inspector's opaque surface, so they read as part of the glass panel. */
+.gen-controls select,
+.gen-inline-input {
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.24);
+  border-radius: var(--radius-inline);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.gen-inline-input {
+  min-width: 150px;
+  cursor: text;
+}
+
+.gen-controls select:focus-visible,
+.gen-inline-input:focus-visible {
+  outline: none;
+  border-color: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.55);
+}
+
+.gen-empty-hint {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-width: 320px;
+  text-align: center;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.gen-status {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 78px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.3);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.gen-composer {
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94%, 600px);
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+}
+
+.gen-composer textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body-lg);
+  line-height: 1.4;
+  padding: 7px 8px;
+}
+
+.gen-composer textarea::placeholder {
+  color: var(--muted);
+}
+
+.gen-go {
+  flex: none;
+}

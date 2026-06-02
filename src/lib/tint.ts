@@ -49,12 +49,18 @@ export function pickTint(colors: string[]): [number, number, number] | null {
   return best;
 }
 
-/** Write a tint triplet onto <html> for the glass recipes to read. */
+/** Write a tint triplet onto <html> for the glass recipes to read. Also
+ *  drives --accent-os so the functional controls (slider fills, focus
+ *  rings, selection, links, the active segment) follow the same tint
+ *  instead of the OS accent — otherwise they'd read as out-of-place
+ *  system-coloured chips against the tinted glass. */
 export function applyTint(rgb: [number, number, number]): void {
   const root = document.documentElement;
-  root.style.setProperty('--tint-r', String(rgb[0]));
-  root.style.setProperty('--tint-g', String(rgb[1]));
-  root.style.setProperty('--tint-b', String(rgb[2]));
+  const [r, g, b] = rgb;
+  root.style.setProperty('--tint-r', String(r));
+  root.style.setProperty('--tint-g', String(g));
+  root.style.setProperty('--tint-b', String(b));
+  root.style.setProperty('--accent-os', `rgb(${r} ${g} ${b})`);
 }
 
 /** Derive a tint from a palette and apply it; no-op if nothing parses. */
