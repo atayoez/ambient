@@ -76,6 +76,24 @@ export interface ColorPreset {
   dark: string[];
 }
 
+// A user-saved palette: a single explicit set of colors + emojis (no
+// light/dark pair — custom palettes are chosen, not theme-derived).
+// Persisted under the `patterns.customPresets` store key; surfaced in the
+// presets row alongside the curated set and the live system-accent preset.
+export interface CustomPreset {
+  id: string;
+  name: string;
+  colors: string[];
+  emojis: string[];
+}
+
+// Adapt a CustomPreset to the ColorPreset shape the picker/apply path
+// expects. light === dark so the theme-mode swap is a no-op for custom
+// palettes — they keep whatever colors the user saved.
+export function customToColorPreset(c: CustomPreset): ColorPreset {
+  return { id: c.id, name: c.name, emojis: c.emojis, light: c.colors, dark: c.colors };
+}
+
 // Curated set of 7 themed palettes. Each ships with a light and dark
 // variant chosen to read well against the corresponding bg-base, plus
 // paired emoji set so picking a theme auto-swaps the Emoji pattern's
@@ -138,6 +156,108 @@ export const COLOR_PRESETS: ColorPreset[] = [
 export function getPreset(id: string | undefined): ColorPreset | undefined {
   if (!id) return undefined;
   return COLOR_PRESETS.find((p) => p.id === id);
+}
+
+// ---------------------------------------------------------------------
+// System-accent palette
+// ---------------------------------------------------------------------
+
+// Stable id for the accent-derived preset. Kept distinct from the curated
+// COLOR_PRESETS ids so resolvePreset() can route it to the live accent
+// builder instead of the static table.
+export const SYSTEM_PRESET_ID = 'system';
+
+function hexToHsl(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 0xff) / 255;
+  const g = ((n >> 8) & 0xff) / 255;
+  const b = (n & 0xff) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case r:
+        h = ((g - b) / d) % 6;
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      default:
+        h = (r - g) / d + 4;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [h, s * 100, l * 100];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sn = Math.min(100, Math.max(0, s)) / 100;
+  const ln = Math.min(100, Math.max(0, l)) / 100;
+  const c = (1 - Math.abs(2 * ln - 1)) * sn;
+  const hp = (((h % 360) + 360) % 360) / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  const [r1, g1, b1] = (
+    hp < 1
+      ? [c, x, 0]
+      : hp < 2
+        ? [x, c, 0]
+        : hp < 3
+          ? [0, c, x]
+          : hp < 4
+            ? [0, x, c]
+            : hp < 5
+              ? [x, 0, c]
+              : [c, 0, x]
+  ) as [number, number, number];
+  const m = ln - c / 2;
+  const to = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${to(r1)}${to(g1)}${to(b1)}`;
+}
+
+// Builds a 5-stop palette anchored on the OS accent hue — a monochromatic
+// ramp from a near-base tone up through the accent to a near-edge tint, so
+// generated wallpapers read as "tinted with the system color" rather than
+// dumping one saturated swatch. Saturation is clamped so a hyper-saturated
+// OS accent doesn't produce a garish ramp. Returns null on malformed hex.
+export function accentPreset(hex: string): ColorPreset | null {
+  const hsl = hexToHsl(hex);
+  if (!hsl) return null;
+  const [h, s] = hsl;
+  const sat = Math.min(s, 85);
+  return {
+    id: SYSTEM_PRESET_ID,
+    name: 'System',
+    // Neutral, non-themed glyph set — the accent palette isn't tied to a
+    // motif the way Cosmic/Ocean/etc. are. Abstract geometric emoji read
+    // as "system" rather than borrowing another preset's mood. All entries
+    // are emoji-presentation (no bare dingbats, which render as flat text).
+    emojis: ['🔷', '🔹', '💠', '🔵', '🟦', '🔘', '⬜', '⬛'],
+    dark: [
+      hslToHex(h, Math.min(sat, 35), 8),
+      hslToHex(h, Math.min(sat, 55), 24),
+      hslToHex(h, sat, 50),
+      hslToHex(h, Math.min(sat, 70), 70),
+      hslToHex(h, Math.min(sat, 40), 92),
+    ],
+    light: [
+      hslToHex(h, Math.min(sat, 45), 96),
+      hslToHex(h, Math.min(sat, 60), 82),
+      hslToHex(h, sat, 52),
+      hslToHex(h, Math.min(sat + 5, 90), 38),
+      hslToHex(h, Math.min(sat, 55), 12),
+    ],
+  };
 }
 
 export const DEFAULT_EMOJIS = COLOR_PRESETS[0].emojis;

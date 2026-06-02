@@ -12,6 +12,7 @@ mod renderer;
 mod rotation;
 mod secrets;
 mod settings;
+mod solo_instance;
 mod sources;
 mod tray_icon;
 mod types;
@@ -56,6 +57,14 @@ pub fn run() {
         }
     }
 
+    // "New launch wins" solo-instance handoff. Reads the previous
+    // instance's PID file, SIGTERMs it if it's still alive and is
+    // really an `ambient` process, waits up to 1.5s for it to exit,
+    // then writes our own PID. Runs BEFORE the tauri::Builder so we
+    // never have two webviews / two trays competing for the shared
+    // settings/library/license files.
+    solo_instance::ensure_solo();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -63,8 +72,6 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             desktop::set_wallpaper,
-            library::fetch_and_save_wallpaper,
-            library::save_image_bytes,
             library::list_wallpapers,
             library::delete_wallpaper,
             library::get_or_create_thumbnail,
@@ -117,10 +124,6 @@ pub fn run() {
             // dropped-on-the-floor secrets.
             secrets::init(&app_data_dir);
             secrets::migrate_from_settings(&app_data_dir);
-
-            // Emoji asset cache directory — bundled set ships in the
-            // binary, non-bundled glyphs land here after CDN fetch.
-            emojis::init(&app_data_dir);
 
             let loaded_settings = settings::load_or_default(&app_data_dir);
             let loaded_library = library_store::load_or_default(&app_data_dir);
@@ -203,7 +206,12 @@ pub fn run() {
                 // open via the `update_tray_theme` command.
                 #[cfg(target_os = "macos")]
                 let glyph_light = true;
-                #[cfg(not(target_os = "macos"))]
+                // Linux can't reliably read the panel theme, so it
+                // commits to the white glyph — see
+                // linux_panel_wants_light_glyph.
+                #[cfg(target_os = "linux")]
+                let glyph_light = tray_icon::linux_panel_wants_light_glyph();
+                #[cfg(target_os = "windows")]
                 let glyph_light = tray_icon::is_system_dark();
                 tray = tray
                     .icon(tray_icon::symbolic_icon(!glyph_light))
@@ -229,16 +237,22 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
+        .run(|_app, event| match event {
             // Last-window-close would normally exit the process. Keep it
             // alive so the tray icon survives; the user explicitly quits
             // via the tray menu (which calls app.exit(0), bypassing this
             // because ExitRequested.code is Some in that path).
-            if let RunEvent::ExitRequested { code, api, .. } = event {
+            RunEvent::ExitRequested { code, api, .. } => {
                 if code.is_none() {
                     api.prevent_exit();
                 }
             }
+            // Clear the solo-instance PID file on a graceful exit so the
+            // next launch doesn't waste time trying to take over a dead
+            // process. SIGKILL'd or crashed exits leave it stale —
+            // harmless; the next launch's process-name check skips it.
+            RunEvent::Exit => solo_instance::cleanup(),
+            _ => {}
         });
 }
 

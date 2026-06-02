@@ -82,19 +82,104 @@ fn apply_os(abs_str: &str) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
-        if desktop.eq_ignore_ascii_case("COSMIC") {
-            return set_wallpaper_cosmic(abs_str);
+        match linux_strategy(&desktop) {
+            LinuxWallpaper::Cosmic => return set_wallpaper_cosmic(abs_str),
+            LinuxWallpaper::Kde => {
+                // Prefer Plasma's own CLI. The `wallpaper` crate's KDE
+                // path shells out to qdbus + a plasma scripting eval,
+                // which is frequently absent (qdbus6 not installed) or
+                // broken on Plasma 6 / Wayland — the source of the KDE
+                // "OS wallpaper-set failed" reports. Fall back to the
+                // crate only if the CLI itself can't run.
+                if let Err(kde_err) = set_wallpaper_kde(abs_str) {
+                    return wallpaper::set_from_path(abs_str).map_err(|e| {
+                        linux_err(
+                            &format!("{kde_err}; generic fallback also failed: {e}"),
+                            abs_str,
+                        )
+                    });
+                }
+                return Ok(());
+            }
+            LinuxWallpaper::Generic => {
+                return wallpaper::set_from_path(abs_str)
+                    .map_err(|e| linux_err(&e.to_string(), abs_str));
+            }
         }
     }
 
-    wallpaper::set_from_path(abs_str).map_err(|e| {
-        let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
-        let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
-        format!(
-            "OS wallpaper-set failed: {} (file existed at {}, XDG_CURRENT_DESKTOP={}, XDG_SESSION_TYPE={}).",
-            e, abs_str, desktop, session
-        )
-    })
+    #[cfg(not(target_os = "linux"))]
+    {
+        wallpaper::set_from_path(abs_str).map_err(|e| format!("OS wallpaper-set failed: {}", e))
+    }
+}
+
+/// Which Linux wallpaper-set strategy a given `XDG_CURRENT_DESKTOP` maps
+/// to. Split out (and unit-tested below) because cross-desktop breakage
+/// almost always lives in *routing* — picking the wrong setter for the
+/// session — rather than in the setters themselves, and that's the part
+/// we can verify without a live compositor.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinuxWallpaper {
+    /// COSMIC: write the cosmic-bg RON config directly.
+    Cosmic,
+    /// KDE Plasma: drive `plasma-apply-wallpaperimage`.
+    Kde,
+    /// Everything else (GNOME, Cinnamon, XFCE, MATE, wlroots, …): hand
+    /// off to the `wallpaper` crate's per-DE detection.
+    Generic,
+}
+
+/// `XDG_CURRENT_DESKTOP` is a colon-separated, case-inconsistent list
+/// (e.g. `KDE`, `plasma`, `ubuntu:GNOME`, `pop:COSMIC`). Match any token.
+#[cfg(target_os = "linux")]
+fn linux_strategy(desktop: &str) -> LinuxWallpaper {
+    let has = |name: &str| {
+        desktop
+            .split(':')
+            .any(|tok| tok.trim().eq_ignore_ascii_case(name))
+    };
+    if has("COSMIC") {
+        LinuxWallpaper::Cosmic
+    } else if has("KDE") || has("plasma") {
+        LinuxWallpaper::Kde
+    } else {
+        LinuxWallpaper::Generic
+    }
+}
+
+/// Wrap a setter error with the session diagnostics that make remote
+/// bug reports actionable (which DE, X11 vs Wayland).
+#[cfg(target_os = "linux")]
+fn linux_err(msg: &str, abs_str: &str) -> String {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+    format!(
+        "OS wallpaper-set failed: {} (file existed at {}, XDG_CURRENT_DESKTOP={}, XDG_SESSION_TYPE={}).",
+        msg, abs_str, desktop, session
+    )
+}
+
+/// KDE Plasma 5.18+: `plasma-apply-wallpaperimage` ships with
+/// plasma-workspace and sets the image wallpaper on every screen through
+/// the running shell — works on both X11 and Wayland.
+#[cfg(target_os = "linux")]
+fn set_wallpaper_kde(abs_path: &str) -> Result<(), String> {
+    use std::process::Command;
+    let out = Command::new("plasma-apply-wallpaperimage")
+        .arg(abs_path)
+        .output()
+        .map_err(|e| format!("plasma-apply-wallpaperimage not runnable: {e}"))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "plasma-apply-wallpaperimage exited {}: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
 }
 
 async fn record_post_apply(abs_str: &str, app: &AppHandle) {
@@ -184,4 +269,48 @@ fn set_wallpaper_cosmic(abs_path: &str) -> Result<(), String> {
         .map_err(|e| format!("write cosmic background config: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::{linux_strategy, LinuxWallpaper};
+
+    // Cross-desktop routing matrix. We can't drive a real compositor in
+    // CI, but mis-routing the session is where every "works on my DE,
+    // fails on theirs" report has originated — so pin the mapping for
+    // every desktop string we expect to see in the wild.
+    #[test]
+    fn routes_each_desktop_to_its_setter() {
+        let cases = [
+            ("COSMIC", LinuxWallpaper::Cosmic),
+            ("pop:COSMIC", LinuxWallpaper::Cosmic),
+            ("KDE", LinuxWallpaper::Kde),
+            ("plasma", LinuxWallpaper::Kde),
+            ("KDE:plasma", LinuxWallpaper::Kde),
+            ("GNOME", LinuxWallpaper::Generic),
+            ("ubuntu:GNOME", LinuxWallpaper::Generic),
+            ("X-Cinnamon", LinuxWallpaper::Generic),
+            ("XFCE", LinuxWallpaper::Generic),
+            ("MATE", LinuxWallpaper::Generic),
+            ("sway", LinuxWallpaper::Generic),
+            ("Hyprland", LinuxWallpaper::Generic),
+            ("", LinuxWallpaper::Generic),
+        ];
+        for (xdg, want) in cases {
+            assert_eq!(
+                linux_strategy(xdg),
+                want,
+                "XDG_CURRENT_DESKTOP={xdg:?} routed to the wrong setter"
+            );
+        }
+    }
+
+    // Detection is case- and position-insensitive across the colon list.
+    #[test]
+    fn desktop_match_is_case_and_order_insensitive() {
+        assert_eq!(linux_strategy("kde"), LinuxWallpaper::Kde);
+        assert_eq!(linux_strategy("Plasma"), LinuxWallpaper::Kde);
+        assert_eq!(linux_strategy("cosmic"), LinuxWallpaper::Cosmic);
+        assert_eq!(linux_strategy("foo:bar:KDE"), LinuxWallpaper::Kde);
+    }
 }

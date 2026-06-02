@@ -1,8 +1,12 @@
 // OS keyring storage for BYO API keys (Unsplash, Pexels, OpenAI).
-// First call to `init()` probes whether keyring is usable on this host;
-// if not (headless Linux without DBus, locked-down container, etc.) the
-// module falls back to a mode-0600 JSON file under app_data_dir. The
-// backend choice is made once and cached for the process lifetime.
+//
+// v4 of the keyring crate split into keyring-core + per-platform store
+// crates; init() registers the OS-native store as the keyring-core
+// default and then probes whether it actually works (Secret Service
+// might not be running on headless Linux, the macOS Keychain might be
+// locked, etc.). On probe failure the module falls back to a
+// mode-0600 JSON file under app_data_dir. Backend choice is made once
+// and cached for the process lifetime.
 //
 // Migration: `migrate_from_settings` lifts any unsplashKey / pexelsKey /
 // openaiKey fields out of `ambient-settings.json` on first launch
@@ -13,6 +17,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
+
+use keyring_core::{Entry, Error};
 
 const SERVICE: &str = "ambient";
 
@@ -27,21 +33,13 @@ static BACKEND: LazyLock<RwLock<Option<Backend>>> =
 static JSON_CACHE: LazyLock<RwLock<HashMap<String, String>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
-/// Decide which backend to use by probing keyring with a throwaway
-/// entry. Call once at app startup before any get/set.
+/// Register the OS-native store with keyring-core then probe to confirm
+/// it actually works. Call once at app startup before any get/set.
 pub fn init(app_data_dir: &Path) {
     let fallback_path = app_data_dir.join("ambient-secrets.json");
 
-    let keyring_ok = match keyring::Entry::new(SERVICE, "_probe") {
-        Ok(entry) => match entry.set_password("_v") {
-            Ok(_) => {
-                let _ = entry.delete_credential();
-                true
-            }
-            Err(_) => false,
-        },
-        Err(_) => false,
-    };
+    let store_ok = register_platform_store();
+    let keyring_ok = store_ok && probe_keyring();
 
     if keyring_ok {
         *BACKEND.write().expect("backend lock") = Some(Backend::Keyring);
@@ -60,6 +58,67 @@ pub fn init(app_data_dir: &Path) {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn register_platform_store() -> bool {
+    match apple_native_keyring_store::keychain::Store::new() {
+        Ok(store) => {
+            keyring_core::set_default_store(store);
+            true
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "apple keychain store init failed");
+            false
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn register_platform_store() -> bool {
+    match windows_native_keyring_store::Store::new() {
+        Ok(store) => {
+            keyring_core::set_default_store(store);
+            true
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "windows credential store init failed");
+            false
+        }
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn register_platform_store() -> bool {
+    match dbus_secret_service_keyring_store::Store::new() {
+        Ok(store) => {
+            keyring_core::set_default_store(store);
+            true
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "secret service store init failed (no DBus session?)");
+            false
+        }
+    }
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "freebsd",
+)))]
+fn register_platform_store() -> bool {
+    false
+}
+
+fn probe_keyring() -> bool {
+    let Ok(entry) = Entry::new(SERVICE, "_probe") else { return false };
+    if entry.set_password("_v").is_err() {
+        return false;
+    }
+    let _ = entry.delete_credential();
+    true
+}
+
 fn current_backend() -> Backend {
     BACKEND
         .read()
@@ -71,11 +130,10 @@ fn current_backend() -> Backend {
 pub fn get(name: &str) -> Result<Option<String>, String> {
     match current_backend() {
         Backend::Keyring => {
-            let entry =
-                keyring::Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
+            let entry = Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
             match entry.get_password() {
                 Ok(p) => Ok(Some(p)),
-                Err(keyring::Error::NoEntry) => Ok(None),
+                Err(Error::NoEntry) => Ok(None),
                 Err(e) => Err(e.to_string()),
             }
         }
@@ -88,8 +146,7 @@ pub fn get(name: &str) -> Result<Option<String>, String> {
 pub fn set(name: &str, value: &str) -> Result<(), String> {
     match current_backend() {
         Backend::Keyring => {
-            let entry =
-                keyring::Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
+            let entry = Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
             entry.set_password(value).map_err(|e| e.to_string())
         }
         Backend::JsonFallback(path) => {
@@ -103,11 +160,10 @@ pub fn set(name: &str, value: &str) -> Result<(), String> {
 pub fn clear(name: &str) -> Result<(), String> {
     match current_backend() {
         Backend::Keyring => {
-            let entry =
-                keyring::Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
+            let entry = Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
             match entry.delete_credential() {
                 Ok(_) => Ok(()),
-                Err(keyring::Error::NoEntry) => Ok(()),
+                Err(Error::NoEntry) => Ok(()),
                 Err(e) => Err(e.to_string()),
             }
         }

@@ -10,9 +10,15 @@ interface TabLayoutProps {
   preview: ReactNode;
   inspector: ReactNode;
   actions: ReactNode;
+  // When true, the inspector controls are made non-interactive (and
+  // visually dimmed) — used while a wallpaper is being applied so the
+  // user can't mutate the config mid-render. The action buttons disable
+  // themselves separately; the preview stays live so the wallpaper being
+  // applied remains visible.
+  busy?: boolean;
 }
 
-export function TabLayout({ preview, inspector, actions }: TabLayoutProps) {
+export function TabLayout({ preview, inspector, actions, busy }: TabLayoutProps) {
   // Tab titles moved to the window titlebar — see App.tsx. TabLayout
   // no longer renders an h1; it just lays out the preview / inspector
   // / actions grid for whichever tab's mounted.
@@ -22,7 +28,15 @@ export function TabLayout({ preview, inspector, actions }: TabLayoutProps) {
         {preview}
         <div className="preview-actions">{actions}</div>
       </div>
-      <aside className="inspector">{inspector}</aside>
+      {/* `inert` (React 19) blocks all pointer + focus interaction on the
+          subtree; the [inert] CSS adds the dim. */}
+      <aside
+        className="inspector"
+        inert={busy || undefined}
+        aria-busy={busy || undefined}
+      >
+        {inspector}
+      </aside>
     </div>
   );
 }

@@ -161,6 +161,20 @@ function parseHexTriplet(hex: string): string | null {
   return `${(v >> 16) & 0xff} ${(v >> 8) & 0xff} ${v & 0xff}`;
 }
 
+// One IPC round-trip per session, shared by every accent consumer
+// (useSystemAccent writes CSS vars; useSystemAccentColor hands the hex
+// to feature code). The OS accent can only change between launches, so
+// memoizing the in-flight promise is safe and makes good on accent.rs's
+// "cached in the frontend for the session" — previously each hook
+// invoked the command independently.
+let systemAccentPromise: Promise<string | null> | null = null;
+function fetchSystemAccent(): Promise<string | null> {
+  if (!systemAccentPromise) {
+    systemAccentPromise = invoke<string | null>('get_system_accent');
+  }
+  return systemAccentPromise;
+}
+
 // Pulls the OS accent (macOS AppleAccentColor / Windows DWM AccentColor /
 // GNOME accent-color) once at app launch and writes it into TWO CSS
 // custom properties on <html>:
@@ -186,7 +200,7 @@ export function useSystemAccent(): void {
     let cancelled = false;
     (async () => {
       try {
-        const color = await invoke<string | null>('get_system_accent');
+        const color = await fetchSystemAccent();
         if (cancelled) return;
         document.documentElement.dataset.systemAccent = color ?? 'none';
         if (color) {
@@ -211,6 +225,31 @@ export function useSystemAccent(): void {
       cancelled = true;
     };
   }, []);
+}
+
+// Returns the OS accent as a hex string ("#8ed96c"), or null when the
+// platform/DE exposes none. Unlike useSystemAccent (which writes CSS
+// custom properties for the chrome), this hands the raw value back to
+// React so feature code — e.g. the accent-derived "System" palette in
+// Patterns — can compute from it. Resolves once on mount; the accent is
+// read fresh from the OS each launch, which is when it can change.
+export function useSystemAccentColor(): string | null {
+  const [accent, setAccent] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const color = await fetchSystemAccent();
+        if (!cancelled) setAccent(color);
+      } catch {
+        if (!cancelled) setAccent(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return accent;
 }
 
 // ---------------------------------------------------------------------

@@ -40,63 +40,32 @@ const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = 
   },
 ];
 
-const CACHE_KEY = 'ambient-source-preview-cache';
-
-interface PreviewCacheEntry {
-  source: SourceKind;
-  date: string; // YYYY-MM-DD — used to expire NASA APOD daily
-  localPath: string;
-  title?: string;
-}
-
-function todayKey(): string {
-  // Temporal gives the always-correct local date. WebKit on Linux may lag
-  // behind on this proposal, so feature-detect and fall back to a manually
-  // composed local YYYY-MM-DD — `toISOString().slice(0,10)` would silently
-  // UTC-shift the value near midnight.
-  const T = (
-    globalThis as {
-      Temporal?: { Now: { plainDateISO: () => { toString: () => string } } };
-    }
-  ).Temporal;
-  if (T) return T.Now.plainDateISO().toString();
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function loadCache(): PreviewCacheEntry | null {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveCache(entry: PreviewCacheEntry) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(entry));
-  } catch {
-    // localStorage might be full — non-fatal, cache miss next time.
-  }
-}
-
-// A cache entry is reusable if it matches the current source, the file is
-// still in the library (i.e. user didn't delete it), and — for NASA APOD —
-// it's from today (APOD is "one image per day", staleness matters).
-async function reusableCache(
-  entry: PreviewCacheEntry | null,
-  source: SourceKind,
-): Promise<PreviewCacheEntry | null> {
-  if (!entry) return null;
-  if (entry.source !== source) return null;
-  if (source === 'nasa-apod' && entry.date !== todayKey()) return null;
+// Most-recent Library entry matching the current source. The Library is
+// Rust-owned (settings.lastApplied + the prepend-on-fetch pipeline) so
+// "have we already pulled an image for this source?" is just a list
+// scan — no separate localStorage cache needed.
+//
+// NASA APOD freshness: the wire entry's addedAt timestamp is checked
+// against the current local-day boundary. If the most-recent APOD entry
+// is from a previous day, the caller treats it as stale and triggers a
+// fresh fetch (APOD changes daily). For Unsplash / Pexels we always
+// reuse the most recent — search results don't expire.
+async function mostRecentFromSource(source: SourceKind): Promise<Wallpaper | null> {
   const lib = await loadLibrary();
-  const stillThere = lib.some((w) => w.path === entry.localPath);
-  return stillThere ? entry : null;
+  const match = lib.find((w) => w.source === source);
+  if (!match) return null;
+  if (source === 'nasa-apod' && !isFromToday(match.addedAt)) return null;
+  return match;
+}
+
+function isFromToday(ms: number): boolean {
+  const d = new Date(ms);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
 }
 
 export default function Sources() {
@@ -141,16 +110,11 @@ export default function Sources() {
       setSettings(s);
       prevSource.current = s.source;
 
-      const cached = await reusableCache(loadCache(), s.source);
+      const recent = await mostRecentFromSource(s.source);
       if (cancelled) return;
-      if (cached) {
-        setPreviewPath(cached.localPath);
-        setPreviewMeta({
-          path: cached.localPath,
-          source: cached.source,
-          title: cached.title,
-          addedAt: 0,
-        });
+      if (recent) {
+        setPreviewPath(recent.path);
+        setPreviewMeta(recent);
       }
     })();
     return () => {
@@ -179,20 +143,15 @@ export default function Sources() {
     if (prevSource.current === settings.source) return;
     prevSource.current = settings.source;
     void (async () => {
-      const cached = await reusableCache(loadCache(), settings.source);
-      if (cached) {
-        setPreviewPath(cached.localPath);
-        setPreviewMeta({
-          path: cached.localPath,
-          source: cached.source,
-          title: cached.title,
-          addedAt: 0,
-        });
+      const recent = await mostRecentFromSource(settings.source);
+      if (recent) {
+        setPreviewPath(recent.path);
+        setPreviewMeta(recent);
         return;
       }
-      // No cache for the new source. Clear the stale preview from the
-      // previous source so the user isn't staring at a NASA image while
-      // configuring Unsplash.
+      // No prior image for this source. Clear the stale preview from
+      // the previous source so the user isn't staring at a NASA image
+      // while configuring Unsplash.
       if (!canFetch(settings)) {
         setPreviewPath(null);
         setPreviewMeta(null);
@@ -267,17 +226,13 @@ export default function Sources() {
     setError(null);
     setStatus('Fetching from source…');
     try {
-      // Rust does the source-API call, download, and library prepend in
-      // a single command — no JS-side two-step anymore.
+      // Rust does the source-API call, download, and library prepend
+      // in a single command — no JS-side two-step anymore, and no
+      // separate localStorage cache: the library entry IS the cache,
+      // surfaced via mostRecentFromSource() on next mount / source flip.
       const entry = await fetchSourceWallpaper();
       setPreviewPath(entry.path);
       setPreviewMeta(entry);
-      saveCache({
-        source: entry.source as SourceKind,
-        date: todayKey(),
-        localPath: entry.path,
-        title: entry.title,
-      });
 
       if (apply) {
         setStatus('Setting wallpaper…');

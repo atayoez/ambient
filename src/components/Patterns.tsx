@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSystemAccentColor } from '../lib/appHooks';
 import { useDraftState, useKeydown, usePersistedState } from '../lib/hooks';
 import {
+  accentPreset,
   COLOR_PRESETS,
+  type ColorPreset,
+  type CustomPreset,
+  customToColorPreset,
   DEFAULT_CONFIG,
   getPreset,
   PATTERN_TYPES,
@@ -9,10 +14,19 @@ import {
   type PatternType,
   renderPreview,
   SLIDER_RANGES,
+  SYSTEM_PRESET_ID,
   TYPE_DEFAULTS,
 } from '../lib/patterns';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
-import { AutoThemeIcon, CheckIcon, MoonIcon, ShuffleIcon, SunIcon } from './Icons';
+import {
+  AutoThemeIcon,
+  CheckIcon,
+  MoonIcon,
+  PlusIcon,
+  ShuffleIcon,
+  SunIcon,
+  XIcon,
+} from './Icons';
 import {
   ControlRow,
   InspectorSection,
@@ -65,6 +79,53 @@ export default function Patterns() {
   const [config, setConfig, saveConfig] = useDraftState<PatternConfig>(
     'patterns.config',
     pickInitialConfig(isDarkForMode('auto', systemDark)),
+  );
+
+  // OS accent → a live "System" palette prepended to the picker. Only
+  // present when the platform exposes an accent (macOS/Windows always;
+  // KDE/GNOME when configured) — otherwise the row is just the user's
+  // custom palettes plus the seven curated themes.
+  const accentHex = useSystemAccentColor();
+  const systemPreset = useMemo<ColorPreset | null>(
+    () => (accentHex ? accentPreset(accentHex) : null),
+    [accentHex],
+  );
+
+  // User-saved palettes (colors + emojis), persisted under their own
+  // store key so they outlive the draft config. Created via "Save
+  // palette"; each is deletable from the picker.
+  const [customPresets, setCustomPresets] = usePersistedState<CustomPreset[]>(
+    'patterns.customPresets',
+    [],
+  );
+
+  // Resolve a colorPresetId across all three sources: the live accent
+  // preset, the user's custom palettes, then the curated built-ins.
+  // Returns undefined when the id maps to nothing anymore (accent gone,
+  // custom deleted) — callers treat that as "demote to a free palette".
+  const resolvePreset = useCallback(
+    (id: string | undefined): ColorPreset | undefined => {
+      if (!id) return undefined;
+      if (id === SYSTEM_PRESET_ID) return systemPreset ?? undefined;
+      const custom = customPresets.find((p) => p.id === id);
+      if (custom) return customToColorPreset(custom);
+      return getPreset(id);
+    },
+    [systemPreset, customPresets],
+  );
+
+  // Picker order: system accent (when present) → custom palettes
+  // (deletable) → curated set. `removable` drives the delete affordance.
+  const displayPresets = useMemo(
+    () => [
+      ...(systemPreset ? [{ preset: systemPreset, removable: false }] : []),
+      ...customPresets.map((c) => ({
+        preset: customToColorPreset(c),
+        removable: true,
+      })),
+      ...COLOR_PRESETS.map((p) => ({ preset: p, removable: false })),
+    ],
+    [systemPreset, customPresets],
   );
 
   // Apply pipeline (busy/status/error + the render-save-set flow).
@@ -150,9 +211,15 @@ export default function Patterns() {
   useEffect(() => {
     setConfig((c) => {
       if (!c.colorPresetId) return c;
-      return { ...c, colors: paletteFor(effectiveDark, c.colorPresetId) };
+      const preset = resolvePreset(c.colorPresetId);
+      // Active preset vanished (accent removed between launches, or a
+      // custom palette deleted) → keep the current colors but drop the
+      // dangling id, so it becomes a free palette instead of snapping
+      // to a curated default on the next theme flip.
+      if (!preset) return { ...c, colorPresetId: undefined };
+      return { ...c, colors: [...(effectiveDark ? preset.dark : preset.light)] };
     });
-  }, [effectiveDark, setConfig]);
+  }, [effectiveDark, resolvePreset, setConfig]);
 
   function patch(p: Partial<PatternConfig>) {
     setConfig((c) => ({ ...c, ...p }));
@@ -192,13 +259,50 @@ export default function Patterns() {
     });
   }
 
+  // Emoji edits mark the palette custom too (matching the color-edit
+  // handlers), so the theme swap leaves it alone and "Save palette"
+  // lights up — a glyph tweak is as much a customization as a hue tweak.
   function removeEmoji(i: number) {
     if (config.emojis.length <= 1) return;
-    patch({ emojis: config.emojis.filter((_, idx) => idx !== i) });
+    patch({
+      emojis: config.emojis.filter((_, idx) => idx !== i),
+      colorPresetId: undefined,
+    });
   }
 
   function addEmoji(emoji: string) {
-    patch({ emojis: [...config.emojis, emoji] });
+    patch({ emojis: [...config.emojis, emoji], colorPresetId: undefined });
+  }
+
+  function replaceEmoji(i: number, emoji: string) {
+    patch({
+      emojis: config.emojis.map((x, idx) => (idx === i ? emoji : x)),
+      colorPresetId: undefined,
+    });
+  }
+
+  // Capture the current colors + emojis as a named, reusable palette.
+  // Auto-named "Custom N" with N skipping any in-use number so deletes
+  // don't produce duplicate labels. The new palette becomes active.
+  function savePalette() {
+    const used = new Set(customPresets.map((p) => p.name));
+    let n = customPresets.length + 1;
+    while (used.has(`Custom ${n}`)) n++;
+    const preset: CustomPreset = {
+      id: `custom-${crypto.randomUUID()}`,
+      name: `Custom ${n}`,
+      colors: [...config.colors],
+      emojis: [...config.emojis],
+    };
+    setCustomPresets((list) => [...list, preset]);
+    patch({ colorPresetId: preset.id });
+  }
+
+  function deleteCustomPreset(id: string) {
+    setCustomPresets((list) => list.filter((p) => p.id !== id));
+    // If the deleted palette was active, drop the dangling id but keep
+    // its colors on screen (now a free palette).
+    setConfig((c) => (c.colorPresetId === id ? { ...c, colorPresetId: undefined } : c));
   }
 
   // Selecting a preset sets BOTH the colors (light or dark variant for
@@ -207,7 +311,7 @@ export default function Patterns() {
   // emoji string after picking a preset will see those overwritten —
   // explicit re-pick = explicit reset.
   function applyPreset(id: string) {
-    const preset = getPreset(id);
+    const preset = resolvePreset(id);
     if (!preset) return;
     patch({
       colorPresetId: id,
@@ -229,6 +333,7 @@ export default function Patterns() {
   return (
     <div className="patterns">
       <TabLayout
+        busy={busy}
         preview={
           // Inlined .preview-wrap so we can put a ref on the element
           // and measure it for the renderPreview call. Other tabs
@@ -260,23 +365,38 @@ export default function Patterns() {
                 ariaLabel="Theme mode"
               />
               <div className="presets-row">
-                {COLOR_PRESETS.map((preset) => (
-                  <button
+                {displayPresets.map(({ preset, removable }) => (
+                  <div
                     key={preset.id}
-                    type="button"
-                    onClick={() => applyPreset(preset.id)}
-                    className={
-                      config.colorPresetId === preset.id
-                        ? 'preset-btn active'
-                        : 'preset-btn'
-                    }
-                    title={`${preset.name} — ${preset.emojis.slice(0, 3).join(' ')}`}
+                    className={removable ? 'preset-chip removable' : 'preset-chip'}
                   >
-                    <span className="preset-emoji" aria-hidden="true">
-                      {preset.emojis[0]}
-                    </span>
-                    <span>{preset.name}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset(preset.id)}
+                      className={
+                        config.colorPresetId === preset.id
+                          ? 'preset-btn active'
+                          : 'preset-btn'
+                      }
+                      title={`${preset.name} — ${preset.emojis.slice(0, 3).join(' ')}`}
+                    >
+                      <span className="preset-emoji" aria-hidden="true">
+                        {preset.emojis[0]}
+                      </span>
+                      <span>{preset.name}</span>
+                    </button>
+                    {removable && (
+                      <button
+                        type="button"
+                        className="preset-del"
+                        onClick={() => deleteCustomPreset(preset.id)}
+                        aria-label={`Delete ${preset.name} palette`}
+                        title="Delete palette"
+                      >
+                        <XIcon size={10} />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
               <PaletteEditor
@@ -287,8 +407,23 @@ export default function Patterns() {
                 onAddColor={addColor}
                 onRemoveColor={removeColor}
                 onAddEmoji={addEmoji}
+                onReplaceEmoji={replaceEmoji}
                 onRemoveEmoji={removeEmoji}
               />
+              <button
+                type="button"
+                className="save-palette"
+                onClick={savePalette}
+                disabled={config.colorPresetId !== undefined}
+                title={
+                  config.colorPresetId !== undefined
+                    ? 'Edit the colors or emojis to save them as a custom palette'
+                    : 'Save the current colors + emojis as a reusable palette'
+                }
+              >
+                <PlusIcon size={12} />
+                <span>Save palette</span>
+              </button>
             </InspectorSection>
 
             <InspectorSection title="Form">

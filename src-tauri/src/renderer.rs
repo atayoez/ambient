@@ -196,8 +196,13 @@ fn render_mesh(pix: &mut Pixmap, cfg: &PatternConfig) {
             GradientStop::new(0.5, hex_to_color(color_str, alpha * 0.4)),
             GradientStop::new(1.0, hex_to_color(color_str, 0.0)),
         ];
+        // tiny-skia 0.12 widened RadialGradient::new to the focal form
+        // (focal_point, focal_radius, end_point, end_radius). For our
+        // simple radial we keep focal_point == end_point and
+        // focal_radius == 0 — same visual as the old 6-arg signature.
         let shader = match RadialGradient::new(
             Point::from_xy(cx, cy),
+            0.0,
             Point::from_xy(cx, cy),
             radius,
             stops,
@@ -260,7 +265,18 @@ fn render_geometric(pix: &mut Pixmap, cfg: &PatternConfig) {
     }
     let scale = w_f.max(h_f) / 1920.0;
     let base_size = cfg.size * scale;
-    let count = (cfg.density * scale * scale).round() as u32;
+    // Shape COUNT must be resolution-independent so the preview (rendered
+    // at the small wrapper size) shows the exact same number of shapes as
+    // the applied wallpaper (rendered at monitor resolution). `density` is
+    // the shape count directly; `base_size` already scales with the canvas
+    // so each shape keeps its relative size, and the shared seed places
+    // them at the same relative positions — making the preview a faithful
+    // miniature of the wallpaper. (Previously count was `density * scale²`,
+    // i.e. proportional to pixel area, so a 4K wallpaper drew ~4× the
+    // shapes of its 1080p-sized preview — the "preview has way fewer
+    // shapes" inconsistency. The other pattern types scale their spacing
+    // with the canvas, so their counts were already resolution-independent.)
+    let count = cfg.density.round().max(0.0) as u32;
     let shape_filter = cfg.geometric_shape.unwrap_or(GeometricShape::Mix);
     let fill_mode = cfg.geometric_fill.unwrap_or(GeometricFill::Solid);
 
@@ -555,10 +571,10 @@ fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
         cfg.emoji_rotation_max.unwrap_or(34.0) * std::f32::consts::PI / 180.0;
     let size_var = cfg.emoji_size_var.unwrap_or(0.75);
 
-    // Pre-decode all emoji pixmaps. Sync — caller (apply_pattern /
-    // preview handler) ran `emojis::preload` first so misses here just
-    // mean "not bundled and CDN unreachable" — render blank for that
-    // glyph slot rather than fail the whole tile.
+    // Pre-decode all emoji pixmaps from the bundled set (memoized in
+    // emojis::load). A miss means the glyph wasn't bundled — render a
+    // blank slot for it rather than failing the whole tile. The
+    // every_ui_emoji_is_bundled test ensures UI emojis never miss.
     let pixmaps: Vec<Option<Pixmap>> = emojis
         .iter()
         .map(|e| {
@@ -687,13 +703,6 @@ pub async fn render_preview(
     width: u32,
     height: u32,
 ) -> Result<String, String> {
-    // Only pay the emoji preload cost when the pattern actually uses
-    // them — mesh / dots / stripes / geometric never touch the emoji
-    // map and were eating 50-100ms of first-render budget on the
-    // default cosmic preset for nothing.
-    if matches!(config.pattern_type, PatternType::Emoji) {
-        crate::emojis::preload(&config.emojis).await;
-    }
     let w = width.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_W);
     let h = height.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_H);
 
@@ -725,10 +734,6 @@ pub async fn apply_pattern(
     config: PatternConfig,
     app: AppHandle,
 ) -> Result<Wallpaper, String> {
-    if matches!(config.pattern_type, PatternType::Emoji) {
-        crate::emojis::preload(&config.emojis).await;
-    }
-
     let (w, h) = match get_primary_monitor_pixels() {
         Ok(info) => (info.width, info.height),
         Err(_) => (1920, 1080),
@@ -747,11 +752,25 @@ pub async fn apply_pattern(
     .await
     .map_err(|e| e.to_string())?;
 
-    let stem = format!(
-        "pattern-{}-{}",
-        pattern_type_slug(config.pattern_type),
-        config.seed
-    );
+    // Content-addressed filename: hash the whole config, not just the
+    // seed. Two renders that differ only in shape count / size / shape
+    // type / colors (same seed) used to collide on `pattern-<type>-<seed>`
+    // and overwrite each other — and because KDE's
+    // plasma-apply-wallpaperimage caches by path, re-applying the same
+    // path silently kept showing the old image ("Apply does nothing after
+    // editing shapes"). Keying on the full config gives every distinct
+    // wallpaper its own path (so the compositor reloads), while identical
+    // re-applies still resolve to one file (so we don't litter duplicates).
+    let stem = {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        format!("{config:?}").hash(&mut hasher);
+        format!(
+            "pattern-{}-{:016x}",
+            pattern_type_slug(config.pattern_type),
+            hasher.finish()
+        )
+    };
     // Always write the 16-bit PNG — it's the universal fallback that
     // every OS image-decoder handles and what the Library tab + thumb
     // cache point at. We then try to also write an AVIF HDR sibling;

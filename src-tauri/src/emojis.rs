@@ -1,24 +1,29 @@
-// Bundled Fluent 3D emoji assets + on-demand CDN fallback. The
-// curated set of ~40 wallpaper-friendly emojis ships inside the binary
-// via include_bytes!, so Pattern apply works with zero network access
-// for the common case. Anything outside the curated map falls back to
-// emojicdn.elk.sh, persisted under app_data/emoji_cache/<key>.png so
-// repeat encounters of the same custom emoji don't re-hit the network.
+// Bundled Fluent 3D emoji assets. The full set of emojis the UI can
+// produce — every COLOR_PRESET, the System accent preset, and every
+// glyph in the EmojiPicker grid — ships inside the binary via
+// include_bytes!, so emoji rendering is fully offline with no network
+// dependency. There is no free-text emoji entry, so the bundle is the
+// complete universe of inputs; an unbundled key simply doesn't render.
+//
+// (Earlier builds fell back to emojicdn.elk.sh for unbundled glyphs,
+// but that endpoint dropped its `microsoft` style — so the fallback
+// both stopped working and became unreachable once the bundle went
+// complete. It was removed rather than left as dead code.)
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
 
 use image::DynamicImage;
 
-const CDN_TIMEOUT_SECS: u64 = 10;
-
-// 84 curated Fluent 3D emoji PNGs, ~22-40KB each, all 256×256 RGBA.
-// Total binary impact: ~2.9 MB. Covers every emoji used by the seven
-// COLOR_PRESETS in src/lib/patterns.ts so picking a preset never
-// drops the user into the CDN fallback path. Keys are unicode
-// codepoints (lowercase hex, joined by underscore for ZWJ sequences);
-// matches the JS codepointKey() logic the renderer originally used.
+// 153 curated Fluent 3D emoji PNGs, all 256×256 RGBA. Covers every
+// emoji reachable from the UI — the seven COLOR_PRESETS, the System
+// accent preset, and every glyph in the EmojiPicker grid — so neither
+// picking a preset nor choosing from the picker ever drops the user
+// into the (now defunct) CDN fallback path. Keys are unicode codepoints
+// (lowercase hex, joined by underscore for ZWJ sequences); matches the
+// JS codepointKey() logic the renderer originally used. The non-bundled
+// additions were sourced as Microsoft Fluent 3D artwork via
+// @lobehub/fluent-emoji-3d (codepoint-indexed) and re-encoded to PNG.
 //
 // 1f9d9 (🧙 Mage) doesn't have a gender-neutral 3D asset in the
 // fluentui-emoji repo — Microsoft only ships the gendered
@@ -30,6 +35,9 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
     m.insert("1f308", include_bytes!("../assets/emojis/1f308.png"));
     m.insert("1f30a", include_bytes!("../assets/emojis/1f30a.png"));
     m.insert("1f30c", include_bytes!("../assets/emojis/1f30c.png"));
+    m.insert("1f30d", include_bytes!("../assets/emojis/1f30d.png"));
+    m.insert("1f30e", include_bytes!("../assets/emojis/1f30e.png"));
+    m.insert("1f30f", include_bytes!("../assets/emojis/1f30f.png"));
     m.insert("1f311", include_bytes!("../assets/emojis/1f311.png"));
     m.insert("1f312", include_bytes!("../assets/emojis/1f312.png"));
     m.insert("1f313", include_bytes!("../assets/emojis/1f313.png"));
@@ -39,10 +47,13 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
     m.insert("1f317", include_bytes!("../assets/emojis/1f317.png"));
     m.insert("1f318", include_bytes!("../assets/emojis/1f318.png"));
     m.insert("1f319", include_bytes!("../assets/emojis/1f319.png"));
+    m.insert("1f31b", include_bytes!("../assets/emojis/1f31b.png"));
+    m.insert("1f31c", include_bytes!("../assets/emojis/1f31c.png"));
     m.insert("1f31e", include_bytes!("../assets/emojis/1f31e.png"));
     m.insert("1f31f", include_bytes!("../assets/emojis/1f31f.png"));
     m.insert("1f320", include_bytes!("../assets/emojis/1f320.png"));
     m.insert("1f331", include_bytes!("../assets/emojis/1f331.png"));
+    m.insert("1f332", include_bytes!("../assets/emojis/1f332.png"));
     m.insert("1f333", include_bytes!("../assets/emojis/1f333.png"));
     m.insert("1f334", include_bytes!("../assets/emojis/1f334.png"));
     m.insert("1f335", include_bytes!("../assets/emojis/1f335.png"));
@@ -54,13 +65,28 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
     m.insert("1f33c", include_bytes!("../assets/emojis/1f33c.png"));
     m.insert("1f33e", include_bytes!("../assets/emojis/1f33e.png"));
     m.insert("1f33f", include_bytes!("../assets/emojis/1f33f.png"));
+    m.insert("1f340", include_bytes!("../assets/emojis/1f340.png"));
+    m.insert("1f341", include_bytes!("../assets/emojis/1f341.png"));
+    m.insert("1f342", include_bytes!("../assets/emojis/1f342.png"));
     m.insert("1f343", include_bytes!("../assets/emojis/1f343.png"));
     m.insert("1f344", include_bytes!("../assets/emojis/1f344.png"));
+    m.insert("1f347", include_bytes!("../assets/emojis/1f347.png"));
+    m.insert("1f349", include_bytes!("../assets/emojis/1f349.png"));
+    m.insert("1f34c", include_bytes!("../assets/emojis/1f34c.png"));
+    m.insert("1f34e", include_bytes!("../assets/emojis/1f34e.png"));
     m.insert("1f351", include_bytes!("../assets/emojis/1f351.png"));
     m.insert("1f352", include_bytes!("../assets/emojis/1f352.png"));
     m.insert("1f353", include_bytes!("../assets/emojis/1f353.png"));
+    m.insert("1f354", include_bytes!("../assets/emojis/1f354.png"));
+    m.insert("1f355", include_bytes!("../assets/emojis/1f355.png"));
+    m.insert("1f35f", include_bytes!("../assets/emojis/1f35f.png"));
     m.insert("1f361", include_bytes!("../assets/emojis/1f361.png"));
+    m.insert("1f369", include_bytes!("../assets/emojis/1f369.png"));
+    m.insert("1f36a", include_bytes!("../assets/emojis/1f36a.png"));
+    m.insert("1f36b", include_bytes!("../assets/emojis/1f36b.png"));
     m.insert("1f36c", include_bytes!("../assets/emojis/1f36c.png"));
+    m.insert("1f370", include_bytes!("../assets/emojis/1f370.png"));
+    m.insert("1f37f", include_bytes!("../assets/emojis/1f37f.png"));
     m.insert("1f380", include_bytes!("../assets/emojis/1f380.png"));
     m.insert("1f381", include_bytes!("../assets/emojis/1f381.png"));
     m.insert("1f382", include_bytes!("../assets/emojis/1f382.png"));
@@ -68,31 +94,75 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
     m.insert("1f388", include_bytes!("../assets/emojis/1f388.png"));
     m.insert("1f389", include_bytes!("../assets/emojis/1f389.png"));
     m.insert("1f38a", include_bytes!("../assets/emojis/1f38a.png"));
+    m.insert("1f3a8", include_bytes!("../assets/emojis/1f3a8.png"));
+    m.insert("1f3ae", include_bytes!("../assets/emojis/1f3ae.png"));
+    m.insert("1f3b5", include_bytes!("../assets/emojis/1f3b5.png"));
+    m.insert("1f3b6", include_bytes!("../assets/emojis/1f3b6.png"));
+    m.insert("1f3b8", include_bytes!("../assets/emojis/1f3b8.png"));
     m.insert("1f3dd", include_bytes!("../assets/emojis/1f3dd.png"));
     m.insert("1f419", include_bytes!("../assets/emojis/1f419.png"));
     m.insert("1f41a", include_bytes!("../assets/emojis/1f41a.png"));
     m.insert("1f41d", include_bytes!("../assets/emojis/1f41d.png"));
+    m.insert("1f41e", include_bytes!("../assets/emojis/1f41e.png"));
     m.insert("1f420", include_bytes!("../assets/emojis/1f420.png"));
     m.insert("1f421", include_bytes!("../assets/emojis/1f421.png"));
+    m.insert("1f422", include_bytes!("../assets/emojis/1f422.png"));
+    m.insert("1f42c", include_bytes!("../assets/emojis/1f42c.png"));
+    m.insert("1f42f", include_bytes!("../assets/emojis/1f42f.png"));
     m.insert("1f430", include_bytes!("../assets/emojis/1f430.png"));
+    m.insert("1f431", include_bytes!("../assets/emojis/1f431.png"));
     m.insert("1f433", include_bytes!("../assets/emojis/1f433.png"));
+    m.insert("1f436", include_bytes!("../assets/emojis/1f436.png"));
+    m.insert("1f438", include_bytes!("../assets/emojis/1f438.png"));
+    m.insert("1f43b", include_bytes!("../assets/emojis/1f43b.png"));
+    m.insert("1f43c", include_bytes!("../assets/emojis/1f43c.png"));
     m.insert("1f47b", include_bytes!("../assets/emojis/1f47b.png"));
     m.insert("1f480", include_bytes!("../assets/emojis/1f480.png"));
     m.insert("1f48e", include_bytes!("../assets/emojis/1f48e.png"));
+    m.insert("1f490", include_bytes!("../assets/emojis/1f490.png"));
     m.insert("1f499", include_bytes!("../assets/emojis/1f499.png"));
     m.insert("1f49a", include_bytes!("../assets/emojis/1f49a.png"));
     m.insert("1f49b", include_bytes!("../assets/emojis/1f49b.png"));
     m.insert("1f49c", include_bytes!("../assets/emojis/1f49c.png"));
+    m.insert("1f4a0", include_bytes!("../assets/emojis/1f4a0.png"));
+    m.insert("1f4a7", include_bytes!("../assets/emojis/1f4a7.png"));
     m.insert("1f4ab", include_bytes!("../assets/emojis/1f4ab.png"));
+    m.insert("1f518", include_bytes!("../assets/emojis/1f518.png"));
     m.insert("1f525", include_bytes!("../assets/emojis/1f525.png"));
+    m.insert("1f52e", include_bytes!("../assets/emojis/1f52e.png"));
+    m.insert("1f535", include_bytes!("../assets/emojis/1f535.png"));
+    m.insert("1f537", include_bytes!("../assets/emojis/1f537.png"));
+    m.insert("1f539", include_bytes!("../assets/emojis/1f539.png"));
+    m.insert("1f53a", include_bytes!("../assets/emojis/1f53a.png"));
     m.insert("1f577", include_bytes!("../assets/emojis/1f577.png"));
     m.insert("1f578", include_bytes!("../assets/emojis/1f578.png"));
+    m.insert("1f600", include_bytes!("../assets/emojis/1f600.png"));
+    m.insert("1f607", include_bytes!("../assets/emojis/1f607.png"));
+    m.insert("1f60a", include_bytes!("../assets/emojis/1f60a.png"));
+    m.insert("1f60b", include_bytes!("../assets/emojis/1f60b.png"));
+    m.insert("1f60d", include_bytes!("../assets/emojis/1f60d.png"));
+    m.insert("1f60e", include_bytes!("../assets/emojis/1f60e.png"));
+    m.insert("1f61c", include_bytes!("../assets/emojis/1f61c.png"));
+    m.insert("1f62a", include_bytes!("../assets/emojis/1f62a.png"));
+    m.insert("1f634", include_bytes!("../assets/emojis/1f634.png"));
+    m.insert("1f7e6", include_bytes!("../assets/emojis/1f7e6.png"));
+    m.insert("1f914", include_bytes!("../assets/emojis/1f914.png"));
+    m.insert("1f917", include_bytes!("../assets/emojis/1f917.png"));
+    m.insert("1f924", include_bytes!("../assets/emojis/1f924.png"));
+    m.insert("1f929", include_bytes!("../assets/emojis/1f929.png"));
+    m.insert("1f92a", include_bytes!("../assets/emojis/1f92a.png"));
+    m.insert("1f970", include_bytes!("../assets/emojis/1f970.png"));
+    m.insert("1f97a", include_bytes!("../assets/emojis/1f97a.png"));
     m.insert("1f980", include_bytes!("../assets/emojis/1f980.png"));
+    m.insert("1f981", include_bytes!("../assets/emojis/1f981.png"));
     m.insert("1f984", include_bytes!("../assets/emojis/1f984.png"));
     m.insert("1f987", include_bytes!("../assets/emojis/1f987.png"));
     m.insert("1f988", include_bytes!("../assets/emojis/1f988.png"));
+    m.insert("1f98a", include_bytes!("../assets/emojis/1f98a.png"));
     m.insert("1f98b", include_bytes!("../assets/emojis/1f98b.png"));
+    m.insert("1f993", include_bytes!("../assets/emojis/1f993.png"));
     m.insert("1f9a9", include_bytes!("../assets/emojis/1f9a9.png"));
+    m.insert("1f9c1", include_bytes!("../assets/emojis/1f9c1.png"));
     m.insert("1f9d9", include_bytes!("../assets/emojis/1f9d9.png"));
     m.insert("1f9e1", include_bytes!("../assets/emojis/1f9e1.png"));
     m.insert("1f9f8", include_bytes!("../assets/emojis/1f9f8.png"));
@@ -103,11 +173,15 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
     m.insert("2600", include_bytes!("../assets/emojis/2600.png"));
     m.insert("2601", include_bytes!("../assets/emojis/2601.png"));
     m.insert("2604", include_bytes!("../assets/emojis/2604.png"));
+    m.insert("2618", include_bytes!("../assets/emojis/2618.png"));
     m.insert("26a1", include_bytes!("../assets/emojis/26a1.png"));
     m.insert("26b0", include_bytes!("../assets/emojis/26b0.png"));
     m.insert("26f5", include_bytes!("../assets/emojis/26f5.png"));
     m.insert("2728", include_bytes!("../assets/emojis/2728.png"));
+    m.insert("2744", include_bytes!("../assets/emojis/2744.png"));
     m.insert("2764", include_bytes!("../assets/emojis/2764.png"));
+    m.insert("2b1b", include_bytes!("../assets/emojis/2b1b.png"));
+    m.insert("2b1c", include_bytes!("../assets/emojis/2b1c.png"));
     m.insert("2b50", include_bytes!("../assets/emojis/2b50.png"));
     m
 });
@@ -117,20 +191,10 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
 static DECODED: LazyLock<RwLock<HashMap<String, DynamicImage>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
-// CDN cache directory — populated lazily on first miss. Set during
-// app setup via init().
-static CACHE_DIR: LazyLock<RwLock<Option<PathBuf>>> =
-    LazyLock::new(|| RwLock::new(None));
-
-pub fn init(app_data_dir: &Path) {
-    *CACHE_DIR.write().expect("emoji cache dir lock") =
-        Some(app_data_dir.join("emoji_cache"));
-}
-
 /// Convert an emoji cluster (single emoji char or ZWJ sequence) to the
-/// codepoint key used by both the bundled HashMap and the CDN cache
-/// filename. Mirrors JS `codepointKey` in pre-Phase-5 patterns.ts —
-/// strips VS16 (U+FE0F) and joins remaining codepoints with `_`.
+/// codepoint key used by the bundled HashMap. Mirrors JS `codepointKey`
+/// in pre-Phase-5 patterns.ts — strips VS16 (U+FE0F) and joins remaining
+/// codepoints with `_`.
 pub fn codepoint_key(emoji: &str) -> String {
     emoji
         .chars()
@@ -140,10 +204,11 @@ pub fn codepoint_key(emoji: &str) -> String {
         .join("_")
 }
 
-/// Try to load a decoded emoji image WITHOUT network access. Returns
-/// None if the emoji isn't bundled and hasn't been cached on disk by
-/// a prior preload. Renderer uses this — fully sync, safe to call
-/// from inside spawn_blocking.
+/// Decode a bundled emoji image (memoized). Returns None for a key not
+/// in the bundle — which, given there's no free-text emoji entry, only
+/// happens if a UI emoji was added without bundling its asset (the
+/// `every_ui_emoji_is_bundled` test guards against that). Fully sync,
+/// safe to call from inside spawn_blocking.
 pub fn load(emoji: &str) -> Option<DynamicImage> {
     let key = codepoint_key(emoji);
     if key.is_empty() {
@@ -154,74 +219,13 @@ pub fn load(emoji: &str) -> Option<DynamicImage> {
         return Some(img);
     }
 
-    if let Some(&bytes) = BUNDLED.get(key.as_str()) {
-        let img = image::load_from_memory(bytes).ok()?;
-        DECODED
-            .write()
-            .expect("decoded lock")
-            .insert(key.clone(), img.clone());
-        return Some(img);
-    }
-
-    if let Some(path) = cdn_cache_path(&key) {
-        if let Ok(img) = image::open(&path) {
-            DECODED
-                .write()
-                .expect("decoded lock")
-                .insert(key.clone(), img.clone());
-            return Some(img);
-        }
-    }
-
-    None
-}
-
-/// Async preload — for every emoji in the input that isn't already
-/// loadable via `load()`, fetch from emojicdn.elk.sh and persist into
-/// app_data/emoji_cache/. Call this in apply_pattern / before
-/// rendering preview so the subsequent sync renderer hits cache. Best-
-/// effort: individual CDN failures are silently ignored (the emoji
-/// just won't render at all for that glyph).
-pub async fn preload(emojis: &[String]) {
-    let needed: Vec<String> = emojis
-        .iter()
-        .filter(|e| load(e).is_none())
-        .cloned()
-        .collect();
-    if needed.is_empty() {
-        return;
-    }
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(CDN_TIMEOUT_SECS))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return,
-    };
-    for emoji in needed {
-        let _ = fetch_and_cache(&emoji, &client).await;
-    }
-}
-
-async fn fetch_and_cache(emoji: &str, client: &reqwest::Client) -> Option<()> {
-    let key = codepoint_key(emoji);
-    let url = format!(
-        "https://emojicdn.elk.sh/{}?style=microsoft",
-        urlencoding::encode(emoji)
-    );
-    let bytes = client.get(&url).send().await.ok()?.bytes().await.ok()?;
-    let img = image::load_from_memory(&bytes).ok()?;
-    if let Some(path) = cdn_cache_path(&key) {
-        let _ = img.save(&path);
-    }
-    DECODED.write().ok()?.insert(key, img);
-    Some(())
-}
-
-fn cdn_cache_path(key: &str) -> Option<PathBuf> {
-    let dir = CACHE_DIR.read().expect("cache dir lock").clone()?;
-    let _ = std::fs::create_dir_all(&dir);
-    Some(dir.join(format!("{}.png", key)))
+    let &bytes = BUNDLED.get(key.as_str())?;
+    let img = image::load_from_memory(bytes).ok()?;
+    DECODED
+        .write()
+        .expect("decoded lock")
+        .insert(key, img.clone());
+    Some(img)
 }
 
 #[cfg(test)]
@@ -258,5 +262,42 @@ mod tests {
         let img = load("✨").expect("sparkles should load");
         // Fluent 3D PNGs are 256x256
         assert!(img.width() > 0 && img.height() > 0);
+    }
+
+    // Every emoji the UI can produce must be bundled, since there's no
+    // network fallback. This list is the union of EmojiPicker's grid and
+    // the COLOR_PRESETS / System-accent emojis in patterns.ts (codepoint
+    // keys, VS16 stripped). If you add an emoji to the picker or a
+    // preset, add its asset under assets/emojis/<key>.png + an insert in
+    // BUNDLED, then extend this list — otherwise it silently won't render
+    // (the regression this guards: 🐸/🐢 were offered but never bundled).
+    #[test]
+    fn every_ui_emoji_is_bundled() {
+        const UI_KEYS: &[&str] = &[
+            "1f305", "1f307", "1f308", "1f30a", "1f30c", "1f30d", "1f30e", "1f30f",
+            "1f311", "1f312", "1f313", "1f314", "1f315", "1f316", "1f317", "1f318",
+            "1f319", "1f31b", "1f31c", "1f31e", "1f31f", "1f320", "1f331", "1f332",
+            "1f333", "1f334", "1f335", "1f337", "1f338", "1f339", "1f33a", "1f33b",
+            "1f33c", "1f33e", "1f33f", "1f340", "1f341", "1f342", "1f343", "1f344",
+            "1f347", "1f349", "1f34c", "1f34e", "1f351", "1f352", "1f353", "1f354",
+            "1f355", "1f35f", "1f361", "1f369", "1f36a", "1f36b", "1f36c", "1f370",
+            "1f37f", "1f380", "1f381", "1f383", "1f388", "1f389", "1f3a8", "1f3ae",
+            "1f3b5", "1f3b6", "1f3b8", "1f3dd", "1f419", "1f41a", "1f41d", "1f41e",
+            "1f420", "1f421", "1f422", "1f42c", "1f42f", "1f430", "1f431", "1f433",
+            "1f436", "1f438", "1f43b", "1f43c", "1f47b", "1f480", "1f48e", "1f490",
+            "1f4a0", "1f4a7", "1f4ab", "1f518", "1f525", "1f52e", "1f535", "1f537",
+            "1f539", "1f53a", "1f577", "1f578", "1f600", "1f607", "1f60a", "1f60b",
+            "1f60d", "1f60e", "1f61c", "1f62a", "1f634", "1f7e6", "1f914", "1f917",
+            "1f924", "1f929", "1f92a", "1f970", "1f97a", "1f980", "1f981", "1f984",
+            "1f987", "1f988", "1f98a", "1f98b", "1f993", "1f9a9", "1f9c1", "1f9d9",
+            "1f9f8", "1fa70", "1fa84", "1fa90", "1fab8", "2600", "2604", "2618",
+            "26a1", "26b0", "26f5", "2728", "2744", "2b1b", "2b1c", "2b50",
+        ];
+        let missing: Vec<&str> = UI_KEYS
+            .iter()
+            .copied()
+            .filter(|k| !BUNDLED.contains_key(k))
+            .collect();
+        assert!(missing.is_empty(), "UI emojis missing from bundle: {missing:?}");
     }
 }

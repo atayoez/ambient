@@ -122,12 +122,50 @@ mod tests {
 mod linux {
     use std::process::Command;
 
+    // Try KDE first (kdeglobals), then GNOME (gsettings). On a Plasma
+    // session the KDE value is authoritative even when gsettings also
+    // reports something. Other DEs (XFCE, …) have no unified accent
+    // concept → None, leaving the achromatic default in place.
+    pub fn accent() -> Option<String> {
+        kde().or_else(gnome)
+    }
+
+    // KDE Plasma stores the accent under `[General] AccentColor=R,G,B`
+    // (decimal 0–255) in kdeglobals. The key is present even when
+    // `accentColorFromWallpaper=true` — Plasma writes the resolved RGB
+    // there. Absent on default Breeze (no custom accent), in which case
+    // we fall through to GNOME / None.
+    fn kde() -> Option<String> {
+        let dir = std::env::var_os("XDG_CONFIG_HOME")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
+            })?;
+        let text = std::fs::read_to_string(dir.join("kdeglobals")).ok()?;
+        let mut in_general = false;
+        for line in text.lines() {
+            let line = line.trim();
+            if line.starts_with('[') {
+                in_general = line == "[General]";
+                continue;
+            }
+            if in_general {
+                if let Some(rgb) = line.strip_prefix("AccentColor=") {
+                    let mut ch = rgb.split(',').map(|s| s.trim().parse::<u8>().ok());
+                    let r = ch.next()??;
+                    let g = ch.next()??;
+                    let b = ch.next()??;
+                    return Some(format!("#{:02x}{:02x}{:02x}", r, g, b));
+                }
+            }
+        }
+        None
+    }
+
     // GNOME 47+ exposes `org.gnome.desktop.interface accent-color` with
     // values like "blue", "teal", "green", "yellow", "orange", "red",
-    // "pink", "purple", "slate". Map each to the canonical libadwaita
-    // hex. Other DEs (KDE, XFCE) don't have a unified accent concept;
-    // we leave them on the achromatic default.
-    pub fn accent() -> Option<String> {
+    // "pink", "purple", "slate". Map each to the canonical libadwaita hex.
+    fn gnome() -> Option<String> {
         let out = Command::new("gsettings")
             .args(["get", "org.gnome.desktop.interface", "accent-color"])
             .output()

@@ -26,8 +26,8 @@ pub fn integrate_if_needed() {
     };
 
     let bin_dst = home.join(".local/bin/Ambient.AppImage");
-    let desktop_dst = home.join(".local/share/applications/com.ambient.app.desktop");
-    let icon_dst = home.join(".local/share/icons/hicolor/512x512/apps/com.ambient.app.png");
+    let desktop_dst = home.join(".local/share/applications/me.oezcan.ambient.desktop");
+    let icon_dst = home.join(".local/share/icons/hicolor/512x512/apps/me.oezcan.ambient.png");
 
     // Already integrated AND we're running the integrated copy → no-op.
     // If the user launches a NEW downloaded copy, the bin_dst.canonicalize()
@@ -76,9 +76,11 @@ pub fn integrate_if_needed() {
          GenericName=Wallpaper Studio\n\
          Comment=Generate, fetch, and apply desktop wallpapers\n\
          Exec={} %F\n\
-         Icon=com.ambient.app\n\
-         Categories=Utility;Graphics;\n\
+         Icon=me.oezcan.ambient\n\
+         Categories=Graphics;Utility;\n\
+         Keywords=wallpaper;background;desktop;pattern;emoji;generate;\n\
          StartupWMClass=Ambient\n\
+         StartupNotify=true\n\
          Terminal=false\n\
          X-AppImage-Version={}\n",
         bin_str,

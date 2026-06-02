@@ -188,6 +188,24 @@ pub fn is_system_dark() -> bool {
     true
 }
 
+/// Should the Linux tray use the light (white) glyph? On Linux the tray
+/// lives in the panel/shell, whose theme is independent of everything we
+/// can reliably read:
+///   - `prefers-color-scheme` reflects the webview/GTK app theme, not the
+///     panel (a light app theme over a dark panel is a common KDE setup).
+///   - kdeglobals' color scheme describes window chrome, not the Plasma
+///     panel style — they routinely disagree (light windows, dark panel).
+/// There's no portable, dependable signal for the actual panel color, and
+/// guessing wrong paints a black glyph into a row of white panel icons.
+/// Since Linux panels are overwhelmingly dark (GNOME top bar, default +
+/// dark Breeze, most wlroots bars), we commit to the white glyph rather
+/// than detect. macOS uses template inversion and Windows reads the
+/// registry, so this only governs Linux.
+#[cfg(target_os = "linux")]
+pub fn linux_panel_wants_light_glyph() -> bool {
+    true
+}
+
 /// Update the tray icon in response to a system theme change. Called
 /// from the frontend's `useTrayThemeSync` hook on prefers-color-scheme
 /// transitions. macOS short-circuits because template-mode inversion
@@ -202,10 +220,24 @@ pub fn update_tray_theme(app: AppHandle, is_dark: bool) -> Result<(), String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
+        // On Linux the passed `is_dark` reflects the webview's
+        // prefers-color-scheme, which is the wrong signal for the panel
+        // (see linux_panel_dark). Re-detect the panel theme and ignore
+        // it; the call still usefully serves as a "theme may have
+        // changed, refresh" trigger. Windows' tray host tracks the same
+        // theme the registry reports, so the web signal is fine there.
+        #[cfg(target_os = "linux")]
+        let want_light_glyph = {
+            let _ = is_dark;
+            linux_panel_wants_light_glyph()
+        };
+        #[cfg(not(target_os = "linux"))]
+        let want_light_glyph = is_dark;
+
         let tray = app
             .tray_by_id("main")
             .ok_or_else(|| "tray 'main' not registered".to_string())?;
-        let icon = symbolic_icon(!is_dark);
+        let icon = symbolic_icon(!want_light_glyph);
         tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
         Ok(())
     }

@@ -1,9 +1,16 @@
 import { listen as listenTauri } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
-import { ImageIcon, LayoutGridIcon, PaletteIcon, WandIcon } from './components/Icons';
+import {
+  ImageIcon,
+  InfoIcon,
+  LayoutGridIcon,
+  PaletteIcon,
+  WandIcon,
+} from './components/Icons';
 import Library from './components/Library';
 import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
@@ -42,6 +49,10 @@ export default function App() {
   // rebuilt on tray-click, so without persistence every reopen would
   // snap back to Patterns).
   const [tab, setTab] = usePersistedState<Tab>('app.tab', 'patterns');
+
+  // About modal — opened from the titlebar info button. Not persisted;
+  // a fresh launch always starts closed.
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Tabs are mounted lazily on first visit and stay mounted thereafter
   // (toggling display:contents → none on switch). This preserves
@@ -150,6 +161,16 @@ export default function App() {
           </h1>
         )}
         <div className="window-controls">
+          {license && (
+            <button
+              onClick={() => setAboutOpen(true)}
+              aria-label="About Ambient"
+              title="About Ambient"
+              className="wc"
+            >
+              <InfoIcon size={13} />
+            </button>
+          )}
           <button onClick={minimize} aria-label="Minimize" className="wc">
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
               <line
@@ -247,6 +268,7 @@ export default function App() {
           ))}
         </nav>
       )}
+      {license && aboutOpen && <About onClose={() => setAboutOpen(false)} />}
     </div>
   );
 }

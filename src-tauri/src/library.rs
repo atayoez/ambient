@@ -6,9 +6,8 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 /// Download a URL and save it under app_data/wallpapers/<safe-filename>,
-/// returning the resolved absolute path. Shared internal helper called
-/// by `fetch_and_save_wallpaper` (Tauri command surface) and by
-/// `sources.rs` / `aigen.rs` (Phase 3 — Rust-side fetch pipelines).
+/// returning the resolved absolute path. Internal helper for the
+/// Rust-side fetch pipelines in `sources.rs` and `aigen.rs`.
 pub(crate) async fn download_and_save(
     url: &str,
     filename: &str,
@@ -33,30 +32,6 @@ pub(crate) async fn download_and_save(
         .to_str()
         .map(String::from)
         .ok_or_else(|| "saved wallpaper path is not valid UTF-8".into())
-}
-
-#[tauri::command]
-pub async fn fetch_and_save_wallpaper(
-    url: String,
-    filename: String,
-    app: tauri::AppHandle,
-) -> Result<String, String> {
-    download_and_save(&url, &filename, &app).await
-}
-
-#[tauri::command]
-pub async fn save_image_bytes(
-    bytes: Vec<u8>,
-    filename: String,
-    app: tauri::AppHandle,
-) -> Result<String, String> {
-    let target = wallpaper_target(&app, &filename)?;
-    std::fs::write(&target, &bytes)
-        .map_err(|e| format!("write {:?}: {}", target, e))?;
-    target
-        .to_str()
-        .map(String::from)
-        .ok_or_else(|| "saved path is not valid UTF-8".into())
 }
 
 #[tauri::command]

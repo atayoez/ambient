@@ -59,8 +59,11 @@ textarea,
      `transparent: true` so the rounded-corner + drop-shadow shape
      reads as a floating window, but the WebView paints against this
      solid color rather than re-blurring the desktop wallpaper every
-     frame. The window background stays achromatic; visual interest
-     lives in the preview / library content. */
+     frame. (Blurring the wallpaper behind a transparent window isn't
+     possible from the app on Linux/WebKitGTK — backdrop-filter only
+     blurs in-page content, and window-vibrancy has no Linux support;
+     it's a compositor-side effect.) The window background stays
+     achromatic; visual interest lives in the preview / library. */
   background: var(--bg-base);
   border-radius: var(--radius-window);
   border: 1px solid var(--border-strong);
@@ -211,7 +214,11 @@ textarea,
   border: none;
   outline: none;
   box-shadow: none;
-  color: var(--muted);
+  /* Inactive icons were on --muted, which read as nearly invisible in the
+     nav pill. Lift them to a strong fraction of the text color so they're
+     clearly legible while still sitting a step below the active tab
+     (which goes full --text). */
+  color: color-mix(in oklch, var(--text) 68%, transparent);
   font: inherit;
   font-size: 28px;
   line-height: 1;
@@ -257,14 +264,26 @@ textarea,
    otherwise falls back to a soft achromatic dark halo. */
 @media (prefers-color-scheme: light) {
   .tab {
-    color: rgba(255, 255, 255, 0.7);
-    filter: drop-shadow(0 1px 2px rgb(var(--shadow-tint) / 0.45));
+    /* White icons over a bright app background rely entirely on the dark
+       halo for contrast — so push both the opacity and the halo up, or
+       the inactive icons wash out. */
+    color: rgba(255, 255, 255, 0.88);
+    filter: drop-shadow(0 1px 3px rgb(var(--shadow-tint) / 0.7));
   }
   .tab:hover:not(.active),
   .tab.active {
     color: #ffffff;
-    filter: drop-shadow(0 1px 3px rgb(var(--shadow-tint) / 0.55));
+    filter: drop-shadow(0 1px 4px rgb(var(--shadow-tint) / 0.85));
   }
+}
+
+/* Inspector while a wallpaper is being applied — `inert` (set in
+   TabLayout) already blocks pointer + focus; this just signals the
+   frozen state visually. The preview + status pill stay fully lit. */
+.inspector[inert] {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
 }
 
 .wc {
@@ -339,7 +358,16 @@ button {
     transform 80ms ease;
 }
 
-button:not(.tab):not(.segment):not(.wc):hover:not(:disabled) {
+/* The generic button-hover wash. Its specificity (one element + several
+   pseudo/negation classes) is high enough to override a plain
+   `.foo:hover` rule, so every button that paints its OWN hover must be
+   excluded here or this wash repaints it grey on direct hover:
+     - danger badges (.chip-remove, .preset-del) — lose their red
+     - dashed accent ghosts (.add-color, .add-emoji, .save-palette) —
+       lose their accent border
+     - the borderless text link (.about-link) — gains an unwanted box
+   Everything not listed (the default buttons) still gets the wash. */
+button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
@@ -1171,6 +1199,31 @@ input[type='range']:active::-moz-range-thumb {
     inset 0 1px 0 var(--highlight-edge);
 }
 
+/* The emoji glyph fills the chip as a button so clicking it opens the
+   picker to swap that slot — same chooser the "+" opens, just targeting
+   an existing emoji instead of appending. */
+.emoji-chip-glyph {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: inherit;
+  font-size: inherit;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+
+.emoji-chip-glyph:hover,
+.emoji-chip-glyph:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .color-chip {
   position: relative;
   width: 38px;
@@ -1212,20 +1265,44 @@ input[type='range']:active::-moz-range-thumb {
 
 .chip-remove {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  /* Sits just inside the chip's top-right corner rather than overhanging.
+     An overhanging badge left a sliver outside the chip box where neither
+     the chip's :hover nor (on WebKitGTK) the badge's own :hover reliably
+     fired, so it never reddened when you pointed straight at it. Inside
+     the box, hovering the badge always counts as hovering the chip. */
+  top: -2px;
+  right: -2px;
+  z-index: 2;
   width: 18px;
   height: 18px;
   border-radius: var(--radius-pill);
-  background: var(--danger);
-  color: white;
-  border: none;
+  /* Neutral at rest so a full row of chips isn't a wall of red badges,
+     but always visible — it's the only remove affordance. The hairline
+     ring in the tile color detaches it from the chip edge underneath. */
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--surface);
   line-height: 0;
   padding: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+/* Light up danger-red when the user is about to act on it — hovering
+   either the badge or its parent chip, or focusing it via keyboard. */
+.color-chip:hover .chip-remove,
+.color-chip:focus-within .chip-remove,
+.emoji-chip:hover .chip-remove,
+.emoji-chip:focus-within .chip-remove,
+.chip-remove:hover,
+.chip-remove:focus-visible {
+  background: var(--danger);
+  color: white;
 }
 
 .add-color,
@@ -1378,6 +1455,71 @@ input[type='range']:active::-moz-range-thumb {
 .preset-emoji {
   font-size: 14px;
   line-height: 1;
+}
+
+/* Wraps a preset chip so the delete badge (custom palettes only) can sit
+   absolutely at its corner without disturbing the row's flex flow. */
+.preset-chip {
+  position: relative;
+  display: inline-flex;
+}
+
+.preset-del {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+  cursor: pointer;
+  /* Same reveal-on-intent model as the chip-remove badges. */
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.preset-chip.removable:hover .preset-del,
+.preset-chip.removable:focus-within .preset-del,
+.preset-del:focus-visible {
+  opacity: 1;
+}
+
+/* "Save palette" — dashed ghost pill, matching the add-color affordance.
+   Centered under the chip editor; lights up to the accent on hover and
+   dims when disabled (a managed preset is active, nothing to save). */
+.save-palette {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.save-palette:hover:not(:disabled),
+.save-palette:focus-visible:not(:disabled) {
+  color: var(--accent-os, var(--accent));
+  border-color: var(--accent-os, var(--accent));
+  border-style: solid;
+  background: var(--surface);
+}
+
+.save-palette:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Icon-only action button. Replaces text labels on most action affordances
@@ -1820,4 +1962,140 @@ button.primary.icon-btn {
     --muted: #18181b;
     --text: #000000;
   }
+}
+
+/* --- About modal — app identity + manual update check --- */
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* Dim + blur the app behind the card so it reads as a true modal. */
+  background: rgb(var(--shadow-tint) / 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.about-card {
+  position: relative;
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 24px 20px;
+  /* Same glass recipe as the emoji picker / tab pill. */
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-container);
+  box-shadow:
+    0 18px 48px rgb(var(--shadow-tint) / 0.45),
+    inset 0 1px 0 var(--highlight-edge);
+}
+
+.about-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.about-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-inline);
+  margin-bottom: 2px;
+}
+
+.about-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+
+.about-version {
+  margin: 0;
+  min-height: 1em;
+  font-size: var(--fs-eyebrow);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.about-desc {
+  margin: 6px 0 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-soft, var(--muted));
+  max-width: 30ch;
+}
+
+.about-update {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.about-update-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+.about-update-status {
+  min-height: 1em;
+  font-size: var(--fs-eyebrow);
+  color: var(--muted);
+}
+
+.about-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  width: 100%;
+}
+
+.about-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--accent-os, var(--accent));
+  cursor: pointer;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}
+
+.about-legal {
+  font-size: 11px;
+  color: var(--muted);
 }

@@ -75,3 +75,29 @@ export async function checkForUpdate(
 export function dismissUpdate(version: string): void {
   localStorage.setItem(DISMISSED_KEY, version);
 }
+
+// Result of a user-initiated check (the About panel's "Check for
+// updates" button), as opposed to the background banner check above.
+export type ManualUpdateResult =
+  | { status: 'available'; version: string; notes: string }
+  | { status: 'uptodate' }
+  | { status: 'error' };
+
+/** Explicit, user-triggered update check. Unlike `checkForUpdate`, this
+ *  bypasses the 6h throttle and the per-version dismiss — when someone
+ *  clicks "Check for updates" they want an answer now, including the
+ *  "you're up to date" case the background path stays silent about. */
+export async function checkForUpdateManual(): Promise<ManualUpdateResult> {
+  try {
+    const update = await check();
+    // Still stamp the timestamp so the background check doesn't
+    // immediately re-hit the manifest right after a manual one.
+    localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
+    if (update?.available) {
+      return { status: 'available', version: update.version, notes: update.body ?? '' };
+    }
+    return { status: 'uptodate' };
+  } catch {
+    return { status: 'error' };
+  }
+}

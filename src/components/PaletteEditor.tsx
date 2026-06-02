@@ -17,6 +17,7 @@ interface PaletteEditorProps {
   onAddColor: () => void;
   onRemoveColor: (i: number) => void;
   onAddEmoji: (emoji: string) => void;
+  onReplaceEmoji: (i: number, emoji: string) => void;
   onRemoveEmoji: (i: number) => void;
 }
 
@@ -28,13 +29,26 @@ export default function PaletteEditor({
   onAddColor,
   onRemoveColor,
   onAddEmoji,
+  onReplaceEmoji,
   onRemoveEmoji,
 }: PaletteEditorProps) {
   // Emoji picker popover state. The wrap ref scopes the click-outside
-  // handler — any click NOT inside the wrap (button + popover) closes
-  // the picker. Escape also closes.
+  // handler — any click NOT inside the emoji row (chips, "+", popover)
+  // closes the picker. Escape also closes.
+  //
+  // `editIndex` is the target of the next pick: null means the "+" was
+  // the trigger (append a new emoji), a number means that emoji chip was
+  // clicked (replace that slot in place).
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Open the picker aimed at `index` (null = append via the "+").
+  // Re-clicking the same trigger toggles it shut.
+  function openPicker(index: number | null) {
+    setPickerOpen((open) => !(open && editIndex === index));
+    setEditIndex(index);
+  }
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -56,10 +70,19 @@ export default function PaletteEditor({
 
   if (type === 'emoji') {
     return (
-      <div className="emoji-row">
+      <div className="emoji-row" ref={wrapRef}>
         {emojis.map((emoji, i) => (
           <div key={`${emoji}-${i}`} className="emoji-chip">
-            <span aria-hidden="true">{emoji}</span>
+            <button
+              type="button"
+              className="emoji-chip-glyph"
+              onClick={() => openPicker(i)}
+              aria-label={`Change emoji ${emoji}`}
+              aria-expanded={pickerOpen && editIndex === i}
+              title="Click to change"
+            >
+              <span aria-hidden="true">{emoji}</span>
+            </button>
             {emojis.length > 1 && (
               <button
                 type="button"
@@ -73,20 +96,22 @@ export default function PaletteEditor({
             )}
           </div>
         ))}
-        <div className="emoji-picker-wrap" ref={wrapRef}>
+        <div className="emoji-picker-wrap">
           <button
             type="button"
             className="add-emoji"
             aria-label="Add emoji"
-            aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((o) => !o)}
+            aria-expanded={pickerOpen && editIndex === null}
+            onClick={() => openPicker(null)}
           >
             +
           </button>
           {pickerOpen && (
             <EmojiPicker
               onPick={(emoji) => {
-                onAddEmoji(emoji);
+                if (editIndex === null) onAddEmoji(emoji);
+                else onReplaceEmoji(editIndex, emoji);
+                setPickerOpen(false);
               }}
             />
           )}

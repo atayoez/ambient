@@ -14,10 +14,124 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Solo-instance with new-launch-wins handoff.** Relaunching Ambient
+  while one is already running now SIGTERMs the previous instance
+  (after a PID-file + process-name check defends against PID rollover)
+  and starts fresh. Inverts the usual single-instance "focus the
+  existing window" pattern — the new launch always wins, so a wedged
+  tray-only process never blocks the user from re-opening.
+- **Content Security Policy** for the bundled HTML. Restricts to
+  `'self'`, the Tauri asset protocol (`asset:` + `http://asset.localhost`),
+  `data:` / `blob:` (for base64 preview images), `ipc:` for invoke,
+  and Vite's dev-mode HMR ports — with `object-src 'none'`,
+  `base-uri 'self'`, `frame-ancestors 'none'` as standard hardening.
+- **Security CI.** A separate `Security` workflow runs `cargo-audit`
+  (RustSec CVE feed against `Cargo.lock`) and `gitleaks` (secret scan
+  over full history) on every push, PR, and Monday morning. Kept out of
+  the build workflow so it never gates a release.
+- **Release-Drafter** auto-populates the next release's notes as PRs
+  land — categorizes by `feat:` / `fix:` / `chore:` / etc. into
+  Added / Changed / Fixed sections matching `CHANGELOG.md`'s headings.
+- **Renovate** opens grouped weekly dependency PRs (Monday morning,
+  Europe/Berlin). The Tauri family travels together; rav1e + ravif
+  travel together; patch / digest / lockfile bumps automerge after CI
+  while majors stay manual.
+- **Custom palettes.** Save the current colors + emoji as a reusable,
+  named palette ("Custom N") that persists across sessions and sits in
+  the picker alongside the curated themes, each with its own delete
+  affordance. Plus a live **System** palette derived from the OS accent
+  (now also read from KDE's `kdeglobals`, not just GNOME/macOS/Windows).
+- **About panel** behind a titlebar info button — app icon, version,
+  description, website link, and a **Check for updates** button that
+  runs an on-demand check (bypassing the 6h background throttle, so it
+  reports "up to date" too) with in-app install when one's available.
+- **Click an emoji chip to swap it.** The emoji glyph is now a button
+  that opens the picker targeting that slot; the picker auto-closes on
+  pick. The "+" still appends.
 
 ### Changed
+- **Bundle identifier renamed** `com.ambient.app` → `me.oezcan.ambient`.
+  Tightens the bundle metadata to the actual project domain. Linux
+  `.desktop` + icon filenames follow; the AppImage auto-integrate step
+  writes the new names.
+- **Bundle metadata corrected.** `license: MIT` (wrong — Ambient is
+  proprietary) is now `Proprietary`; `copyright` attributes Atay
+  Özcan; `homepage` points at the live site, not the private GitHub
+  repo; `longDescription` no longer claims Linux-only.
+- **Rust dependency majors bumped:** reqwest 0.12 → 0.13, ravif
+  0.11 → 0.13, rav1e 0.7 → 0.8, tiny-skia 0.11 → 0.12. The keyring
+  crate moved to its replacement (`keyring-core 1.0` + per-platform
+  store crates registered as the default at startup); the only
+  surface change is a one-line `set_default_store(...)` call in
+  `secrets::init`. JS-side `@tauri-apps/plugin-opener` and
+  `plugin-store` pinned strings also lifted to current releases.
+- **Source preview cache simplified.** The Sources tab no longer
+  keeps a parallel `ambient-source-preview-cache` localStorage entry;
+  the preview now derives from the most-recent matching Library row
+  (Rust-owned), with NASA APOD's "one image per day" semantics
+  enforced by a local-day timestamp check. ~50 LOC of cache plumbing
+  deleted.
+- **Rust edition 2024** for the `ambient` crate. The one
+  `std::env::set_var` site (GDK backend nudge) now lives inside an
+  `unsafe { }` block with a SAFETY note about its single-threaded init
+  context.
+- **`tracing` replaces ad-hoc `eprintln!`** across the Rust side. Log
+  levels filter at runtime via `RUST_LOG`, structured fields land in
+  the formatter, and the integration seam for future log sinks is one
+  subscriber-add away.
+- **React Compiler 1.0** is enabled via `babel-plugin-react-compiler`
+  in `vite.config.ts`. Auto-memoizes components and hook returns so
+  the codebase doesn't need manual `React.memo` / `useMemo` /
+  `useCallback` for the common case; bails out safely on Rules-of-React
+  violations rather than miscompiling.
+- **Telemetry-free, on the record.** Ambient does not ship any
+  analytics, error-reporting SDK, or in-app phone-home — a deliberate
+  product position, not an accident. The new Rust `tracing` stack
+  writes to stdout / files only.
+- **Complete offline emoji set.** The bundled Microsoft Fluent 3D set
+  grew from 84 to 153 PNGs — every emoji the picker or any preset can
+  produce now renders from the binary. The defunct CDN fallback (its
+  `microsoft` style was dropped upstream, returning HTTP 400) was
+  removed; a test guards that every UI-reachable emoji stays bundled.
+- **Geometric shape count is resolution-independent.** The shape count
+  is now the `density` value directly instead of scaling with pixel
+  area, so the small preview renders the exact same number of shapes as
+  the full-resolution wallpaper — the preview is now a faithful preview.
+- **Pattern files are content-addressed** (`pattern-<type>-<hash>`
+  keyed on the full config) instead of seed-only, so editing shapes
+  without re-rolling produces a new path the compositor actually
+  reloads; identical re-applies still dedupe to one file.
+- **App categorized as GraphicsAndDesign** (was Utility) for macOS /
+  `.deb`; the Linux `.desktop` entry leads with `Graphics`, adds
+  `Keywords` for launcher search, and sets `StartupNotify`.
+- **Inspector is disabled while a wallpaper is applying** so the config
+  can't be mutated mid-render; the preview and status stay live.
 
 ### Fixed
+- **Pruned dead code from the v0.6 TS→Rust migration.** Removed an
+  unreferenced TS module (`src/lib/monitor.ts`), an unused crate
+  (`rgb`), an unused npm dep (`@tauri-apps/plugin-notification`, still
+  used Rust-side), two unreachable library-helper exports, and two
+  Tauri commands (`fetch_and_save_wallpaper`, `save_image_bytes`) that
+  had no remaining JS callers. No behavior change — purely deletion.
+- **KDE Plasma wallpaper-set.** Applying a wallpaper on KDE failed —
+  the `wallpaper` crate's KDE path relies on a `qdbus` + Plasma
+  scripting eval that's frequently absent or broken on Plasma 6 /
+  Wayland. Linux now routes by desktop: KDE → `plasma-apply-wallpaperimage`
+  (with the crate as fallback), COSMIC → its RON config, everything
+  else → the crate. A routing test pins each desktop string to its
+  setter.
+- **Emoji that silently didn't render** (frog, tortoise, and 67 others
+  offered in the picker but never bundled) now render — see the
+  offline-set expansion above.
+- **Delete / remove badges stayed grey on direct hover.** The global
+  `button:hover` wash out-specified the badges' own danger/accent hover;
+  the custom badges and ghost buttons are now excluded from it, so the
+  color chip ✕, the custom-palette delete, and the add/save buttons
+  light up correctly when you point straight at them.
+- **Bottom navbar icons were barely visible** — inactive tabs were on
+  the muted token; bumped to a strong fraction of the text color (and
+  raised the white-icon opacity + halo in light mode).
 
 ## [0.6.0] — 2026-05-17
 

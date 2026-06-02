@@ -133,6 +133,16 @@ export function PlusIcon({ size = 14, className, style }: IconProps) {
   );
 }
 
+export function InfoIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="11" x2="12" y2="16" />
+      <line x1="12" y1="8" x2="12" y2="8" />
+    </SvgRoot>
+  );
+}
+
 export function SunIcon({ size = 14, className, style }: IconProps) {
   return (
     <SvgRoot size={size} className={className} style={style}>

@@ -1,9 +1,8 @@
 // Curated emoji picker for the Patterns tab. Six themed categories,
 // ~16 emojis each, no search / no recents / no skin-tone variants —
 // just a popover grid sized to feel like an inspector accessory rather
-// than a full app feature. Add an emoji per click; the picker stays
-// open until the user clicks outside or presses Escape (handled in
-// the consumer, not in here).
+// than a full app feature. One pick per open: the consumer closes the
+// picker after onPick fires (and also on click-outside / Escape).
 //
 // Deliberately not a third-party emoji picker — `emoji-picker-react`
 // and `emoji-mart` add 70-200 KB to the bundle for capabilities Ambient
