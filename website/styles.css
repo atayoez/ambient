@@ -8,8 +8,18 @@
  */
 
 :root {
-  /* The only website-only token — sections cap at this max-width. */
+  /* The only website-only layout token — sections cap at this width. */
   --content-w: 1280px;
+
+  /* Live UI tint — published by wallpapers.js from the active backdrop
+   * wallpaper's palette. Every liquid-glass surface + accent on the page
+   * references this triplet, so cycling the backdrop re-tints the whole
+   * UI. Default is the Cosmic violet (the first wallpaper) so there's a
+   * sensible value before the script runs / if JS is off. */
+  --tint-r: 124;
+  --tint-g: 92;
+  --tint-b: 255;
+  --tint: rgb(var(--tint-r) var(--tint-g) var(--tint-b));
 }
 
 * {
@@ -23,10 +33,70 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   color: var(--text);
-  background: var(--bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+}
+
+/* The dark base goes on <html> ONLY. If <body> carries an opaque
+ * background it paints on top of the z-index:-1 #wp-backdrop and hides
+ * it — the classic fixed-backdrop stacking trap. Body stays transparent
+ * so the wallpaper layer shows through behind all the content. */
+html {
+  background: #07060d;
+}
+body {
+  background: transparent;
+}
+
+/* ============================================================ */
+/* Wallpaper backdrop — fixed, full-page, behind everything       */
+/* ============================================================ */
+
+#wp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: #07060d;
+}
+
+/* Two stacked mesh layers; wallpapers.js paints the hidden one and
+ * crossfades by toggling .is-active. Slightly oversized + blurred so the
+ * radial blobs read as a soft, edge-to-edge field. */
+#wp-backdrop .wp-layer {
+  position: absolute;
+  inset: -8%;
+  opacity: 0;
+  /* Gradients fill the box on their own — no background-size needed. */
+  filter: blur(8px) saturate(125%);
+  transition: opacity 900ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: opacity;
+}
+
+#wp-backdrop .wp-layer.is-active {
+  opacity: 1;
+}
+
+/* Readability scrim over the wallpaper — keeps headline + glass legible
+ * no matter how bright the active palette is. Darkens toward the bottom
+ * where the dense feature/pricing content lives. */
+#wp-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 6, 13, 0.34) 0%,
+    rgba(7, 6, 13, 0.52) 45%,
+    rgba(7, 6, 13, 0.72) 100%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #wp-backdrop .wp-layer {
+    transition: none;
+  }
 }
 
 a {
@@ -54,9 +124,18 @@ code {
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
-  background: rgba(18, 18, 22, 0.6);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
+  /* Same tinted-glass material as the cards, in bar form — a bottom
+   * hairline instead of a full border so it reads as a bar, not a
+   * floating card. Re-tints with the backdrop like everything else. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.08);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.2);
+  transition:
+    background 700ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 700ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .brand,
@@ -197,19 +276,20 @@ code {
 }
 
 .gradient-text {
-  /* Achromatic emphasis: subtle vertical fade for depth, no chromatic
-     shift. Colour on the page should come from the screenshots, not from
-     the heading. */
+  /* Tinted emphasis: the accent line takes the active wallpaper's hue,
+     lightened toward white at the top so it stays legible on any
+     palette. Ties the headline to whatever's behind it. */
   display: block;
   background: linear-gradient(
     180deg,
-    var(--text) 0%,
-    color-mix(in oklch, var(--text) 65%, var(--muted)) 100%
+    color-mix(in oklch, var(--tint) 45%, #ffffff) 0%,
+    var(--tint) 100%
   );
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
+  transition: background 700ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .hero-sub {
@@ -262,12 +342,15 @@ code {
 
 .btn-ghost {
   color: var(--text);
-  background: var(--surface);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
+  border-color: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.28);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .btn-ghost:hover {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.2);
+  border-color: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.45);
 }
 
 .hero-meta {
@@ -287,14 +370,40 @@ code {
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
-/* Reusable glass material — used by .demo-frame, .price-card,
-   .about-card, .dl-card. Same recipe as the app's window surface. */
+/* ============================================================ */
+/* Unified liquid-glass material                                  */
+/* ============================================================ */
+/* ONE recipe for every glass surface on the page — nav, scroller pill,
+ * feature cards, pricing, download, about, ghost buttons. They all share
+ * this so the site reads as a single material, and they all pick up the
+ * live --tint from the active wallpaper: a faint tinted wash in the fill,
+ * a tinted hairline border, and a soft tinted outer glow. Cycling the
+ * backdrop animates every surface's hue together via the transition. */
 .glass {
-  background: var(--surface);
-  backdrop-filter: var(--blur-window);
-  -webkit-backdrop-filter: var(--blur-window);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-window), inset 0 1px 0 var(--highlight-edge);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.035) 100%
+    ),
+    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.1);
+  backdrop-filter: blur(28px) saturate(165%);
+  -webkit-backdrop-filter: blur(28px) saturate(165%);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.24);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.38),
+    0 8px 30px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition:
+    background 700ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 700ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 700ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass {
+    transition: none;
+  }
 }
 
 /* --- Hero variant: content centered. The hero is flex now so the
@@ -362,20 +471,13 @@ code {
  * Replaces the earlier tab strip; one tap moves the backdrop
  * forward / back through the four screenshots. */
 .demo-scroller {
+  /* Glass material from the shared .glass class (added in markup); pill
+   * shape + layout only here. */
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px;
-  /* Same glass-pill recipe as the app's bottom-tabs primitive:
-   * 6% white surface, --blur-tabs, --highlight-edge inner sheen. */
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 var(--highlight-edge);
 }
 
 .demo-arrow {
@@ -499,16 +601,14 @@ code {
 }
 
 .feature {
+  /* Material comes from the shared .glass class (added in the markup);
+   * this rule only owns layout + the hover lift. */
   padding: 28px;
   border-radius: var(--radius-container);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  /* Same elevation recipe used by .glass / .price-card so every
-   * card-like surface on the page sits at the same depth. */
-  box-shadow: var(--shadow-window), inset 0 1px 0 var(--highlight-edge);
-  transition: transform var(--t-base) ease, border-color var(--t-base) ease, box-shadow var(--t-base) ease;
+  transition:
+    transform var(--t-base) ease,
+    border-color var(--t-base) ease,
+    box-shadow var(--t-base) ease;
 }
 
 .feature:hover {

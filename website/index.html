@@ -73,8 +73,8 @@
           "name": "Atay Özcan",
           "url": "https://oezcan.me"
         },
-        "softwareVersion": "0.5.0",
-        "datePublished": "2026-05-17"
+        "softwareVersion": "0.7.0",
+        "datePublished": "2026-06-02"
       }
     </script>
 
@@ -84,6 +84,15 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <!-- Full-page wallpaper backdrop. wallpapers.js paints these two
+         layers with mesh-gradient wallpapers and crossfades between them;
+         it also publishes each wallpaper's tint onto :root so every glass
+         surface re-tints to match. Sits behind everything (z-index -1). -->
+    <div id="wp-backdrop" aria-hidden="true">
+      <div class="wp-layer"></div>
+      <div class="wp-layer"></div>
+    </div>
+
     <header class="nav">
       <a href="#top" class="brand">
         <img src="./icon.svg" alt="" width="28" height="28" />
@@ -110,50 +119,6 @@
     <main>
       <section id="top" class="hero hero-center">
 
-        <!-- App preview lives behind the hero text now — acts as a
-             muted backdrop layer the text floats on top of, instead
-             of stacking below it. The glass-pill arrow scroller
-             cycles through one PNG per tab. -->
-        <div class="hero-demo-bg" aria-hidden="true">
-          <div class="demo-stage">
-            <img
-              class="demo-shot active"
-              data-shot="patterns"
-              src="./screenshots/patterns.png"
-              alt=""
-              width="868"
-              height="648"
-            />
-            <img
-              class="demo-shot"
-              data-shot="sources"
-              src="./screenshots/sources.png"
-              alt=""
-              width="868"
-              height="648"
-              loading="lazy"
-            />
-            <img
-              class="demo-shot"
-              data-shot="generate"
-              src="./screenshots/generate.png"
-              alt=""
-              width="868"
-              height="648"
-              loading="lazy"
-            />
-            <img
-              class="demo-shot"
-              data-shot="library"
-              src="./screenshots/library.png"
-              alt=""
-              width="868"
-              height="648"
-              loading="lazy"
-            />
-          </div>
-        </div>
-
         <div class="hero-content">
           <h1>
             <span data-i18n="hero.title">Wallpapers</span>
@@ -173,14 +138,14 @@
              directly under the screenshot the visitor has just been
              scrolling through. -->
         <div class="hero-bottom">
-          <nav class="demo-scroller" aria-label="Cycle app preview">
-            <button class="demo-arrow demo-prev" type="button" aria-label="Previous screenshot">
+          <nav class="demo-scroller glass" aria-label="Cycle wallpaper backdrop">
+            <button class="demo-arrow demo-prev" type="button" aria-label="Previous wallpaper">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10 4L6 8l4 4"/>
               </svg>
             </button>
-            <span class="demo-label" data-shot-label>Patterns</span>
-            <button class="demo-arrow demo-next" type="button" aria-label="Next screenshot">
+            <span class="demo-label" data-shot-label>Cosmic</span>
+            <button class="demo-arrow demo-next" type="button" aria-label="Next wallpaper">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M6 4l4 4-4 4"/>
               </svg>
@@ -206,7 +171,7 @@
       <section id="features" class="features">
         <h2 class="section-eyebrow" data-i18n="features.eyebrow">What's in it</h2>
         <div class="feature-grid">
-          <article class="feature">
+          <article class="feature glass">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
                 <circle cx="11" cy="11" r="6" /><circle cx="21" cy="21" r="6" />
@@ -220,7 +185,7 @@
             </p>
           </article>
 
-          <article class="feature">
+          <article class="feature glass">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="5" y="7" width="22" height="16" rx="2" />
@@ -236,7 +201,7 @@
             </p>
           </article>
 
-          <article class="feature">
+          <article class="feature glass">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M16 5 L19 13 L27 14 L21 19 L23 27 L16 23 L9 27 L11 19 L5 14 L13 13 Z" />
@@ -249,7 +214,7 @@
             </p>
           </article>
 
-          <article class="feature">
+          <article class="feature glass">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="5" y="6" width="9" height="9" rx="1.5" />
@@ -266,7 +231,7 @@
             </p>
           </article>
 
-          <article class="feature">
+          <article class="feature glass">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M16 4 L26 9 L26 18 Q26 25 16 28 Q6 25 6 18 L6 9 Z" />
@@ -280,7 +245,7 @@
             </p>
           </article>
 
-          <article class="feature">
+          <article class="feature glass">
             <div class="feature-icon" aria-hidden="true">
               <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M6 16 L26 16" />
@@ -458,7 +423,7 @@
       </div>
     </footer>
     <script src="./i18n.js"></script>
-    <script src="./demo.js"></script>
+    <script src="./wallpapers.js"></script>
     <script src="./download.js"></script>
   </body>
 </html>
