@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.7.0] — 2026-06-02
+
+### Added
 - **Solo-instance with new-launch-wins handoff.** Relaunching Ambient
   while one is already running now SIGTERMs the previous instance
   (after a PID-file + process-name check defends against PID rollover)
