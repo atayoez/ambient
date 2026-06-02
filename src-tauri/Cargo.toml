@@ -96,8 +96,12 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["e
 
 # Per-platform keyring backends, registered as the keyring-core default
 # in secrets.rs::init.
+# `keychain` selects the standard macOS Keychain backend — v1 of the
+# crate ships NO default features and hard-errors at compile time unless
+# `keychain` or `protected` is set (the latter is the iOS-style
+# data-protection keychain, wrong for a desktop app).
 [target.'cfg(target_os = "macos")'.dependencies]
-apple-native-keyring-store = "1"
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1"
