@@ -18,6 +18,7 @@ import {
   TYPE_DEFAULTS,
 } from '../lib/patterns';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
+import { applyPaletteTint } from '../lib/tint';
 import {
   AutoThemeIcon,
   CheckIcon,
@@ -220,6 +221,14 @@ export default function Patterns() {
       return { ...c, colors: [...(effectiveDark ? preset.dark : preset.light)] };
     });
   }, [effectiveDark, resolvePreset, setConfig]);
+
+  // Tint the window chrome to the live palette — the app's analogue of
+  // the site's wallpaper-driven tint. Runs whenever the colors change
+  // (preset pick, chip edit, theme flip), so the glass re-tints around
+  // whatever's in the preview.
+  useEffect(() => {
+    applyPaletteTint(config.colors);
+  }, [config.colors]);
 
   function patch(p: Partial<PatternConfig>) {
     setConfig((c) => ({ ...c, ...p }));

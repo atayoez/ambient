@@ -7,6 +7,18 @@
  */
 @import '../design-system/colors_and_type.css';
 
+:root {
+  /* Live chrome tint — written by lib/tint.ts from the current pattern
+     palette (the app's analogue of the marketing site's wallpaper tint).
+     The glass surfaces below read this triplet so the whole window
+     re-tints around whatever's in the preview. Default is the Cosmic
+     violet so there's a sensible value before the first palette loads.
+     Distinct from --accent-os (OS accent on functional controls). */
+  --tint-r: 124;
+  --tint-g: 92;
+  --tint-b: 255;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -64,13 +76,27 @@ textarea,
      blurs in-page content, and window-vibrancy has no Linux support;
      it's a compositor-side effect.) The window background stays
      achromatic; visual interest lives in the preview / library. */
-  background: var(--bg-base);
+  /* Opaque base + a faint tint wash from the top so the window interior
+     carries the current palette's colour (the chrome's version of the
+     site's tinted field), plus a tinted edge + outer glow. */
+  background:
+    radial-gradient(
+      130% 90% at 50% 0%,
+      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.09) 0%,
+      transparent 58%
+    ),
+    var(--bg-base);
   border-radius: var(--radius-window);
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
   box-shadow:
     var(--shadow-window),
+    0 0 64px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.1),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
+  transition:
+    background 600ms var(--ease-pill),
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
 }
 
 /* When maximized, the window touches every screen edge — rounded corners
@@ -136,18 +162,25 @@ textarea,
      drop-shadow than the original (the previous 32px-blur shadow read
      as a dark strip across the bottom; this 12px shadow gives the
      pill float without a band). */
-  background: rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.28);
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 0;
   box-shadow:
     0 4px 12px rgb(var(--shadow-tint) / 0.18),
+    0 6px 22px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18),
     inset 0 1px 0 var(--highlight-edge);
   z-index: 50;
   transform: translateX(-50%);
+  transition:
+    background 600ms var(--ease-pill),
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
 }
 
 .tab-indicator {
@@ -907,12 +940,16 @@ input[type='range']:active::-moz-range-thumb {
   align-self: center;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius-container);
-  border: 1px solid var(--border);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
   background: var(--surface);
   box-shadow:
     0 6px 18px rgb(var(--shadow-tint) / 0.12),
+    0 0 26px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
+  transition:
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
 }
 
 .preview-wrap > canvas,
@@ -1021,13 +1058,22 @@ input[type='range']:active::-moz-range-thumb {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.06) 0%,
+      transparent 70%
+    ),
+    var(--surface);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.16);
   border-radius: var(--radius-container);
   padding: 14px 16px;
   box-shadow:
-    0 3px 8px rgb(var(--shadow-tint) / 0.10),
+    0 3px 8px rgb(var(--shadow-tint) / 0.1),
     inset 0 1px 0 var(--highlight-edge);
+  transition:
+    background 600ms var(--ease-pill),
+    border-color 600ms var(--ease-pill);
 }
 
 .inspector-section h3 {
