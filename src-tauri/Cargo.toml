@@ -71,21 +71,10 @@ tiny-skia = "0.12"
 # negligible for ~30-50KB preview frames and the <img src=…> binding
 # becomes trivial — no Blob, no ObjectURL, no revoke bookkeeping.
 base64 = "0.22"
-# AVIF encoder for HDR wallpaper output (Phase 5c). Pure Rust under
-# rav1e — heavy first compile but no system libavif/libheif needed.
-# We use the 10-bit raw-planes API to encode BT.2020 primaries + PQ
-# (ST.2084) transfer so HDR-capable monitors display brightness above
-# the 100-nit SDR ceiling. Fallback PNG is always written alongside.
-#
-# `default-features = false` drops the `asm` feature so we don't need
-# a system nasm install — encode time roughly doubles but Apply is a
-# one-shot operation, not a per-frame loop.
-ravif = { version = "0.13", default-features = false, features = ["threading"] }
-# rav1e direct dep so we can reach `PixelRange` (ravif only re-exports
-# `MatrixCoefficients` at its crate root, but encode_raw_planes_10_bit
-# wants both). default-features=false drops the asm feature for the
-# same nasm-not-installed reason as ravif.
-rav1e = { version = "0.8", default-features = false }
+# (HDR AVIF output removed 2026-06-03 — desktop wallpapers are
+# SDR-composited on every current OS, so a PQ/BT.2020 file renders dark
+# as a wallpaper. The full implementation lives in git history if HDR
+# desktop support ever lands; see the project memory.)
 # Structured logging — replaces scattered eprintln! calls so log
 # levels can be filtered at runtime via RUST_LOG and so future Sentry
 # / file-sink integrations are one-subscriber-add away. tracing-

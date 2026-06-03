@@ -2,7 +2,6 @@ mod accent;
 mod aigen;
 mod desktop;
 mod emojis;
-mod hdr;
 mod integrate;
 mod library;
 mod library_store;

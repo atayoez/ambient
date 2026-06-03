@@ -791,15 +791,13 @@ pub async fn render_preview(
 /// (TS or rotation task) is expected to invoke set_wallpaper next.
 ///
 /// Quality config: SSAA per pick_ssaa (capped to a ~7680px intermediate
-/// on big monitors), Lanczos3 downscale for the SDR 16-bit PNG.
+/// on big monitors), Lanczos3 downscale, 16-bit-per-channel PNG output
+/// so the sub-8-bit precision from the downscale survives to disk.
 ///
-/// Two siblings are written: the SDR 16-bit PNG (universal fallback,
-/// what the Library + thumbnails point at) and a real-HDR AVIF. The HDR
-/// path downsamples the *supersampled* render in linear light — so it
-/// gets effective >8-bit precision (no gradient banding) even though
-/// tiny-skia is 8-bit internally — then converts sRGB→BT.2020, expands
-/// highlights against BT.2408 reference levels, and PQ-encodes to 10-bit
-/// (see hdr.rs). set_wallpaper prefers the AVIF on HDR-capable systems.
+/// (Real HDR AVIF output was prototyped then removed 2026-06-03 —
+/// desktop wallpapers are SDR-composited on every current OS, so a
+/// PQ/BT.2020 file renders dark as a wallpaper. Preserved in git history
+/// for revival if HDR desktop support ever materializes.)
 #[tauri::command]
 pub async fn apply_pattern(
     config: PatternConfig,
@@ -817,17 +815,13 @@ pub async fn apply_pattern(
     let ss: u32 = pick_ssaa(config.pattern_type, w.max(h));
 
     let config_for_render = config.clone();
-    let (pix, avif_bytes) = tokio::task::spawn_blocking(move || {
+    let pix = tokio::task::spawn_blocking(move || {
         let big = render(&config_for_render, w * ss, h * ss);
-        // Real HDR: downsample the supersampled buffer in LINEAR light
-        // (recovers >8-bit precision → no gradient banding), convert
-        // sRGB→BT.2020, expand highlights, PQ-encode. Done from `big`,
-        // not the 8-bit SDR downscale, so the HDR file isn't limited to
-        // the 8-bit pixel data. Best-effort — a failed encode just means
-        // no HDR sibling, the PNG still ships.
-        let avif = crate::hdr::encode_supersampled_avif_hdr(&big, w, h).ok();
-        let pix = if ss > 1 { downscale(&big, w, h) } else { big };
-        (pix, avif)
+        if ss > 1 {
+            downscale(&big, w, h)
+        } else {
+            big
+        }
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -857,9 +851,6 @@ pub async fn apply_pattern(
     // if that succeeds, set_wallpaper will prefer it for the actual
     // OS desktop background on HDR-capable systems.
     let png_path = save_pixmap_16bit_png(&pix, &format!("{}.png", stem), &app)?;
-    if let Some(bytes) = avif_bytes {
-        let _ = save_avif_bytes(&bytes, &format!("{}.avif", stem), &app);
-    }
 
     let entry = Wallpaper {
         path: png_path,
@@ -874,26 +865,6 @@ pub async fn apply_pattern(
     };
     let _ = prepend_entry(&app, entry.clone()).await;
     Ok(entry)
-}
-
-/// Write pre-encoded AVIF bytes (from hdr::encode_supersampled_avif_hdr)
-/// into the wallpapers dir alongside the PNG sibling.
-fn save_avif_bytes(bytes: &[u8], filename: &str, app: &AppHandle) -> Result<String, String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("resolve app_data_dir: {}", e))?;
-    let wallpapers = data_dir.join("wallpapers");
-    std::fs::create_dir_all(&wallpapers)
-        .map_err(|e| format!("create wallpapers dir: {}", e))?;
-    let safe = crate::library::safe_filename(filename);
-    let target: PathBuf = wallpapers.join(safe);
-
-    std::fs::write(&target, bytes).map_err(|e| format!("write AVIF: {}", e))?;
-    target
-        .to_str()
-        .map(String::from)
-        .ok_or_else(|| "saved AVIF path not UTF-8".to_string())
 }
 
 fn pattern_type_slug(t: PatternType) -> &'static str {

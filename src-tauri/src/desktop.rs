@@ -31,19 +31,9 @@ use crate::types::ThemeMode;
 /// Internal: full apply pipeline. Called by both the #[tauri::command]
 /// wrapper (frontend invokes) and the rotation task (background tick).
 ///
-/// On macOS + Windows, prefers an AVIF HDR sibling next to the supplied
-/// path — Pattern apply writes both `pattern-X.png` (SDR fallback, what
-/// the Library indexes) and `pattern-X.avif` (10-bit BT.2020 PQ).
-///
-/// On Linux, the AVIF is always written for inspection / external use
-/// but never handed to the OS wallpaper API: cosmic-bg, gnome-shell,
-/// sway-bg, etc. mostly don't decode AVIF as a wallpaper source as of
-/// 2026 — silently rendering blank/grey. PNG goes to the compositor;
-/// the AVIF sits next to it for users who want to inspect or share
-/// the HDR file.
-///
-/// The recorded settings.lastApplied always stays on the PNG path so
-/// the Library indicator + slot capture stay consistent.
+/// Always applies the SDR PNG. (HDR AVIF wallpaper output was removed
+/// 2026-06-03 — the desktop background layer is SDR-composited on every
+/// current OS, so a PQ/BT.2020 file renders dark as a wallpaper.)
 pub async fn apply_wallpaper(path: &str, app: &AppHandle) -> Result<(), String> {
     let pb = PathBuf::from(path);
     if !pb.exists() {
@@ -57,20 +47,7 @@ pub async fn apply_wallpaper(path: &str, app: &AppHandle) -> Result<(), String> 
         .ok_or_else(|| "wallpaper path is not valid UTF-8".to_string())?
         .to_string();
 
-    let try_avif = cfg!(any(target_os = "macos", target_os = "windows"));
-    let avif_sibling = abs.with_extension("avif");
-    let applied_avif = try_avif
-        && avif_sibling.exists()
-        && avif_sibling
-            .to_str()
-            .and_then(|s| apply_os(s).ok())
-            .is_some();
-
-    if !applied_avif {
-        // Critical step — failure here is fatal, the rest is
-        // best-effort.
-        apply_os(&abs_str)?;
-    }
+    apply_os(&abs_str)?;
 
     record_post_apply(&abs_str, app).await;
     let _ = app.emit("wallpaper-applied", abs_str.as_str());
