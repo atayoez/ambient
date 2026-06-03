@@ -15,10 +15,15 @@
 // CLI:
 //   node build-latest-json.mjs \
 //     --version 0.7.0 \
-//     --dmg-sig path/to/Ambient.dmg.sig \
+//     --macos-updater-sig path/to/Ambient.app.tar.gz.sig \
 //     --msi-x64-sig ... --msi-arm-sig ... \
 //     --appimage-x64-sig ... --appimage-arm-sig ... \
 //     --output /tmp/latest.json
+//
+// macOS note: the updater consumes the .app.tar.gz (Tauri signs the
+// tarball, never the .dmg), so `platforms.darwin-aarch64` points at the
+// tarball + its .sig. The user-facing `downloads.macos` still points at
+// the .dmg installer.
 
 import fs from 'node:fs';
 import { parseArgs } from 'node:util';
@@ -26,7 +31,7 @@ import { parseArgs } from 'node:util';
 const { values } = parseArgs({
   options: {
     version: { type: 'string' },
-    'dmg-sig': { type: 'string' },
+    'macos-updater-sig': { type: 'string' },
     'msi-x64-sig': { type: 'string' },
     'msi-arm-sig': { type: 'string' },
     'appimage-x64-sig': { type: 'string' },
@@ -37,7 +42,7 @@ const { values } = parseArgs({
 
 for (const k of [
   'version',
-  'dmg-sig',
+  'macos-updater-sig',
   'msi-x64-sig',
   'msi-arm-sig',
   'appimage-x64-sig',
@@ -56,6 +61,7 @@ const pub_date = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 const base = 'https://ambient.oezcan.me/downloads';
 const names = {
   dmg: `Ambient-${v}-macOS-aarch64.dmg`,
+  macos_updater: `Ambient-${v}-macOS-aarch64.app.tar.gz`,
   msi_x64: `Ambient-${v}-Windows-x86_64.msi`,
   msi_arm: `Ambient-${v}-Windows-aarch64.msi`,
   app_x64: `Ambient-${v}-Linux-x86_64.AppImage`,
@@ -77,8 +83,8 @@ const manifest = {
   },
   platforms: {
     'darwin-aarch64': {
-      signature: read(values['dmg-sig']),
-      url: `${base}/${names.dmg}`,
+      signature: read(values['macos-updater-sig']),
+      url: `${base}/${names.macos_updater}`,
     },
     'windows-x86_64': {
       signature: read(values['msi-x64-sig']),

@@ -90,9 +90,10 @@ jobs:
         include:
           - platform: macos-latest
             arch: aarch64
+            # .dmg is the installer download; the signed updater
+            # artifact is the .app.tar.gz (Tauri never signs the .dmg).
             artifact-glob: |
               src-tauri/target/release/bundle/dmg/*.dmg
-              src-tauri/target/release/bundle/dmg/*.dmg.sig
               src-tauri/target/release/bundle/macos/*.app.tar.gz
               src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
           - platform: windows-latest

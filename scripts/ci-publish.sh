@@ -46,7 +46,11 @@ find_one() {
 
 echo "==> Locating artifacts"
 DMG=$(find_one "*.dmg"          "$ACCT_DIR/ambient-macos-latest-aarch64")
-DMG_SIG=$(find_one "*.dmg.sig"  "$ACCT_DIR/ambient-macos-latest-aarch64")
+# macOS updater artifact is the .app.tar.gz — Tauri signs the tarball,
+# never the .dmg. The .dmg stays the user-facing installer download;
+# the tarball + its .sig drive tauri-plugin-updater's macOS entry.
+APP_TAR=$(find_one "*.app.tar.gz"     "$ACCT_DIR/ambient-macos-latest-aarch64")
+APP_TAR_SIG=$(find_one "*.app.tar.gz.sig" "$ACCT_DIR/ambient-macos-latest-aarch64")
 MSI_X64=$(find_one "*.msi"      "$ACCT_DIR/ambient-windows-latest-x86_64")
 MSI_X64_SIG=$(find_one "*.msi.sig" "$ACCT_DIR/ambient-windows-latest-x86_64")
 MSI_ARM=$(find_one "*.msi"      "$ACCT_DIR/ambient-windows-11-arm-aarch64")
@@ -58,6 +62,7 @@ APP_X64_SIG=$(find_one "*.AppImage.sig" "$ACCT_DIR/ambient-ubuntu-22.04-x86_64")
 
 # Release filename convention — matches what release.sh used in v0.4+.
 DMG_NAME="Ambient-${VERSION}-macOS-aarch64.dmg"
+APP_TAR_NAME="Ambient-${VERSION}-macOS-aarch64.app.tar.gz"
 MSI_X64_NAME="Ambient-${VERSION}-Windows-x86_64.msi"
 MSI_ARM_NAME="Ambient-${VERSION}-Windows-aarch64.msi"
 APP_ARM_NAME="Ambient-${VERSION}-Linux-aarch64.AppImage"
@@ -65,6 +70,7 @@ APP_X64_NAME="Ambient-${VERSION}-Linux-x86_64.AppImage"
 
 echo "==> Renaming to release convention"
 cp "$DMG"     "$OUT/$DMG_NAME"
+cp "$APP_TAR" "$OUT/$APP_TAR_NAME"
 cp "$MSI_X64" "$OUT/$MSI_X64_NAME"
 cp "$MSI_ARM" "$OUT/$MSI_ARM_NAME"
 cp "$APP_ARM" "$OUT/$APP_ARM_NAME"
@@ -73,7 +79,7 @@ cp "$APP_X64" "$OUT/$APP_X64_NAME"
 echo "==> Building latest.json"
 node scripts/build-latest-json.mjs \
   --version "$VERSION" \
-  --dmg-sig "$DMG_SIG" \
+  --macos-updater-sig "$APP_TAR_SIG" \
   --msi-x64-sig "$MSI_X64_SIG" \
   --msi-arm-sig "$MSI_ARM_SIG" \
   --appimage-x64-sig "$APP_X64_SIG" \
@@ -100,6 +106,7 @@ upload() {
     --remote
 }
 upload "$OUT/$DMG_NAME"      "$DMG_NAME"      "application/x-apple-diskimage"
+upload "$OUT/$APP_TAR_NAME"  "$APP_TAR_NAME"  "application/gzip"
 upload "$OUT/$MSI_X64_NAME"  "$MSI_X64_NAME"  "application/x-msi"
 upload "$OUT/$MSI_ARM_NAME"  "$MSI_ARM_NAME"  "application/x-msi"
 upload "$OUT/$APP_X64_NAME"  "$APP_X64_NAME"  "application/x-executable"

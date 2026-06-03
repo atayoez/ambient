@@ -53,6 +53,7 @@
       "dmg",
       "msi"
     ],
+    "createUpdaterArtifacts": true,
     "category": "GraphicsAndDesign",
     "shortDescription": "Wallpaper studio with patterns, emoji, sources, and AI",
     "longDescription": "Cross-platform wallpaper studio. Create dynamic patterns with colors and emoji, pull from curated sources (NASA APOD, Unsplash, Pexels), or generate via AI — all rendered at your exact screen resolution.",
