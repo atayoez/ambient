@@ -130,7 +130,7 @@ export default function PaletteEditor({
             onChange={(e) => onColorChange(i, e.target.value)}
             aria-label={`color ${i + 1}`}
           />
-          {colors.length > 2 && (
+          {colors.length > 1 && (
             <button
               onClick={() => onRemoveColor(i)}
               className="chip-remove"
@@ -142,7 +142,7 @@ export default function PaletteEditor({
           )}
         </div>
       ))}
-      {colors.length < 6 && (
+      {colors.length < 5 && (
         <button
           onClick={onAddColor}
           className="add-color"

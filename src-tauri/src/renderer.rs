@@ -533,6 +533,14 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
+    // Stripe bands draw from the foreground palette (colors[1..]); the
+    // background is colors[0] (filled above) — same background/foreground
+    // split as the other pattern types.
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
     let angle_deg = cfg.stripes_angle.unwrap_or(30.0).clamp(0.0, 90.0);
     let diag = ((w_f * w_f + h_f * h_f).sqrt() * 1.1).max(1.0);
     let scale = w_f.max(h_f) / 1920.0;
@@ -546,7 +554,7 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
     while x < diag {
         let stripe_w =
             (base_width * (1.0 + (rng.next() - 0.5) * width_var)).max(2.0);
-        let color = hex_to_color(&cfg.colors[i % cfg.colors.len()], 1.0);
+        let color = hex_to_color(palette[i % palette.len()], 1.0);
         let mut paint = Paint::default();
         paint.set_color(color);
         if let Some(rect) =

@@ -396,13 +396,33 @@ export default function Patterns() {
             )}
           </div>
 
+          {/* Colour roles: colors[0] is the background fill, colors[1..]
+              the foreground (shapes / dots / stripes / mesh blobs), and
+              for the Emoji type the foreground is the glyph set. Splitting
+              them makes the relationship explicit instead of a flat list
+              where "the first one is secretly the background". */}
+          <div className="role-bg">
+            <span className="role-label">Background</span>
+            <div className="color-chip role-bg-chip">
+              <input
+                type="color"
+                value={config.colors[0] ?? '#000000'}
+                onChange={(e) => setColor(0, e.target.value)}
+                aria-label="Background color"
+              />
+            </div>
+          </div>
+
+          <span className="role-label">
+            {config.type === 'emoji' ? 'Emoji' : 'Foreground'}
+          </span>
           <PaletteEditor
             type={config.type}
-            colors={config.colors}
+            colors={config.colors.slice(1)}
             emojis={config.emojis}
-            onColorChange={setColor}
+            onColorChange={(i, c) => setColor(i + 1, c)}
             onAddColor={addColor}
-            onRemoveColor={removeColor}
+            onRemoveColor={(i) => removeColor(i + 1)}
             onAddEmoji={addEmoji}
             onReplaceEmoji={replaceEmoji}
             onRemoveEmoji={removeEmoji}

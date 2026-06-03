@@ -47,20 +47,14 @@ const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = 
 // reuse the most recent — search results don't expire.
 async function mostRecentFromSource(source: SourceKind): Promise<Wallpaper | null> {
   const lib = await loadLibrary();
-  const match = lib.find((w) => w.source === source);
-  if (!match) return null;
-  if (source === 'nasa-apod' && !isFromToday(match.addedAt)) return null;
-  return match;
-}
-
-function isFromToday(ms: number): boolean {
-  const d = new Date(ms);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
+  // Always reuse the most recent cached image for this source — including
+  // NASA APOD. The previous code dropped a NASA preview that wasn't from
+  // "today", which forced a redundant network re-fetch every launch even
+  // though a perfectly good image was already on disk. Freshness is the
+  // job of the opt-in daily auto-rotate, not of silently discarding the
+  // cache; this keeps the last image instantly on screen and never drops
+  // it on a tab switch or relaunch.
+  return lib.find((w) => w.source === source) ?? null;
 }
 
 export default function Sources() {

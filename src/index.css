@@ -2054,3 +2054,24 @@ button.primary.icon-btn {
   background: rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
 }
+
+/* Patterns colour roles — background picker + foreground label. */
+.role-bg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.role-label {
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.role-bg-chip {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
