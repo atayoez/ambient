@@ -1,15 +1,33 @@
-// HDR encoding pipeline for the Pattern apply path. Converts the
-// 8-bit sRGB pixmap that tiny-skia produces into a 10-bit AVIF with
-// BT.2020 primaries + PQ (ST.2084) transfer + highlight boost. The
-// boost is what makes "real HDR" visible on HDR monitors — without
-// it, our sRGB-derived pixels would PQ-encode to <100 nits and look
-// identical to SDR.
+// Real-HDR encoding for the Pattern apply path.
 //
-// tiny-skia is 8-bit internally so we're not "real float HDR" end-to-
-// end (see [[project-hdr-renderer]] for that path) — the boost happens
-// in post on already-rendered pixels. But the output file is genuine
-// HDR: 10-bit, BT.2020, PQ, with proper container metadata. HDR
-// displays will light up bright pattern highlights past SDR peak.
+// The earlier version of this file was effectively fake: it took the
+// finished 8-bit sRGB pixmap, applied a blind "anything brighter than
+// 0.85 → 400 nits" boost, PQ-encoded, and *tagged* the result BT.2020
+// without ever converting sRGB primaries into BT.2020 primaries. So the
+// colours were colorimetrically wrong on a real HDR display, gradients
+// carried 8-bit banding into the 10-bit file, and the highlights were
+// invented from clipped values.
+//
+// This version is genuinely HDR:
+//
+//   1. It consumes the *supersampled* render (w·ss × h·ss) and
+//      downsamples in LINEAR light, averaging the ss² samples per output
+//      pixel. Averaging N 8-bit samples recovers ~log2(N) extra bits, so
+//      gradients come out smooth (effectively 10–12 bit) instead of
+//      banded — and the geometry is identical to the SDR preview, so
+//      there's no parallel renderer to drift out of sync.
+//   2. It applies the real linear sRGB → linear BT.2020 primary matrix
+//      (BT.709 and sRGB share primaries), so colours are correct under
+//      the BT.2020/PQ tag.
+//   3. Highlights are expanded hue-preservingly against real reference
+//      levels: SDR diffuse white maps to 203 nits (ITU-R BT.2408), and
+//      luminance above a knee rolls smoothly up toward HL_PEAK_NITS.
+//      It's still reconstructed from an SDR-authored source (true
+//      above-white emission would need the renderer to emit >1.0, i.e.
+//      a float renderer or an explicit per-palette nits control), but
+//      it's principled rather than a clip threshold.
+//   4. 10-bit PQ (ST.2084), BT.2020-NCL YCbCr, full range, with the
+//      colr box patched to BT.2020 + PQ.
 
 use tiny_skia::Pixmap;
 
@@ -25,20 +43,19 @@ const KR: f32 = 0.2627;
 const KG: f32 = 0.6780;
 const KB: f32 = 0.0593;
 
-// Highlight boost — pixels with max(R,G,B) above this threshold get
-// pushed up to PEAK linear units. 1.0 linear = 100 SDR nits, PEAK 4.0
-// ≈ 400 nits on a sufficiently bright HDR display.
-const BOOST_THRESHOLD: f32 = 0.85;
-const BOOST_PEAK: f32 = 4.0;
+// ITU-R BT.2408 HDR reference (diffuse) white. SDR "1.0" maps here, so
+// midtones keep their familiar brightness and only genuine highlights
+// exceed it.
+pub const SDR_WHITE_NITS: f32 = 203.0;
 
-// Maps in-pixmap 1.0 (SDR white) to this many nits on the encoded PQ
-// curve. 100 = "SDR brightness stays SDR-bright"; the boost above the
-// threshold then pushes specific highlights past it.
-pub const DEFAULT_NITS_PEAK: f32 = 100.0;
+// Highlight expansion. Linear (Rec.709) luminance above HL_KNEE rolls
+// smoothly from SDR white up to HL_PEAK_NITS — bright pattern highlights
+// light past SDR peak on an HDR display without crushing midtones.
+const HL_KNEE: f32 = 0.80;
+const HL_PEAK_NITS: f32 = 600.0;
 
-/// Decode a single sRGB byte to its linear-light float value.
-/// Uses the official sRGB EOTF (the piecewise form, not gamma 2.2 —
-/// the 2.4 power on the upper segment matters for accurate PQ math).
+/// Decode a single sRGB byte to its linear-light float value (official
+/// piecewise sRGB EOTF, not a gamma-2.2 approximation).
 pub(crate) fn srgb_to_linear(b: u8) -> f32 {
     let v = b as f32 / 255.0;
     if v <= 0.04045 {
@@ -48,20 +65,31 @@ pub(crate) fn srgb_to_linear(b: u8) -> f32 {
     }
 }
 
-/// Smooth boost on `max(R, G, B)` — identity below threshold, smooth-
-/// step up to BOOST_PEAK at linear value 1.0. Caller applies the
-/// returned factor uniformly to R/G/B so hue is preserved.
-pub(crate) fn highlight_boost(linear_max: f32) -> f32 {
-    if linear_max <= BOOST_THRESHOLD {
-        return linear_max;
-    }
-    let t = ((linear_max - BOOST_THRESHOLD) / (1.0 - BOOST_THRESHOLD)).clamp(0.0, 1.0);
-    let smooth = t * t * (3.0 - 2.0 * t);
-    linear_max + smooth * (BOOST_PEAK - linear_max)
+/// Linear sRGB / BT.709 → linear BT.2020 primary conversion (both D65,
+/// so this is a pure 3×3 primary rotation — no white adaptation). These
+/// are the canonical BT.709→BT.2020 RGB coefficients.
+pub(crate) fn linear_srgb_to_bt2020(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let r2 = 0.627_403_9 * r + 0.329_283_0 * g + 0.043_313_1 * b;
+    let g2 = 0.069_097_3 * r + 0.919_540_6 * g + 0.011_362_3 * b;
+    let b2 = 0.016_391_4 * r + 0.088_013_2 * g + 0.895_595_8 * b;
+    (r2, g2, b2)
 }
 
-/// PQ OETF (ST.2084) — linear normalized (0.0..1.0 = 0..10000 nits)
-/// → PQ-encoded (0.0..1.0).
+/// Per-pixel white level in nits. SDR white (203) for everything up to
+/// the knee; smoothstep up to HL_PEAK_NITS as linear luminance
+/// approaches 1.0. Returned as a single scalar applied to all channels
+/// so hue/saturation are preserved.
+pub(crate) fn white_nits_for_luma(luma_linear: f32) -> f32 {
+    if luma_linear <= HL_KNEE {
+        return SDR_WHITE_NITS;
+    }
+    let t = ((luma_linear - HL_KNEE) / (1.0 - HL_KNEE)).clamp(0.0, 1.0);
+    let smooth = t * t * (3.0 - 2.0 * t);
+    SDR_WHITE_NITS + smooth * (HL_PEAK_NITS - SDR_WHITE_NITS)
+}
+
+/// PQ OETF (ST.2084): linear normalized (0..1 = 0..10000 nits) →
+/// PQ-encoded (0..1).
 pub(crate) fn pq_oetf(linear_normalized: f32) -> f32 {
     let l = linear_normalized.clamp(0.0, 1.0);
     if l == 0.0 {
@@ -73,89 +101,100 @@ pub(crate) fn pq_oetf(linear_normalized: f32) -> f32 {
     (num / den).powf(PQ_M2)
 }
 
-/// Encode the pixmap as a 10-bit AVIF with HDR metadata. Pipeline:
+/// Encode the supersampled render as a 10-bit BT.2020 + PQ AVIF.
 ///
-///   8-bit sRGB premultiplied
-///   → sRGB EOTF (per byte)        — linear light, 0..1 = 0..100 nits
-///   → highlight boost              — up to BOOST_PEAK × 100 nits
-///   → scale by nits_peak / 10000   — fraction of 10000-nit PQ scale
-///   → PQ OETF                      — 0..1 PQ-encoded
-///   → BT.2020 RGB → YCbCr          — for AVIF planar storage
-///   → 10-bit quantize, full range
-///   → ravif AV1 encode (4:4:4)
+/// `big` is the w·ss × h·ss pixmap; `out_w`/`out_h` are the native
+/// dimensions. The ss² samples per output pixel are averaged in linear
+/// light (the precision win that removes banding). Pipeline per output
+/// pixel:
 ///
-/// `nits_peak` defaults to DEFAULT_NITS_PEAK (100). Caller controls
-/// the SDR baseline; bright pattern highlights then exceed it via the
-/// boost curve.
-pub fn encode_pixmap_avif_hdr(pix: &Pixmap, nits_peak: f32) -> Result<Vec<u8>, String> {
-    let w = pix.width() as usize;
-    let h = pix.height() as usize;
-    let pixel_count = w * h;
-    if pixel_count == 0 {
+///   ss² sRGB samples → linear (EOTF) → average  (effective >8-bit)
+///   → linear sRGB → linear BT.2020   (primary matrix)
+///   → × white-nits(luma) / 10000     (HDR luminance, hue-preserving)
+///   → PQ OETF → BT.2020-NCL Y'CbCr → 10-bit full-range
+///   → ravif AV1 (4:4:4) → patch colr to BT.2020 + PQ
+pub fn encode_supersampled_avif_hdr(
+    big: &Pixmap,
+    out_w: u32,
+    out_h: u32,
+) -> Result<Vec<u8>, String> {
+    let bw = big.width();
+    let bh = big.height();
+    if out_w == 0 || out_h == 0 || bw == 0 || bh == 0 {
         return Err("empty pixmap".to_string());
     }
+    // Integer supersample factor per axis. apply_pattern always renders
+    // at an exact multiple, but guard against a mismatch by flooring and
+    // clamping to ≥1.
+    let sx = (bw / out_w).max(1);
+    let sy = (bh / out_h).max(1);
+    let inv_samples = 1.0 / (sx * sy) as f32;
 
-    let mut y_plane: Vec<u16> = Vec::with_capacity(pixel_count);
-    let mut cb_plane: Vec<u16> = Vec::with_capacity(pixel_count);
-    let mut cr_plane: Vec<u16> = Vec::with_capacity(pixel_count);
+    let data = big.data();
+    let row_bytes = bw as usize * 4;
 
-    let scale = nits_peak / 10000.0;
+    let pixel_count = (out_w * out_h) as usize;
+    let mut pixels: Vec<[u16; 3]> = Vec::with_capacity(pixel_count);
 
-    for chunk in pix.data().chunks_exact(4) {
-        // tiny-skia gives premultiplied RGBA; for opaque pixels
-        // (all our patterns end up alpha=255) premultiplied == straight.
-        let mut r = srgb_to_linear(chunk[0]);
-        let mut g = srgb_to_linear(chunk[1]);
-        let mut b = srgb_to_linear(chunk[2]);
+    for oy in 0..out_h {
+        for ox in 0..out_w {
+            // Average the ss² block in linear light.
+            let mut lr = 0.0f32;
+            let mut lg = 0.0f32;
+            let mut lb = 0.0f32;
+            for dy in 0..sy {
+                let py = oy * sy + dy;
+                let row = py as usize * row_bytes;
+                for dx in 0..sx {
+                    let px = ox * sx + dx;
+                    let i = row + px as usize * 4;
+                    // tiny-skia is premultiplied; our patterns are fully
+                    // opaque (alpha 255) so premultiplied == straight.
+                    lr += srgb_to_linear(data[i]);
+                    lg += srgb_to_linear(data[i + 1]);
+                    lb += srgb_to_linear(data[i + 2]);
+                }
+            }
+            lr *= inv_samples;
+            lg *= inv_samples;
+            lb *= inv_samples;
 
-        let max_ch = r.max(g).max(b);
-        if max_ch > 0.0 {
-            let factor = highlight_boost(max_ch) / max_ch;
-            r *= factor;
-            g *= factor;
-            b *= factor;
+            // Rec.709 linear luminance drives the highlight expansion;
+            // computed on the sRGB-primary linear values before the
+            // gamut rotation (luma weighting is for the source gamut).
+            let luma = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+            let white = white_nits_for_luma(luma);
+            let scale = white / 10000.0;
+
+            let (r2, g2, b2) = linear_srgb_to_bt2020(lr, lg, lb);
+
+            let r_pq = pq_oetf(r2 * scale);
+            let g_pq = pq_oetf(g2 * scale);
+            let b_pq = pq_oetf(b2 * scale);
+
+            // BT.2020 non-constant luminance Y'CbCr.
+            let y = KR * r_pq + KG * g_pq + KB * b_pq;
+            let cb = (b_pq - y) / (2.0 * (1.0 - KB));
+            let cr = (r_pq - y) / (2.0 * (1.0 - KR));
+
+            let y_q = (y * 1023.0).round().clamp(0.0, 1023.0) as u16;
+            let cb_q = (cb * 1024.0 + 512.0).round().clamp(0.0, 1023.0) as u16;
+            let cr_q = (cr * 1024.0 + 512.0).round().clamp(0.0, 1023.0) as u16;
+            pixels.push([y_q, cb_q, cr_q]);
         }
-
-        let r_pq = pq_oetf(r * scale);
-        let g_pq = pq_oetf(g * scale);
-        let b_pq = pq_oetf(b * scale);
-
-        // BT.2020 non-constant luminance Y'CbCr
-        let y = KR * r_pq + KG * g_pq + KB * b_pq;
-        let cb = (b_pq - y) / (2.0 * (1.0 - KB));
-        let cr = (r_pq - y) / (2.0 * (1.0 - KR));
-
-        let y_q = (y * 1023.0).round().clamp(0.0, 1023.0) as u16;
-        let cb_q = (cb * 1024.0 + 512.0).round().clamp(0.0, 1023.0) as u16;
-        let cr_q = (cr * 1024.0 + 512.0).round().clamp(0.0, 1023.0) as u16;
-
-        y_plane.push(y_q);
-        cb_plane.push(cb_q);
-        cr_plane.push(cr_q);
     }
 
-    encode_avif_10_bit(w, h, &y_plane, &cb_plane, &cr_plane)
+    encode_avif_10_bit(out_w as usize, out_h as usize, pixels)
 }
 
-/// Thin wrapper around ravif's 10-bit raw-planes API. Kept in its own
-/// fn so the API-shape uncertainty stays contained and the encoding
-/// math above is testable without pulling ravif into unit tests.
+/// Thin wrapper around ravif's 10-bit raw-planes API.
 fn encode_avif_10_bit(
     width: usize,
     height: usize,
-    y: &[u16],
-    cb: &[u16],
-    cr: &[u16],
+    pixels: Vec<[u16; 3]>,
 ) -> Result<Vec<u8>, String> {
     use rav1e::prelude::PixelRange;
     use ravif::{Encoder, MatrixCoefficients};
-
-    // ravif's encode_raw_planes_10_bit wants the YCbCr triple per
-    // pixel (interleaved [Y, Cb, Cr] arrays), not three separate
-    // planes. Zip + collect once before encoding.
-    let pixels: Vec<[u16; 3]> = (0..(width * height))
-        .map(|i| [y[i], cb[i], cr[i]])
-        .collect();
 
     let encoded = Encoder::new()
         .with_speed(6)
@@ -175,26 +214,18 @@ fn encode_avif_10_bit(
     Ok(bytes)
 }
 
-/// Rewrite the AVIF `colr nclx` box so the file is tagged BT.2020
-/// primaries + PQ (ST.2084) transfer. ravif (0.11) hardcodes
-/// `ColorPrimaries::BT709` + `TransferCharacteristics::SRGB` in its
-/// internal ColorDescription and exposes no setter — even though the
-/// pixel data we hand it IS PQ-encoded BT.2020 RGB. Without this
-/// patch, HDR-aware decoders would de-gamma our PQ samples as sRGB and
-/// the wallpaper would look wildly wrong on HDR displays. The
-/// matrix_coefficients field is left alone — ravif's parameter for
-/// that one IS plumbed through, so it already reads BT2020NCL (9).
+/// Rewrite the AVIF `colr nclx` box to BT.2020 primaries + PQ (ST.2084)
+/// transfer. ravif hardcodes BT.709 + sRGB in its ColorDescription and
+/// exposes no setter, even though the samples we hand it are PQ-encoded
+/// BT.2020. Without this an HDR decoder would de-gamma our PQ samples as
+/// sRGB and the wallpaper would look wildly wrong. matrix_coefficients
+/// is already BT2020NCL via ravif's plumbed parameter, so it's left
+/// alone.
 ///
-/// The colr box's nclx form is:
-///   4 bytes: "nclx"
-///   2 bytes: colour_primaries        (u16 BE)
-///   2 bytes: transfer_characteristics (u16 BE)
-///   2 bytes: matrix_coefficients     (u16 BE)
-///   1 byte:  bit 7 = full_range_flag, bits 0-6 = reserved
-///
-/// We anchor on the 8-byte sequence "colrnclx" — the box-type field
-/// directly followed by the colour_type sub-tag — to avoid false
-/// matches on other 4-char sequences that happen to spell "colr".
+/// The colr nclx form is: "nclx" + colour_primaries(u16) +
+/// transfer_characteristics(u16) + matrix_coefficients(u16) + 1 flag
+/// byte (bit 7 = full_range). We anchor on "colrnclx" to avoid matching
+/// other 4-char "colr" sequences.
 pub(crate) fn patch_colr_nclx_to_hdr(avif: &mut [u8]) {
     const ANCHOR: &[u8] = b"colrnclx";
     const BT2020: [u8; 2] = [0, 9];
@@ -217,6 +248,7 @@ pub(crate) fn patch_colr_nclx_to_hdr(avif: &mut [u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tiny_skia::{Color, Paint, Pixmap, Rect, Transform};
 
     #[test]
     fn srgb_to_linear_endpoints() {
@@ -226,34 +258,50 @@ mod tests {
 
     #[test]
     fn srgb_to_linear_midpoint_uses_eotf_not_gamma() {
-        // sRGB byte 128 (~0.5 in normalized sRGB) decodes to ~0.215
-        // in linear light. A naive gamma-2.2 approximation would give
-        // ~0.217 — close but not identical. Verifies the piecewise EOTF.
+        // sRGB byte 128 decodes to ~0.215 linear via the piecewise EOTF.
         let mid = srgb_to_linear(128);
         assert!((mid - 0.215).abs() < 0.005, "got {}", mid);
     }
 
     #[test]
-    fn highlight_boost_passes_through_below_threshold() {
-        assert_eq!(highlight_boost(0.0), 0.0);
-        assert_eq!(highlight_boost(0.5), 0.5);
-        assert_eq!(highlight_boost(BOOST_THRESHOLD), BOOST_THRESHOLD);
+    fn bt2020_matrix_preserves_neutral_white() {
+        // A neutral (R=G=B) input must stay neutral after the primary
+        // rotation — the rows each sum to ~1.0.
+        let (r, g, b) = linear_srgb_to_bt2020(1.0, 1.0, 1.0);
+        assert!((r - 1.0).abs() < 1e-3, "r {}", r);
+        assert!((g - 1.0).abs() < 1e-3, "g {}", g);
+        assert!((b - 1.0).abs() < 1e-3, "b {}", b);
     }
 
     #[test]
-    fn highlight_boost_amplifies_to_peak_at_full_white() {
-        let boosted = highlight_boost(1.0);
-        // At input 1.0, smoothstep saturates → boost factor pushes
-        // toward BOOST_PEAK fully.
-        assert!((boosted - BOOST_PEAK).abs() < 1e-5, "got {}", boosted);
+    fn bt2020_matrix_desaturates_pure_primaries() {
+        // sRGB pure red, expressed in the wider BT.2020 gamut, must have
+        // some green/blue content (it sits inside BT.2020's red) — i.e.
+        // it is NOT pure (1,0,0) any more. This is exactly what the old
+        // "tag but don't convert" path got wrong.
+        let (r, g, b) = linear_srgb_to_bt2020(1.0, 0.0, 0.0);
+        assert!(r > 0.5 && r < 1.0, "r {}", r);
+        assert!(g > 0.0, "g {}", g);
+        assert!(b > 0.0, "b {}", b);
     }
 
     #[test]
-    fn highlight_boost_smooth_in_transition_zone() {
-        // Mid-transition should land between threshold and peak.
-        let halfway = highlight_boost(0.925);
-        assert!(halfway > 0.925);
-        assert!(halfway < BOOST_PEAK);
+    fn white_nits_sdr_below_knee() {
+        assert_eq!(white_nits_for_luma(0.0), SDR_WHITE_NITS);
+        assert_eq!(white_nits_for_luma(0.5), SDR_WHITE_NITS);
+        assert_eq!(white_nits_for_luma(HL_KNEE), SDR_WHITE_NITS);
+    }
+
+    #[test]
+    fn white_nits_expands_to_peak_at_white() {
+        assert!((white_nits_for_luma(1.0) - HL_PEAK_NITS).abs() < 1e-3);
+    }
+
+    #[test]
+    fn white_nits_monotonic_in_knee() {
+        let a = white_nits_for_luma(0.85);
+        let b = white_nits_for_luma(0.95);
+        assert!(a > SDR_WHITE_NITS && a < b && b < HL_PEAK_NITS, "{a} {b}");
     }
 
     #[test]
@@ -263,38 +311,15 @@ mod tests {
     }
 
     #[test]
-    fn pq_oetf_sdr_white_at_100_nits() {
-        // 100 nits = 0.01 of the 10000-nit PQ scale.
-        // ST.2084 reference: PQ(100/10000) ≈ 0.508.
-        let pq = pq_oetf(0.01);
-        assert!((pq - 0.508).abs() < 0.005, "got {}", pq);
-    }
-
-    #[test]
-    #[ignore = "writes /tmp/hdr_check.avif for manual ffprobe verification"]
-    fn save_hdr_check_avif_to_tmp() {
-        use tiny_skia::{Color, Paint, Pixmap, Rect, Transform};
-        // Gradient from black to peak-white horizontally, so the AVIF
-        // exercises the full PQ range and highlight boost. 640×360 is
-        // big enough for ffprobe to read meaningful color metadata.
-        let mut pix = Pixmap::new(640, 360).unwrap();
-        for x in 0..640 {
-            let v = (x as f32 / 639.0 * 255.0) as u8;
-            let mut paint = Paint::default();
-            paint.set_color(Color::from_rgba8(v, v, v, 255));
-            let rect = Rect::from_xywh(x as f32, 0.0, 1.0, 360.0).unwrap();
-            pix.fill_rect(rect, &paint, Transform::identity(), None);
-        }
-        let bytes = encode_pixmap_avif_hdr(&pix, DEFAULT_NITS_PEAK).unwrap();
-        std::fs::write("/tmp/hdr_check.avif", &bytes).unwrap();
-        eprintln!("wrote /tmp/hdr_check.avif ({} bytes)", bytes.len());
+    fn pq_oetf_203_nit_white() {
+        // SDR white now lands at 203 nits = 0.0203 of the PQ scale.
+        // ST.2084 reference: PQ(0.0203) ≈ 0.578.
+        let pq = pq_oetf(SDR_WHITE_NITS / 10000.0);
+        assert!((pq - 0.578).abs() < 0.01, "got {}", pq);
     }
 
     #[test]
     fn patch_colr_nclx_rewrites_primaries_and_transfer() {
-        // Synthesize the minimum bytes the patch fn anchors on:
-        // `colr` box-type immediately followed by `nclx` colour_type,
-        // then 7 bytes of nclx payload (2+2+2 + 1 flag).
         let mut bytes = vec![0u8; 32];
         bytes[10..18].copy_from_slice(b"colrnclx");
         bytes[18..20].copy_from_slice(&[0, 1]); // primaries = BT.709
@@ -304,10 +329,10 @@ mod tests {
 
         patch_colr_nclx_to_hdr(&mut bytes);
 
-        assert_eq!(&bytes[18..20], &[0, 9], "primaries should patch to BT.2020 (9)");
-        assert_eq!(&bytes[20..22], &[0, 16], "transfer should patch to PQ (16)");
-        assert_eq!(&bytes[22..24], &[0, 9], "matrix must stay BT.2020 NCL (9)");
-        assert_eq!(bytes[24], 0x80, "full_range_flag must stay set");
+        assert_eq!(&bytes[18..20], &[0, 9], "primaries → BT.2020 (9)");
+        assert_eq!(&bytes[20..22], &[0, 16], "transfer → PQ (16)");
+        assert_eq!(&bytes[22..24], &[0, 9], "matrix stays BT.2020 NCL (9)");
+        assert_eq!(bytes[24], 0x80, "full_range_flag stays set");
     }
 
     #[test]
@@ -319,22 +344,37 @@ mod tests {
     }
 
     #[test]
-    fn encode_pixmap_avif_hdr_produces_avif_container() {
-        // End-to-end smoke test: convert + ravif encode + sniff the
-        // container magic. Bright magenta exercises the highlight-boost
-        // path (max_ch saturates → factor applied). 64x64 keeps the
-        // ravif encode under a second so this stays in-suite.
-        use tiny_skia::{Color, Paint, Pixmap, Rect, Transform};
-        let mut pix = Pixmap::new(64, 64).unwrap();
+    #[ignore = "writes /tmp/hdr_check.avif for manual ffprobe verification"]
+    fn save_hdr_check_avif_to_tmp() {
+        // Horizontal black→white gradient at 2× supersample so the file
+        // exercises the full PQ range + highlight rolloff + linear
+        // downscale. ffprobe should report bt2020 / smpte2084 / 10-bit.
+        let mut big = Pixmap::new(1280, 720).unwrap();
+        for x in 0..1280 {
+            let v = (x as f32 / 1279.0 * 255.0) as u8;
+            let mut paint = Paint::default();
+            paint.set_color(Color::from_rgba8(v, v, v, 255));
+            let rect = Rect::from_xywh(x as f32, 0.0, 1.0, 720.0).unwrap();
+            big.fill_rect(rect, &paint, Transform::identity(), None);
+        }
+        let bytes = encode_supersampled_avif_hdr(&big, 640, 360).unwrap();
+        std::fs::write("/tmp/hdr_check.avif", &bytes).unwrap();
+        eprintln!("wrote /tmp/hdr_check.avif ({} bytes)", bytes.len());
+    }
+
+    #[test]
+    fn encode_supersampled_avif_hdr_produces_avif_container() {
+        // 2× supersampled bright magenta → exercises the linear-average
+        // downscale + highlight + ravif encode end to end. 128→64.
+        let mut big = Pixmap::new(128, 128).unwrap();
         let mut paint = Paint::default();
         paint.set_color(Color::from_rgba8(255, 0, 255, 255));
-        let rect = Rect::from_xywh(0.0, 0.0, 64.0, 64.0).unwrap();
-        pix.fill_rect(rect, &paint, Transform::identity(), None);
+        let rect = Rect::from_xywh(0.0, 0.0, 128.0, 128.0).unwrap();
+        big.fill_rect(rect, &paint, Transform::identity(), None);
 
-        let bytes = encode_pixmap_avif_hdr(&pix, DEFAULT_NITS_PEAK)
+        let bytes = encode_supersampled_avif_hdr(&big, 64, 64)
             .expect("ravif encode should succeed");
-        assert!(bytes.len() > 64, "AVIF output too short: {} bytes", bytes.len());
-        // ISO base media file format — "ftyp" box at offset 4.
+        assert!(bytes.len() > 64, "AVIF too short: {}", bytes.len());
         assert_eq!(&bytes[4..8], b"ftyp", "missing ISOBMFF ftyp box");
     }
 }
