@@ -14,10 +14,49 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **8 new curated palettes** — Aurora, Cyberpunk, Autumn, Sakura,
+  Vaporwave, Forest, Citrus, and Berry — bringing the themed set to 15,
+  each with light/dark variants and a matching emoji set.
+- **Full Unicode emoji picker.** The picker now offers the complete
+  single-codepoint Unicode 16.0 set (~1,380 glyphs across 8 groups)
+  instead of a curated handful. Glyphs not bundled in the binary are
+  fetched as Fluent 3D artwork on first use and cached to disk, so the
+  common set stays instant and offline while everything else still
+  renders.
+- **Palette rename.** Custom palettes can be renamed inline from the
+  Patterns panel.
+- **Background / foreground colour roles.** The Patterns palette editor
+  now separates the background fill from the foreground (shape / dot /
+  stripe / glyph) colours rather than presenting one flat list.
 
 ### Changed
+- **Full redesign onto a single full-bleed "liquid glass" layout.**
+  Every tab — Patterns, Generate, Sources, Library — now shows the
+  preview edge-to-edge with floating frosted-glass control panels and
+  arrow-scroller pickers, matching the marketing site. The glass is
+  genuinely achromatic (it refracts the backdrop via blur + saturate)
+  rather than being painted with colour tints, and all OS-accent-tinted
+  chrome was removed for a consistent look.
+- **Much sharper emoji wallpapers.** Emoji renders are now supersampled
+  and Lanczos3-downscaled so rotated/scaled glyph edges are smoothly
+  anti-aliased instead of jagged; the preview supersamples too, so it
+  matches the applied result.
+- **Instant source switching.** Switching wallpaper source no longer
+  triggers a network fetch — the cached image shows immediately and
+  fetching is explicit.
+- **Updater signing is now wired into CI**, so released installers ship
+  with valid update signatures.
 
 ### Fixed
+- Emoji picker no longer clips off the left edge of the window.
+- Previews are no longer darkened by an overlay scrim, and the action
+  buttons (apply, generate, delete, randomise) now match the glass
+  style.
+- Preview generation is debounced and cancels superseded jobs, fixing
+  the laggy/stuck-on-"generating" behaviour and pixelated pattern
+  output; supersample intermediates are capped to avoid memory spikes.
+- Fixed a heap-corruption crash when a new launch took over a running
+  instance (now a clean hard-kill handoff).
 
 ## [0.7.0] — 2026-06-02
 
