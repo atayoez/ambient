@@ -734,6 +734,12 @@ pub async fn render_preview(
     let w = width.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_W);
     let h = height.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_H);
 
+    // Fetch any not-yet-cached emoji glyphs before the sync render reads
+    // them (the picker offers more than we bundle).
+    if matches!(config.pattern_type, PatternType::Emoji) {
+        crate::emojis::preload(&config.emojis).await;
+    }
+
     use std::sync::atomic::Ordering;
     // Claim this render's generation; a later call bumps it past ours.
     let my_gen = PREVIEW_GEN.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
@@ -781,6 +787,11 @@ pub async fn apply_pattern(
     config: PatternConfig,
     app: AppHandle,
 ) -> Result<Wallpaper, String> {
+    // Fetch any not-yet-cached emoji glyphs before the sync render.
+    if matches!(config.pattern_type, PatternType::Emoji) {
+        crate::emojis::preload(&config.emojis).await;
+    }
+
     let (w, h) = match get_primary_monitor_pixels() {
         Ok(info) => (info.width, info.height),
         Err(_) => (1920, 1080),

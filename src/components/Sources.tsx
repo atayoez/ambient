@@ -132,21 +132,14 @@ export default function Sources() {
     if (prevSource.current === settings.source) return;
     prevSource.current = settings.source;
     void (async () => {
+      // Switching source is INSTANT: show that source's cached image if we
+      // have one, otherwise an empty stage. We deliberately do NOT
+      // auto-fetch here — that network round-trip on every flick of the
+      // Source scroller is what made switching feel unusably slow. The
+      // user pulls a fresh image explicitly via the fetch button.
       const recent = await mostRecentFromSource(settings.source);
-      if (recent) {
-        setPreviewPath(recent.path);
-        setPreviewMeta(recent);
-        return;
-      }
-      // No prior image for this source. Clear the stale preview from
-      // the previous source so the user isn't staring at a NASA image
-      // while configuring Unsplash.
-      if (!canFetch(settings)) {
-        setPreviewPath(null);
-        setPreviewMeta(null);
-        return;
-      }
-      void fetchNew(false);
+      setPreviewPath(recent?.path ?? null);
+      setPreviewMeta(recent ?? null);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.source]);
@@ -277,7 +270,6 @@ export default function Sources() {
         ) : (
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
         )}
-        <div className="gen-scrim" aria-hidden="true" />
 
         <div className="gen-panel pat-top">
           <OptionScroller

@@ -1731,17 +1731,7 @@ button.primary.icon-btn {
     var(--bg-base);
 }
 
-.gen-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.28) 0%,
-    rgba(0, 0, 0, 0.1) 36%,
-    rgba(0, 0, 0, 0.55) 100%
-  );
-}
+
 
 /* Shared floating-glass panel for the controls tray + prompt composer. */
 .gen-panel {
@@ -2074,4 +2064,11 @@ button.primary.icon-btn {
   width: 32px;
   height: 32px;
   flex: none;
+}
+
+/* The emoji picker now holds the full ~1.4k Unicode set — skip layout
+   + paint for off-screen categories so opening it stays snappy. */
+.emoji-picker-cat {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 140px;
 }

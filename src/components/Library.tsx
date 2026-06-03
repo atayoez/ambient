@@ -193,7 +193,6 @@ export default function Library() {
         ) : (
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
         )}
-        <div className="gen-scrim" aria-hidden="true" />
 
         {sortedLibrary.length === 0 ? (
           <p className="gen-empty-hint">

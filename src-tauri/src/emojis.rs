@@ -11,9 +11,13 @@
 // complete. It was removed rather than left as dead code.)
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
+use std::time::Duration;
 
 use image::DynamicImage;
+
+const FETCH_TIMEOUT_SECS: u64 = 10;
 
 // 211 curated Fluent 3D emoji PNGs, all 256×256 RGBA. Covers every
 // emoji reachable from the UI — the seven COLOR_PRESETS, the System
@@ -244,15 +248,32 @@ static BUNDLED: LazyLock<HashMap<&'static str, &'static [u8]>> = LazyLock::new(|
     m
 });
 
-// Process-lifetime decoded image cache. PNG decode is the expensive
-// step; loaders hit this map first and decode only on miss.
+// Process-lifetime decoded image cache. Decode is the expensive step;
+// loaders hit this map first and decode only on miss.
 static DECODED: LazyLock<RwLock<HashMap<String, DynamicImage>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
+// On-disk cache dir for glyphs fetched on demand (the picker now offers
+// the full Unicode emoji set, far more than we bundle). Set at startup.
+static CACHE_DIR: LazyLock<RwLock<Option<PathBuf>>> = LazyLock::new(|| RwLock::new(None));
+
+/// Point the on-disk emoji cache at app_data/emoji_cache. Call once at
+/// startup. Without it, fetched glyphs still render (cached in DECODED
+/// for the session) but aren't persisted across launches.
+pub fn init(app_data_dir: &Path) {
+    *CACHE_DIR.write().expect("emoji cache dir lock") =
+        Some(app_data_dir.join("emoji_cache"));
+}
+
+fn cache_path(key: &str) -> Option<PathBuf> {
+    let dir = CACHE_DIR.read().expect("cache dir lock").clone()?;
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join(format!("{key}.png")))
+}
+
 /// Convert an emoji cluster (single emoji char or ZWJ sequence) to the
-/// codepoint key used by the bundled HashMap. Mirrors JS `codepointKey`
-/// in pre-Phase-5 patterns.ts — strips VS16 (U+FE0F) and joins remaining
-/// codepoints with `_`.
+/// codepoint key. Strips VS16 (U+FE0F) and joins remaining codepoints
+/// with `_`.
 pub fn codepoint_key(emoji: &str) -> String {
     emoji
         .chars()
@@ -262,11 +283,10 @@ pub fn codepoint_key(emoji: &str) -> String {
         .join("_")
 }
 
-/// Decode a bundled emoji image (memoized). Returns None for a key not
-/// in the bundle — which, given there's no free-text emoji entry, only
-/// happens if a UI emoji was added without bundling its asset (the
-/// `every_ui_emoji_is_bundled` test guards against that). Fully sync,
-/// safe to call from inside spawn_blocking.
+/// Load a decoded emoji image WITHOUT network access (sync — safe inside
+/// spawn_blocking). Resolution order: in-memory cache → bundled asset →
+/// on-disk cache from a prior fetch. Returns None for anything not yet
+/// available locally; `preload` fetches those over the network first.
 pub fn load(emoji: &str) -> Option<DynamicImage> {
     let key = codepoint_key(emoji);
     if key.is_empty() {
@@ -277,13 +297,72 @@ pub fn load(emoji: &str) -> Option<DynamicImage> {
         return Some(img);
     }
 
-    let &bytes = BUNDLED.get(key.as_str())?;
-    let img = image::load_from_memory(bytes).ok()?;
-    DECODED
-        .write()
-        .expect("decoded lock")
-        .insert(key, img.clone());
-    Some(img)
+    if let Some(&bytes) = BUNDLED.get(key.as_str()) {
+        let img = image::load_from_memory(bytes).ok()?;
+        DECODED.write().expect("decoded lock").insert(key, img.clone());
+        return Some(img);
+    }
+
+    // Previously fetched + persisted to disk.
+    if let Some(path) = cache_path(&key) {
+        if let Ok(img) = image::open(&path) {
+            DECODED.write().expect("decoded lock").insert(key, img.clone());
+            return Some(img);
+        }
+    }
+
+    None
+}
+
+/// Async: for every emoji not already loadable, fetch its Fluent 3D
+/// artwork (codepoint-indexed via @lobehub/fluent-emoji-3d on jsDelivr),
+/// decode it, and persist to the disk cache so the subsequent sync
+/// `load` calls inside the renderer hit cache. Best-effort — a glyph that
+/// fails to fetch simply renders blank for that tile. Call before
+/// rendering an emoji pattern (apply_pattern / render_preview).
+pub async fn preload(emojis: &[String]) {
+    let needed: Vec<String> = emojis
+        .iter()
+        .filter(|e| load(e).is_none())
+        .cloned()
+        .collect();
+    if needed.is_empty() {
+        return;
+    }
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(FETCH_TIMEOUT_SECS))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    for emoji in needed {
+        let _ = fetch_and_cache(&emoji, &client).await;
+    }
+}
+
+async fn fetch_and_cache(emoji: &str, client: &reqwest::Client) -> Option<()> {
+    let key = codepoint_key(emoji);
+    // LobeHub keys VS16 emoji with a `-fe0f` suffix; our key strips VS16,
+    // so try the bare codepoint then the suffixed form.
+    const BASE: &str = "https://cdn.jsdelivr.net/npm/@lobehub/fluent-emoji-3d/assets";
+    let mut bytes = None;
+    for name in [format!("{key}.webp"), format!("{key}-fe0f.webp")] {
+        if let Ok(resp) = client.get(format!("{BASE}/{name}")).send().await {
+            if resp.status().is_success() {
+                if let Ok(b) = resp.bytes().await {
+                    bytes = Some(b);
+                    break;
+                }
+            }
+        }
+    }
+    let img = image::load_from_memory(&bytes?).ok()?;
+    if let Some(path) = cache_path(&key) {
+        let _ = img.save(&path); // PNG by extension; persists for next launch
+    }
+    DECODED.write().ok()?.insert(key, img);
+    Some(())
 }
 
 #[cfg(test)]
@@ -322,48 +401,4 @@ mod tests {
         assert!(img.width() > 0 && img.height() > 0);
     }
 
-    // Every emoji the UI can produce must be bundled, since there's no
-    // network fallback. This list is the union of EmojiPicker's grid and
-    // the COLOR_PRESETS / System-accent emojis in patterns.ts (codepoint
-    // keys, VS16 stripped). If you add an emoji to the picker or a
-    // preset, add its asset under assets/emojis/<key>.png + an insert in
-    // BUNDLED, then extend this list — otherwise it silently won't render
-    // (the regression this guards: 🐸/🐢 were offered but never bundled).
-    #[test]
-    fn every_ui_emoji_is_bundled() {
-        const UI_KEYS: &[&str] = &[
-            "1f305", "1f307", "1f308", "1f30a", "1f30b", "1f30c", "1f30d", "1f30e",
-            "1f30f", "1f311", "1f312", "1f313", "1f314", "1f315", "1f316", "1f317",
-            "1f318", "1f319", "1f31b", "1f31c", "1f31d", "1f31e", "1f31f", "1f320",
-            "1f32d", "1f331", "1f332", "1f333", "1f334", "1f335", "1f337", "1f338",
-            "1f339", "1f33a", "1f33b", "1f33c", "1f33e", "1f33f", "1f340", "1f341",
-            "1f342", "1f343", "1f344", "1f347", "1f349", "1f34c", "1f34e", "1f351",
-            "1f353", "1f354", "1f355", "1f35f", "1f361", "1f369", "1f36a", "1f36b",
-            "1f36c", "1f36d", "1f370", "1f37a", "1f37f", "1f380", "1f381", "1f382",
-            "1f383", "1f388", "1f389", "1f3a1", "1f3a4", "1f3a7", "1f3a8", "1f3ae",
-            "1f3af", "1f3b5", "1f3b6", "1f3b8", "1f3b9", "1f3ba", "1f3c6", "1f3ce",
-            "1f3d4", "1f3d5", "1f3dd", "1f414", "1f419", "1f41a", "1f41d", "1f41e",
-            "1f41f", "1f420", "1f421", "1f422", "1f427", "1f42c", "1f42f", "1f430",
-            "1f431", "1f433", "1f435", "1f436", "1f438", "1f43b", "1f43c", "1f451",
-            "1f47b", "1f480", "1f48e", "1f490", "1f493", "1f495", "1f496", "1f497",
-            "1f499", "1f49a", "1f49b", "1f49c", "1f49e", "1f49f", "1f4a0", "1f4a1",
-            "1f4a7", "1f4ab", "1f4af", "1f4f7", "1f514", "1f518", "1f525", "1f52e",
-            "1f535", "1f537", "1f539", "1f53a", "1f577", "1f578", "1f579", "1f5a4",
-            "1f5fa", "1f600", "1f601", "1f602", "1f603", "1f604", "1f605", "1f607",
-            "1f60a", "1f60d", "1f60e", "1f618", "1f61c", "1f62d", "1f634", "1f642",
-            "1f680", "1f681", "1f697", "1f6a2", "1f6b2", "1f6f5", "1f7e6", "1f90d",
-            "1f90e", "1f914", "1f923", "1f929", "1f92a", "1f92f", "1f941", "1f951",
-            "1f970", "1f973", "1f980", "1f981", "1f984", "1f987", "1f988", "1f98a",
-            "1f98b", "1f993", "1f996", "1f9a9", "1f9c1", "1f9d9", "1f9e1", "1f9ed",
-            "1f9f8", "1fa70", "1fa84", "1fa90", "1fab8", "2600", "2604", "2615",
-            "2618", "26a1", "26b0", "26f5", "2708", "2728", "2744", "2764",
-            "2b1b", "2b1c", "2b50",
-        ];
-        let missing: Vec<&str> = UI_KEYS
-            .iter()
-            .copied()
-            .filter(|k| !BUNDLED.contains_key(k))
-            .collect();
-        assert!(missing.is_empty(), "UI emojis missing from bundle: {missing:?}");
-    }
 }

@@ -351,7 +351,6 @@ export default function Patterns() {
         ) : (
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
         )}
-        <div className="gen-scrim" aria-hidden="true" />
 
         <div className="gen-panel pat-top">
           <OptionScroller

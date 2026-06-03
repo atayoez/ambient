@@ -142,7 +142,6 @@ export default function Generate() {
         ) : (
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
         )}
-        <div className="gen-scrim" aria-hidden="true" />
 
         {/* Floating settings tray (top). Disabled as a unit while busy. */}
         <div className="gen-panel gen-controls" inert={busy || undefined}>
