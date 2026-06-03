@@ -8,14 +8,15 @@
 @import '../design-system/colors_and_type.css';
 
 :root {
-  /* Live chrome tint — written by lib/tint.ts from the current pattern
-     palette (the app's analogue of the marketing site's wallpaper tint).
-     The glass surfaces below read this triplet so the whole window
-     re-tints around whatever's in the preview. Default is the Cosmic
-     violet so there's a sensible value before the first palette loads.
-     Distinct from --accent-os (OS accent on functional controls). */
-  --tint-r: 124;
-  --tint-g: 92;
+  /* Glass film colour. Held achromatic (white) on purpose: this is REAL
+     liquid glass — the material is a thin neutral frost, and its colour
+     comes from refracting whatever sits behind it (backdrop-filter blur +
+     saturate over the live preview), NOT from a painted chromatic wash.
+     The surfaces below reference this triplet for their film / edge /
+     sheen, so keeping it white makes every glass surface achromatic while
+     the backdrop supplies the colour. */
+  --tint-r: 255;
+  --tint-g: 255;
   --tint-b: 255;
 }
 
@@ -2353,4 +2354,156 @@ button.primary.icon-btn {
 
 .gen-go {
   flex: none;
+}
+
+/* ============================================================ */
+/* Patterns tab — full-bleed stage + arrow-scroller controls     */
+/* ============================================================ */
+/* Reuses the .gen-stage / .gen-bg / .gen-scrim / .gen-panel glass
+   primitives (now achromatic — the colour comes from refracting the
+   live preview behind the panels, not a tint). These rules only add
+   Patterns-specific positioning. */
+
+.pat-top {
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-container);
+}
+
+.pat-side {
+  top: 12px;
+  right: 12px;
+  bottom: 84px; /* clear of the centered tab pill */
+  width: 264px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-container);
+  overflow-y: auto;
+}
+
+.pat-palette-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pat-palette-row .opt-scroller {
+  flex: 1;
+  min-width: 0;
+}
+
+.pat-del {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  cursor: pointer;
+}
+
+.pat-del:hover {
+  color: #fff;
+  background: var(--danger);
+  border-color: transparent;
+}
+
+.pat-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pat-actions {
+  position: absolute;
+  z-index: 4;
+  right: 16px;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- OptionScroller (arrow pill) --- */
+.opt-scroller {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.opt-scroller-eyebrow {
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-left: 2px;
+}
+
+.opt-scroller-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Subtle inset well so the control reads as a unit inside the glass
+     panel — achromatic, no tint. */
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+}
+
+.opt-arrow {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--t-fast) ease;
+}
+
+.opt-arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.opt-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.opt-value {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.opt-value-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.opt-value-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
