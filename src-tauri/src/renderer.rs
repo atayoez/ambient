@@ -83,15 +83,21 @@ pub struct PatternConfig {
     pub emoji_size_var: Option<f32>,
     #[serde(default)]
     pub emoji_spacing: Option<f32>,
-    // Bloom: petal/ribbon count, swirl (tangential bend of each petal),
-    // and edge softness (blur). Recreates the Windows 11 "Bloom" look —
-    // flowing translucent gradient petals radiating from a centre.
+    // Flower (Windows 11 "Bloom"-style): petal count + swirl (tangential
+    // bend of each petal). Flowing translucent gradient petals radiating
+    // from a luminous centre.
     #[serde(default)]
-    pub bloom_petals: Option<u32>,
+    pub flower_petals: Option<u32>,
     #[serde(default)]
-    pub bloom_twist: Option<f32>,
+    pub flower_twist: Option<f32>,
+    // Flow: smooth wavy lines spanning the canvas edge-to-edge. Line
+    // count, wave amplitude (0–1), and wave frequency (0–1).
     #[serde(default)]
-    pub bloom_softness: Option<f32>,
+    pub flow_lines: Option<u32>,
+    #[serde(default)]
+    pub flow_amplitude: Option<f32>,
+    #[serde(default)]
+    pub flow_frequency: Option<f32>,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -102,7 +108,9 @@ pub enum PatternType {
     Dots,
     Stripes,
     Emoji,
-    Bloom,
+    #[serde(alias = "bloom")]
+    Flower,
+    Flow,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -178,7 +186,8 @@ pub fn render(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
         PatternType::Dots => render_dots(&mut pix, config),
         PatternType::Stripes => render_stripes(&mut pix, config),
         PatternType::Emoji => render_emoji(&mut pix, config),
-        PatternType::Bloom => render_bloom(&mut pix, config),
+        PatternType::Flower => render_flower(&mut pix, config),
+        PatternType::Flow => render_flow(&mut pix, config),
     }
     pix
 }
@@ -578,18 +587,17 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
     }
 }
 
-/// Windows 11 "Bloom"-style generator: flowing, translucent gradient
-/// petals radiating from a centre, optionally swirled. Each petal is a
-/// leaf-shaped closed path filled with a linear gradient between two
-/// palette colours; overlaps blend (SrcOver) and a final blur gives the
-/// soft, luminous quality. Two layers (a wide low-alpha back layer + a
-/// brighter front layer, angularly offset) add depth.
+/// Windows 11 "Bloom"-style flower generator: flowing, translucent
+/// gradient petals radiating from a luminous centre, optionally swirled.
+/// Each petal is a leaf-shaped closed path filled with a linear gradient
+/// between two palette colours; overlaps blend (SrcOver). Two layers (a
+/// wide low-alpha back layer + a brighter front layer, angularly offset)
+/// plus a soft central radial glow give depth.
 ///
-/// Modifiers: `bloom_petals` (count), `bloom_twist` (0–1 tangential
-/// swirl), `bloom_softness` (0–1 blur), plus global `size` (petal reach)
-/// and the foreground palette (`colors[1..]`) over the `colors[0]`
-/// background.
-fn render_bloom(pix: &mut Pixmap, cfg: &PatternConfig) {
+/// Modifiers: `flower_petals` (count), `flower_twist` (0–1 tangential
+/// swirl), plus global `size` (petal reach) and the foreground palette
+/// (`colors[1..]`) over the `colors[0]` background.
+fn render_flower(pix: &mut Pixmap, cfg: &PatternConfig) {
     let mut rng = SeededRng::new(cfg.seed);
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
@@ -605,12 +613,10 @@ fn render_bloom(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
-    let max_dim = w_f.max(h_f);
     let min_dim = w_f.min(h_f);
 
-    let petals = cfg.bloom_petals.unwrap_or(12).clamp(2, 64);
-    let twist = cfg.bloom_twist.unwrap_or(0.5).clamp(0.0, 1.0);
-    let softness = cfg.bloom_softness.unwrap_or(0.45).clamp(0.0, 1.0);
+    let petals = cfg.flower_petals.unwrap_or(12).clamp(2, 64);
+    let twist = cfg.flower_twist.unwrap_or(0.5).clamp(0.0, 1.0);
     let two_pi = std::f32::consts::PI * 2.0;
 
     // Centre, slightly seed-jittered off the middle for an organic
@@ -676,11 +682,6 @@ fn render_bloom(pix: &mut Pixmap, cfg: &PatternConfig) {
             let c1 = palette[(i as usize + 1) % palette.len()];
             draw_petal(pix, cx, cy, base_r, jitter_len, half_w, bend, angle, c0, c1, alpha);
         }
-    }
-
-    let blur_px = (max_dim * (0.004 + softness * 0.03)).round();
-    if blur_px > 0.5 {
-        apply_blur(pix, blur_px);
     }
 }
 
@@ -753,6 +754,105 @@ fn draw_petal(
         ..Paint::default()
     };
     pix.fill_path(&path, &paint, FillRule::Winding, transform, None);
+}
+
+/// "Flow" generator: smooth wavy lines that span the canvas edge-to-edge,
+/// flowing together like wind-blown strands (the abstract "flowing lines"
+/// look). Each line is a polyline sampled across the full width with a
+/// coherent sinusoidal vertical displacement — neighbours share a slowly
+/// advancing phase so they stay roughly parallel and silky rather than
+/// crossing chaotically. Stroked with a left→right gradient between two
+/// palette colours, semi-transparent with round caps so overlaps glow.
+///
+/// Modifiers: `flow_lines` (count), `flow_amplitude` (0–1 wave height),
+/// `flow_frequency` (0–1 → wave cycles across the width), global `size`
+/// (line thickness), and the foreground palette over the background.
+fn render_flow(pix: &mut Pixmap, cfg: &PatternConfig) {
+    let mut rng = SeededRng::new(cfg.seed);
+    if let Some(base) = cfg.colors.first() {
+        fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
+    if palette.is_empty() {
+        return;
+    }
+
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let scale = w_f.max(h_f) / 1920.0;
+    let two_pi = std::f32::consts::PI * 2.0;
+
+    let lines = cfg.flow_lines.unwrap_or(28).clamp(2, 220);
+    let amp = cfg.flow_amplitude.unwrap_or(0.5).clamp(0.0, 1.0);
+    let freq = cfg.flow_frequency.unwrap_or(0.4).clamp(0.0, 1.0);
+
+    let thickness = (cfg.size * scale * 0.12).max(1.0);
+    let cycles = remap(freq, 0.5, 3.0); // wave cycles across the width
+    let amp_px = amp * h_f * 0.16; // max vertical displacement
+    let samples = 160usize; // polyline resolution across the width
+    let gphase = rng.next() * two_pi;
+    let margin = thickness * 2.0;
+
+    for i in 0..lines {
+        let li = i as f32;
+        let baseline = (li + 0.5) / lines as f32 * h_f;
+        // Slowly advancing per-line phase keeps neighbours nearly in
+        // phase → coherent, parallel flow instead of a tangle.
+        let phase = gphase + li * 0.22;
+        let amp_i = amp_px * (0.8 + rng.next() * 0.4);
+
+        let wave_at = |u: f32| -> f32 {
+            // Primary cycle + a slower secondary harmonic for organic,
+            // non-repeating waviness.
+            let a = (phase + u * cycles * two_pi).sin();
+            let b = (phase * 1.7 + u * cycles * 1.9 * two_pi).sin();
+            baseline + amp_i * (a + 0.4 * b) * 0.7
+        };
+
+        let mut pb = PathBuilder::new();
+        let x0 = -margin;
+        pb.move_to(x0, wave_at(x0 / w_f));
+        for s in 1..=samples {
+            let x = -margin + (w_f + margin * 2.0) * (s as f32 / samples as f32);
+            pb.line_to(x, wave_at(x / w_f));
+        }
+        let path = match pb.finish() {
+            Some(p) => p,
+            None => continue,
+        };
+
+        let c0 = palette[i as usize % palette.len()];
+        let c1 = palette[(i as usize + 1) % palette.len()];
+        let alpha = 0.7;
+        let shader = match LinearGradient::new(
+            Point::from_xy(0.0, 0.0),
+            Point::from_xy(w_f, 0.0),
+            vec![
+                GradientStop::new(0.0, hex_to_color(c0, alpha)),
+                GradientStop::new(1.0, hex_to_color(c1, alpha)),
+            ],
+            SpreadMode::Pad,
+            Transform::identity(),
+        ) {
+            Some(s) => s,
+            None => continue,
+        };
+        let paint = Paint {
+            shader,
+            anti_alias: true,
+            ..Paint::default()
+        };
+        let stroke = Stroke {
+            width: thickness,
+            line_cap: tiny_skia::LineCap::Round,
+            ..Stroke::default()
+        };
+        pix.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
 }
 
 fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
@@ -1062,7 +1162,8 @@ fn pattern_type_slug(t: PatternType) -> &'static str {
         PatternType::Dots => "dots",
         PatternType::Stripes => "stripes",
         PatternType::Emoji => "emoji",
-        PatternType::Bloom => "bloom",
+        PatternType::Flower => "flower",
+        PatternType::Flow => "flow",
     }
 }
 
@@ -1073,7 +1174,8 @@ fn pattern_type_label(t: PatternType) -> &'static str {
         PatternType::Dots => "Dots",
         PatternType::Stripes => "Stripes",
         PatternType::Emoji => "Emoji",
-        PatternType::Bloom => "Bloom",
+        PatternType::Flower => "Flower",
+        PatternType::Flow => "Flow",
     }
 }
 
@@ -1250,9 +1352,11 @@ mod tests {
             emoji_rotation_max: None,
             emoji_size_var: None,
             emoji_spacing: None,
-            bloom_petals: None,
-            bloom_twist: None,
-            bloom_softness: None,
+            flower_petals: None,
+            flower_twist: None,
+            flow_lines: None,
+            flow_amplitude: None,
+            flow_frequency: None,
         };
         let pix = render(&cfg, 100, 100);
         // Background is #000000 + bubbles in red/green. At least some
@@ -1265,9 +1369,42 @@ mod tests {
     }
 
     #[test]
-    fn render_bloom_produces_non_background_pixels() {
-        let cfg = PatternConfig {
-            pattern_type: PatternType::Bloom,
+    fn render_flower_produces_non_background_pixels() {
+        let cfg = base_cfg(PatternType::Flower, Some(10), Some(0.6), None, None, None);
+        let pix = render(&cfg, 240, 160);
+        // Petals in violet/pink/amber over the dark base — some pixels
+        // must differ from the #0c0a1f background.
+        let lit = pix
+            .data()
+            .chunks_exact(4)
+            .any(|p| p[0] > 40 || p[1] > 30 || p[2] > 60);
+        assert!(lit, "flower render produced only background pixels");
+    }
+
+    #[test]
+    fn render_flow_produces_non_background_pixels() {
+        let cfg = base_cfg(PatternType::Flow, None, None, Some(20), Some(0.6), Some(0.5));
+        let pix = render(&cfg, 320, 180);
+        let lit = pix
+            .data()
+            .chunks_exact(4)
+            .any(|p| p[0] > 40 || p[1] > 30 || p[2] > 60);
+        assert!(lit, "flow render produced only background pixels");
+    }
+
+    // Shared config builder for the Flower/Flow render tests — dark base
+    // + violet/pink/amber foreground, with the type-specific knobs.
+    #[allow(clippy::too_many_arguments)]
+    fn base_cfg(
+        pattern_type: PatternType,
+        flower_petals: Option<u32>,
+        flower_twist: Option<f32>,
+        flow_lines: Option<u32>,
+        flow_amplitude: Option<f32>,
+        flow_frequency: Option<f32>,
+    ) -> PatternConfig {
+        PatternConfig {
+            pattern_type,
             colors: vec![
                 "#0c0a1f".into(),
                 "#7c5cff".into(),
@@ -1290,17 +1427,11 @@ mod tests {
             emoji_rotation_max: None,
             emoji_size_var: None,
             emoji_spacing: None,
-            bloom_petals: Some(10),
-            bloom_twist: Some(0.6),
-            bloom_softness: Some(0.4),
-        };
-        let pix = render(&cfg, 240, 160);
-        // Petals in violet/pink/amber over the dark base — some pixels
-        // must differ from the #0c0a1f background.
-        let lit = pix
-            .data()
-            .chunks_exact(4)
-            .any(|p| p[0] > 40 || p[1] > 30 || p[2] > 60);
-        assert!(lit, "bloom render produced only background pixels");
+            flower_petals,
+            flower_twist,
+            flow_lines,
+            flow_amplitude,
+            flow_frequency,
+        }
     }
 }

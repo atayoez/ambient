@@ -6,7 +6,14 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-export type PatternType = 'mesh' | 'geometric' | 'dots' | 'stripes' | 'emoji' | 'bloom';
+export type PatternType =
+  | 'mesh'
+  | 'geometric'
+  | 'dots'
+  | 'stripes'
+  | 'emoji'
+  | 'flower'
+  | 'flow';
 
 export type GeometricShape =
   | 'circles'
@@ -64,12 +71,17 @@ export interface PatternConfig {
   emojiSizeVar?: number;
   emojiSpacing?: number;
 
-  // Bloom (Windows 11-style): petal/ribbon count, swirl amount (0–1 =
-  // straight radial → strongly curled), and edge softness (0–1 blur).
-  // Petal reach is driven by the global `size`.
-  bloomPetals?: number;
-  bloomTwist?: number;
-  bloomSoftness?: number;
+  // Flower (Windows 11 "Bloom"-style): petal count + swirl amount (0–1 =
+  // straight radial → strongly curled). Petal reach is the global `size`.
+  flowerPetals?: number;
+  flowerTwist?: number;
+
+  // Flow: smooth wavy lines spanning the canvas. Line count, wave
+  // amplitude (0–1 height), and wave frequency (0–1 cycles). Line
+  // thickness is the global `size`.
+  flowLines?: number;
+  flowAmplitude?: number;
+  flowFrequency?: number;
 }
 
 export interface ColorPreset {
@@ -344,7 +356,8 @@ export const PATTERN_TYPES: { id: PatternType; emoji: string; name: string }[] =
   { id: 'dots', emoji: '🔘', name: 'Dots' },
   { id: 'stripes', emoji: '🦓', name: 'Stripes' },
   { id: 'emoji', emoji: '😀', name: 'Emoji' },
-  { id: 'bloom', emoji: '🌀', name: 'Bloom' },
+  { id: 'flower', emoji: '🌸', name: 'Flower' },
+  { id: 'flow', emoji: '🌊', name: 'Flow' },
 ];
 
 // When the user switches pattern types we re-seed density/size + the
@@ -367,11 +380,16 @@ export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
     emojiSizeVar: 0.75,
     emojiSpacing: 175,
   },
-  bloom: {
+  flower: {
     size: 100,
-    bloomPetals: 12,
-    bloomTwist: 0.5,
-    bloomSoftness: 0.45,
+    flowerPetals: 12,
+    flowerTwist: 0.5,
+  },
+  flow: {
+    size: 40,
+    flowLines: 28,
+    flowAmplitude: 0.5,
+    flowFrequency: 0.4,
   },
 };
 
@@ -400,7 +418,8 @@ export const SLIDER_RANGES: Partial<
   },
   stripes: { size: { min: 10, max: 140 } },
   emoji: { size: { min: 40, max: 140 } },
-  bloom: { size: { min: 40, max: 160 } },
+  flower: { size: { min: 40, max: 160 } },
+  flow: { size: { min: 6, max: 120 } },
 };
 
 // Modifier ranges used by both the randomizer and (where applicable) the
@@ -435,11 +454,16 @@ const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
     emojiRotationMax: { min: 0, max: 90, int: true },
     emojiSizeVar: { min: 0, max: 1 },
   },
-  bloom: {
+  flower: {
     size: { min: 40, max: 160, int: true },
-    bloomPetals: { min: 5, max: 40, int: true },
-    bloomTwist: { min: 0, max: 1 },
-    bloomSoftness: { min: 0, max: 1 },
+    flowerPetals: { min: 5, max: 40, int: true },
+    flowerTwist: { min: 0, max: 1 },
+  },
+  flow: {
+    size: { min: 6, max: 120, int: true },
+    flowLines: { min: 6, max: 120, int: true },
+    flowAmplitude: { min: 0, max: 1 },
+    flowFrequency: { min: 0, max: 1 },
   },
 };
 

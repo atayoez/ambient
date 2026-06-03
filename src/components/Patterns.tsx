@@ -593,30 +593,49 @@ export default function Patterns() {
                 />
               </>
             )}
-            {config.type === 'bloom' && (
+            {config.type === 'flower' && (
               <>
                 <ControlRow
                   label="Petals"
-                  value={config.bloomPetals ?? 12}
+                  value={config.flowerPetals ?? 12}
                   min={5}
                   max={40}
-                  onChange={(v) => patch({ bloomPetals: v })}
+                  onChange={(v) => patch({ flowerPetals: v })}
                 />
                 <ControlRow
                   label="Swirl"
-                  value={Math.round((config.bloomTwist ?? 0.5) * 100)}
+                  value={Math.round((config.flowerTwist ?? 0.5) * 100)}
                   suffix="%"
                   min={0}
                   max={100}
-                  onChange={(v) => patch({ bloomTwist: v / 100 })}
+                  onChange={(v) => patch({ flowerTwist: v / 100 })}
+                />
+              </>
+            )}
+            {config.type === 'flow' && (
+              <>
+                <ControlRow
+                  label="Lines"
+                  value={config.flowLines ?? 28}
+                  min={6}
+                  max={120}
+                  onChange={(v) => patch({ flowLines: v })}
                 />
                 <ControlRow
-                  label="Softness"
-                  value={Math.round((config.bloomSoftness ?? 0.45) * 100)}
+                  label="Amplitude"
+                  value={Math.round((config.flowAmplitude ?? 0.5) * 100)}
                   suffix="%"
                   min={0}
                   max={100}
-                  onChange={(v) => patch({ bloomSoftness: v / 100 })}
+                  onChange={(v) => patch({ flowAmplitude: v / 100 })}
+                />
+                <ControlRow
+                  label="Frequency"
+                  value={Math.round((config.flowFrequency ?? 0.4) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ flowFrequency: v / 100 })}
                 />
               </>
             )}
