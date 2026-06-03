@@ -14,7 +14,8 @@ import {
 } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
 import { WandIcon } from './Icons';
-import { Select, StatusInline } from './layout';
+import { StatusInline } from './layout';
+import OptionScroller from './OptionScroller';
 
 const PROVIDER_OPTIONS: { id: GenProvider; name: string; description: string }[] = [
   { id: 'pollinations', name: 'Pollinations', description: 'Free, no key required' },
@@ -145,14 +146,16 @@ export default function Generate() {
 
         {/* Floating settings tray (top). Disabled as a unit while busy. */}
         <div className="gen-panel gen-controls" inert={busy || undefined}>
-          <Select
+          <OptionScroller
+            label="Provider"
             options={PROVIDER_OPTIONS.map((p) => ({ id: p.id, label: p.name }))}
             value={settings.genProvider}
             onChange={(v) => update({ genProvider: v })}
             ariaLabel="Provider"
           />
           {settings.genProvider === 'pollinations' ? (
-            <Select
+            <OptionScroller
+              label="Model"
               options={POLLINATIONS_MODELS.map((m) => ({ id: m.value, label: m.label }))}
               value={settings.pollinationsModel}
               onChange={(v) => update({ pollinationsModel: v })}
@@ -168,7 +171,8 @@ export default function Generate() {
               aria-label="OpenAI model"
             />
           )}
-          <Select
+          <OptionScroller
+            label="Resolution"
             options={RESOLUTION_OPTIONS.map((r) => ({ id: r.value, label: r.label }))}
             value={settings.genResolution}
             onChange={(v) => update({ genResolution: v })}

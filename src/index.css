@@ -2518,3 +2518,21 @@ button.primary.icon-btn {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Library carousel — applied/light/dark badges next to the browse scroller. */
+.lib-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lib-badge {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+}

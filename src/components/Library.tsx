@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { dispatch, listen } from '../lib/events';
 import {
   loadLibrary,
@@ -10,184 +10,31 @@ import {
 } from '../lib/store';
 import type { ThemeMode } from '../lib/theme';
 import { DEFAULT_SETTINGS, type Settings, type Wallpaper } from '../lib/types';
-import {
-  deleteWallpaper,
-  getThumbnail,
-  listLocalWallpapers,
-  setWallpaper,
-} from '../lib/wallpaper';
-import { AutoThemeIcon, CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
-import { InspectorSection, Segmented, StatusInline } from './layout';
+import { deleteWallpaper, listLocalWallpapers, setWallpaper } from '../lib/wallpaper';
+import { CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
+import { StatusInline } from './layout';
+import OptionScroller from './OptionScroller';
 import RotationControl from './RotationControl';
 
-const THEME_MODE_OPTIONS = [
-  { id: 'auto' as const, label: 'Auto', icon: <AutoThemeIcon size={16} /> },
-  { id: 'light' as const, label: 'Light', icon: <SunIcon size={16} /> },
-  { id: 'dark' as const, label: 'Dark', icon: <MoonIcon size={16} /> },
+const THEME_MODE_OPTIONS: { id: ThemeMode; label: string }[] = [
+  { id: 'auto', label: 'Auto' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
 ];
-
-interface LibraryCardProps {
-  wallpaper: Wallpaper;
-  thumbSrc: string;
-  isCurrent: boolean;
-  isLightSlot: boolean;
-  isDarkSlot: boolean;
-  isConfirming: boolean;
-  busy: boolean;
-  onApply: (w: Wallpaper) => void;
-  onRequestDelete: (path: string) => void;
-  onConfirmDelete: (w: Wallpaper) => void;
-  onCancelDelete: () => void;
-}
-
-// Memoized per-wallpaper card. Custom comparator ignores callback identity
-// (callbacks are stable enough by inspection — see parent useCallback wrappers
-// — and the meaningful props are wallpaper / thumbSrc / isCurrent / isLightSlot /
-// isDarkSlot / isConfirming / busy). Without this, every status / error /
-// confirmDelete toggle would re-render all 20+ cards.
-const LibraryCard = memo(
-  function LibraryCard({
-    wallpaper: w,
-    thumbSrc,
-    isCurrent,
-    isLightSlot,
-    isDarkSlot,
-    isConfirming,
-    busy,
-    onApply,
-    onRequestDelete,
-    onConfirmDelete,
-    onCancelDelete,
-  }: LibraryCardProps) {
-    const hasIndicator = isCurrent || isLightSlot || isDarkSlot;
-    const cardClass = [
-      'card',
-      isCurrent && 'current',
-      isLightSlot && 'light-slot',
-      isDarkSlot && 'dark-slot',
-    ]
-      .filter(Boolean)
-      .join(' ');
-    return (
-      <div className={cardClass}>
-        <button
-          type="button"
-          className="card-thumb"
-          onClick={() => onApply(w)}
-          disabled={busy}
-          aria-label={`Apply ${w.title ?? 'wallpaper'}`}
-        >
-          {/* thumbSrc is a 480×300 WebP if the cache has resolved, or
-              the full-resolution original as a fallback until the
-              backend generates one. decoding="async" lets WebKit decode
-              off the main thread. */}
-          <img
-            src={thumbSrc}
-            alt={w.title ?? ''}
-            width={480}
-            height={300}
-            loading="lazy"
-            decoding="async"
-          />
-          <span className="card-thumb-hint">{isCurrent ? 'Applied' : 'Apply'}</span>
-        </button>
-        <div className="card-actions">
-          {hasIndicator && (
-            <div className="card-indicators" aria-hidden="true">
-              {isCurrent && (
-                <span className="card-indicator" title="Currently applied">
-                  <CheckIcon size={14} />
-                </span>
-              )}
-              {isLightSlot && (
-                <span className="card-indicator" title="Light-mode wallpaper">
-                  <SunIcon size={14} />
-                </span>
-              )}
-              {isDarkSlot && (
-                <span className="card-indicator" title="Dark-mode wallpaper">
-                  <MoonIcon size={14} />
-                </span>
-              )}
-            </div>
-          )}
-          {isConfirming ? (
-            <>
-              {/* Destructive confirmation stays textual — icon-only
-                  on a "really delete?" action invites mis-clicks. */}
-              <button
-                type="button"
-                onClick={() => onConfirmDelete(w)}
-                className="danger"
-                // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
-                autoFocus
-              >
-                Confirm delete
-              </button>
-              <button
-                type="button"
-                onClick={onCancelDelete}
-                className="icon-btn"
-                aria-label="Cancel"
-                title="Cancel"
-              >
-                <XIcon />
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onRequestDelete(w.path)}
-              className="danger-ghost icon-btn"
-              aria-label="Delete"
-              title={isCurrent ? 'Currently applied — switch wallpaper first' : 'Delete'}
-              disabled={isCurrent || busy}
-            >
-              <TrashIcon />
-            </button>
-          )}
-        </div>
-        <div className="card-meta">
-          {w.source}
-          {w.title ? ` · ${w.title.slice(0, 40)}` : ''}
-        </div>
-      </div>
-    );
-  },
-  (prev, next) =>
-    prev.wallpaper === next.wallpaper &&
-    prev.thumbSrc === next.thumbSrc &&
-    prev.isCurrent === next.isCurrent &&
-    prev.isLightSlot === next.isLightSlot &&
-    prev.isDarkSlot === next.isDarkSlot &&
-    prev.isConfirming === next.isConfirming &&
-    prev.busy === next.busy,
-);
 
 export default function Library() {
   const [library, setLibrary] = useState<Wallpaper[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  // Path of the wallpaper currently in the "are you sure?" delete state.
-  // Two-step confirmation avoids the click-once-destroy-immediately UX
-  // without pulling in a modal library.
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  // wallpaper.path → cached thumbnail path (resolved via Rust). Empty
-  // until the first invoke round-trips; the card falls back to the
-  // full-resolution original until the thumb URL is in here.
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  // Settings — drives the Auto/Light/Dark segmented control, per-card
-  // light/dark slot indicators, AND the "currently applied" indicator
-  // (via settings.lastApplied, owned by Rust). Stays in sync with the
-  // rest of the app via the typed event bus (settings-changed).
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const currentPath = settings.lastApplied ?? null;
+  // Which wallpaper the carousel is showing. Null until the library loads;
+  // defaults to the applied one so you land on what's live.
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
   useEffect(() => {
-    // Two-stage load: render whatever is in the persisted library
-    // immediately so the grid doesn't flash empty, then prune orphan
-    // entries — rows whose underlying file no longer exists on disk.
     let cancelled = false;
     (async () => {
       const stored = await loadLibrary();
@@ -201,8 +48,7 @@ export default function Library() {
         if (cancelled) return;
         setLibrary(cleaned);
       } catch {
-        // list_wallpapers can fail on fresh installs (no wallpapers
-        // dir yet). Non-fatal — user sees the raw library.
+        // list_wallpapers can fail on fresh installs — non-fatal.
       }
     })();
     return () => {
@@ -226,45 +72,13 @@ export default function Library() {
   }, []);
 
   useEffect(() => {
-    // wallpaper-applied no longer drives state directly: applying a
-    // wallpaper writes settings.lastApplied via Rust, which fires
-    // settings-changed → the reload above picks it up. We still want
-    // library-changed (prepend/remove/promote) so the grid refreshes
-    // from other tabs without a manual reload.
     return listen('library-changed', (lib) => {
       if (lib) setLibrary(lib);
     });
   }, []);
 
-  useEffect(() => {
-    // Resolve a thumbnail path per library entry. Generation happens
-    // once per file (Rust mtime-checks before re-encoding); subsequent
-    // mounts are pure cache hits.
-    if (library.length === 0) {
-      setThumbs({});
-      return;
-    }
-    let cancelled = false;
-    for (const w of library) {
-      getThumbnail(w.path)
-        .then((thumbPath) => {
-          if (cancelled) return;
-          setThumbs((cur) =>
-            cur[w.path] === thumbPath ? cur : { ...cur, [w.path]: thumbPath },
-          );
-        })
-        .catch(() => {
-          // Silent fallback — the card already shows the original.
-        });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [library]);
-
-  // Sort the current wallpaper to the top so the user can see what's
-  // applied without scrolling. Everything else stays in its original
-  // (newest-first) order — only one card moves.
+  // Applied wallpaper first, rest newest-first — same ordering the grid
+  // used, so the carousel opens on what's live.
   const sortedLibrary = useMemo(() => {
     if (!currentPath) return library;
     const idx = library.findIndex((w) => w.path === currentPath);
@@ -272,7 +86,25 @@ export default function Library() {
     return [library[idx], ...library.slice(0, idx), ...library.slice(idx + 1)];
   }, [library, currentPath]);
 
-  const applyExisting = useCallback(async (w: Wallpaper) => {
+  // Keep the selection valid: default to the applied wallpaper (or the
+  // first), and recover if the selected one was deleted.
+  useEffect(() => {
+    if (sortedLibrary.length === 0) {
+      setSelectedPath(null);
+      return;
+    }
+    setSelectedPath((cur) => {
+      if (cur && sortedLibrary.some((w) => w.path === cur)) return cur;
+      return currentPath ?? sortedLibrary[0].path;
+    });
+  }, [sortedLibrary, currentPath]);
+
+  const selected = sortedLibrary.find((w) => w.path === selectedPath) ?? null;
+  const selectedIsCurrent = !!selected && selected.path === currentPath;
+  const selectedIsLight = !!selected && settings.themeFollowLightPath === selected.path;
+  const selectedIsDark = !!selected && settings.themeFollowDarkPath === selected.path;
+
+  const applyExisting = useCallback(async (path: string) => {
     let alreadyBusy = false;
     setBusy((b) => {
       if (b) alreadyBusy = true;
@@ -281,7 +113,7 @@ export default function Library() {
     if (alreadyBusy) return;
     setError(null);
     try {
-      await setWallpaper(w.path);
+      await setWallpaper(path);
       setStatus('Applied');
       setTimeout(() => setStatus(null), 1500);
     } catch (e: unknown) {
@@ -291,25 +123,23 @@ export default function Library() {
     }
   }, []);
 
-  const deleteEntry = useCallback(async (w: Wallpaper) => {
+  const deleteEntry = useCallback(async (path: string) => {
     let alreadyBusy = false;
     setBusy((b) => {
       if (b) alreadyBusy = true;
       return true;
     });
     if (alreadyBusy) return;
-    setConfirmDelete(null);
+    setConfirmingDelete(false);
     setError(null);
     try {
       try {
-        await deleteWallpaper(w.path);
+        await deleteWallpaper(path);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (!/no such file|not found|enoent/i.test(msg)) {
-          throw e;
-        }
+        if (!/no such file|not found|enoent/i.test(msg)) throw e;
       }
-      const updated = await removeFromLibrary(w.path);
+      const updated = await removeFromLibrary(path);
       setLibrary(updated);
       setStatus('Deleted');
       setTimeout(() => setStatus(null), 1500);
@@ -320,15 +150,8 @@ export default function Library() {
     }
   }, []);
 
-  const onRequestDelete = useCallback((path: string) => setConfirmDelete(path), []);
-  const onCancelDelete = useCallback(() => setConfirmDelete(null), []);
-
-  // Mode switch: persist the new mode AND immediately apply the slot
-  // that matches it, so the user gets visible feedback rather than
-  // having to wait for a system theme flip (Auto) or fish for the
-  // right wallpaper (Light/Dark). Uses patchSettings (serialized
-  // read-modify-write) so a stale Sources / Generate local Settings
-  // can't overwrite the new mode in their next debouncedSave.
+  // Mode switch: persist + immediately apply the matching slot, so the
+  // user gets visible feedback (matches the prior grid behaviour).
   const onChangeThemeMode = useCallback(
     async (mode: ThemeMode) => {
       const next = await patchSettings({ themeMode: mode });
@@ -348,66 +171,144 @@ export default function Library() {
         try {
           await setWallpaper(target);
         } catch {
-          // Apply failed (file deleted out from under us, OS refused) —
-          // non-fatal, the mode is still saved.
+          // non-fatal — the mode is still saved.
         }
       }
     },
     [currentPath],
   );
 
+  // Reset the delete confirmation whenever the selection changes.
+  useEffect(() => setConfirmingDelete(false), [selectedPath]);
+
   return (
     <div className="library">
-      <div className="library-controls">
-        <InspectorSection title="Shuffle">
-          <RotationControl
-            mode="library"
-            ariaLabel="Shuffle saved wallpapers"
-            otherInUseHint="Sources auto-rotate is on — this will replace it."
+      <div className="gen-stage">
+        {selected ? (
+          <img
+            className="gen-bg"
+            src={convertFileSrc(selected.path)}
+            alt={selected.title ?? ''}
           />
-        </InspectorSection>
-      </div>
-      <div className="library-controls">
-        <InspectorSection title="System theme">
-          <Segmented
+        ) : (
+          <div className="gen-bg gen-bg-empty" aria-hidden="true" />
+        )}
+        <div className="gen-scrim" aria-hidden="true" />
+
+        {sortedLibrary.length === 0 ? (
+          <p className="gen-empty-hint">
+            Empty library. Apply anything from Patterns, Sources, or Generate and it lands
+            here for re-use.
+          </p>
+        ) : (
+          <div className="gen-panel pat-top">
+            <OptionScroller
+              label={`Wallpaper ${
+                Math.max(
+                  0,
+                  sortedLibrary.findIndex((w) => w.path === selectedPath),
+                ) + 1
+              } / ${sortedLibrary.length}`}
+              options={sortedLibrary.map((w) => ({
+                id: w.path,
+                label: `${w.source}${w.title ? ` · ${w.title.slice(0, 32)}` : ''}`,
+              }))}
+              value={selectedPath ?? ''}
+              onChange={setSelectedPath}
+              ariaLabel="Browse library"
+            />
+            {(selectedIsCurrent || selectedIsLight || selectedIsDark) && (
+              <div className="lib-badges" aria-hidden="true">
+                {selectedIsCurrent && (
+                  <span className="lib-badge" title="Currently applied">
+                    <CheckIcon size={13} />
+                  </span>
+                )}
+                {selectedIsLight && (
+                  <span className="lib-badge" title="Light-mode wallpaper">
+                    <SunIcon size={13} />
+                  </span>
+                )}
+                {selectedIsDark && (
+                  <span className="lib-badge" title="Dark-mode wallpaper">
+                    <MoonIcon size={13} />
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="gen-panel pat-side">
+          <OptionScroller
+            label="System theme"
             options={THEME_MODE_OPTIONS}
             value={settings.themeMode}
             onChange={onChangeThemeMode}
             ariaLabel="Theme mode"
           />
-        </InspectorSection>
-      </div>
-
-      {(status || error) && (
-        <div className="library-actions">
-          <StatusInline status={status} error={error} />
+          <div className="field">
+            <span>Shuffle</span>
+            <RotationControl
+              mode="library"
+              ariaLabel="Shuffle saved wallpapers"
+              otherInUseHint="Sources auto-rotate is on — this will replace it."
+            />
+          </div>
         </div>
-      )}
 
-      <div className="library-grid">
-        {sortedLibrary.length === 0 && (
-          <div className="empty">
-            Empty library. Generate one from <em>Patterns</em>, pull from a curated
-            <em> Source</em>, or prompt an AI in <em>Generate</em> — anything you apply
-            lands here for re-use.
+        {selected && (
+          <div className="pat-actions">
+            <StatusInline status={status} error={error} />
+            {confirmingDelete ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => deleteEntry(selected.path)}
+                  className="danger"
+                  // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
+                  autoFocus
+                >
+                  Confirm delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(false)}
+                  className="icon-btn"
+                  aria-label="Cancel"
+                  title="Cancel"
+                >
+                  <XIcon />
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                className="danger-ghost icon-btn"
+                aria-label="Delete"
+                title={
+                  selectedIsCurrent
+                    ? 'Currently applied — switch wallpaper first'
+                    : 'Delete'
+                }
+                disabled={selectedIsCurrent || busy}
+              >
+                <TrashIcon />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => applyExisting(selected.path)}
+              disabled={busy || selectedIsCurrent}
+              className="primary icon-btn"
+              aria-label="Apply as wallpaper"
+              title={selectedIsCurrent ? 'Already applied' : 'Apply as wallpaper'}
+            >
+              <CheckIcon />
+            </button>
           </div>
         )}
-        {sortedLibrary.map((w) => (
-          <LibraryCard
-            key={w.path}
-            wallpaper={w}
-            thumbSrc={convertFileSrc(thumbs[w.path] ?? w.path)}
-            isCurrent={currentPath === w.path}
-            isLightSlot={settings.themeFollowLightPath === w.path}
-            isDarkSlot={settings.themeFollowDarkPath === w.path}
-            isConfirming={confirmDelete === w.path}
-            busy={busy}
-            onApply={applyExisting}
-            onRequestDelete={onRequestDelete}
-            onConfirmDelete={deleteEntry}
-            onCancelDelete={onCancelDelete}
-          />
-        ))}
       </div>
     </div>
   );
