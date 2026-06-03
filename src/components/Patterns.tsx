@@ -178,32 +178,31 @@ export default function Patterns() {
   // which kept the tokio blocking pool from piling up while still
   // feeling responsive — the last frame the user sees is always current.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const inFlightRef = useRef(false);
-  const pendingRef = useRef<{
-    config: PatternConfig;
-    w: number;
-    h: number;
-  } | null>(null);
+  // Monotonic counter: every config/size change fires a fresh render and
+  // claims a generation. Only the latest generation's result is allowed
+  // to paint — stale renders are dropped here, and the Rust side
+  // (PREVIEW_GEN) abandons superseded renders before encoding, so rapid
+  // edits don't pile up work or show out-of-order frames.
+  const previewGenRef = useRef(0);
 
   useEffect(() => {
     if (previewSize.w === 0 || previewSize.h === 0) return;
-    pendingRef.current = { config, w: previewSize.w, h: previewSize.h };
-    if (inFlightRef.current) return;
-
-    inFlightRef.current = true;
-    void (async () => {
-      while (pendingRef.current) {
-        const job = pendingRef.current;
-        pendingRef.current = null;
-        try {
-          const dataUrl = await renderPreview(job.config, job.w, job.h);
-          setPreviewUrl(dataUrl);
-        } catch (e) {
-          console.warn('[Patterns] preview render failed:', e);
-        }
-      }
-      inFlightRef.current = false;
-    })();
+    // Debounce: a slider drag fires dozens of config changes; we only
+    // want one render after motion settles. The timer resets on every
+    // change, so we render ~90ms after the last edit. The gen guard +
+    // Rust-side PREVIEW_GEN cancellation handle any that still overlap.
+    const t = setTimeout(() => {
+      const myGen = ++previewGenRef.current;
+      void renderPreview(config, previewSize.w, previewSize.h)
+        .then((dataUrl) => {
+          if (myGen === previewGenRef.current) setPreviewUrl(dataUrl);
+        })
+        .catch(() => {
+          // "preview superseded" or a transient failure — ignore; the
+          // newest request will paint.
+        });
+    }, 90);
+    return () => clearTimeout(t);
   }, [config, previewSize.w, previewSize.h]);
 
   // Re-apply the active preset's variant when the resolved theme flips.

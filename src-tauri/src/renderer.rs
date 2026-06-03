@@ -31,8 +31,20 @@ use crate::util::ms_since_epoch;
 // (no browser scaling), but we cap at a sane ceiling to keep the per-
 // frame budget bounded during rapid slider drags on big monitors.
 const PREVIEW_MIN_DIM: u32 = 64;
-const PREVIEW_MAX_W: u32 = 1920;
-const PREVIEW_MAX_H: u32 = 1200;
+// Previews are 1× (no SSAA) and only need to look crisp at the on-screen
+// stage size, so cap them well below monitor resolution — keeps each
+// preview render cheap (cost scales with pixel count) and its pixmap
+// small (~1280×820 ≈ 4 MB) so rapid edits can't pile up into an OOM.
+const PREVIEW_MAX_W: u32 = 1280;
+const PREVIEW_MAX_H: u32 = 820;
+
+// Monotonic generation for preview renders. Each render_preview call
+// claims the next generation; if a newer call has since claimed a higher
+// one, the older render abandons its result instead of wasting the encode
+// + IPC (and the frontend ignores it anyway). This is the "cancel the old
+// preview job when a new one arrives" mechanism — apply_pattern does NOT
+// participate, so committing a wallpaper is never cancelled.
+static PREVIEW_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -714,9 +726,28 @@ pub async fn render_preview(
     let w = width.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_W);
     let h = height.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_H);
 
-    let pix = tokio::task::spawn_blocking(move || render(&config, w, h))
-        .await
-        .map_err(|e| format!("render task join: {}", e))?;
+    use std::sync::atomic::Ordering;
+    // Claim this render's generation; a later call bumps it past ours.
+    let my_gen = PREVIEW_GEN.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
+
+    let pix = tokio::task::spawn_blocking(move || {
+        // Superseded before we started — skip the render entirely.
+        if PREVIEW_GEN.load(Ordering::Relaxed) != my_gen {
+            return None;
+        }
+        let pix = render(&config, w, h);
+        // Superseded while rendering — drop it before the costly encode.
+        if PREVIEW_GEN.load(Ordering::Relaxed) != my_gen {
+            return None;
+        }
+        Some(pix)
+    })
+    .await
+    .map_err(|e| format!("render task join: {}", e))?;
+
+    let Some(pix) = pix else {
+        return Err("preview superseded".to_string());
+    };
 
     // Quality 75 is the sweet spot for preview encode time — visually
     // indistinguishable from 85 on pattern art, ~2× faster to encode.
@@ -861,20 +892,17 @@ fn downscale(src: &Pixmap, w: u32, h: u32) -> Pixmap {
 }
 
 /// Pick the SSAA factor for an apply render. Emoji patterns use raster
-/// assets so SSAA buys nothing; for vector patterns we scale SSAA
-/// inversely with the target so the intermediate render never exceeds
-/// ~8K, keeping memory < ~1 GB even on 5K monitors.
+/// assets so SSAA buys nothing. For vector patterns 2× is plenty of
+/// anti-aliasing; we deliberately cap the supersampled intermediate at
+/// ~4K-wide so a single apply never allocates more than ~130 MB (the
+/// old 4×-at-1080p tier hit a 7680px / 132 MB intermediate, which —
+/// stacked with concurrent preview renders — was the OOM risk). Above
+/// 4K the target is already dense enough that 1× looks clean.
 fn pick_ssaa(t: PatternType, max_dim: u32) -> u32 {
     if matches!(t, PatternType::Emoji) {
         return 1;
     }
-    if max_dim <= 1920 {
-        4
-    } else if max_dim <= 3840 {
-        2
-    } else {
-        1
-    }
+    if max_dim <= 3840 { 2 } else { 1 }
 }
 
 /// Save the pixmap as 16-bit-per-channel PNG. tiny-skia is 8-bit
