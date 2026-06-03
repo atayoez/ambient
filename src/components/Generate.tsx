@@ -143,8 +143,8 @@ export default function Generate() {
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
         )}
 
-        {/* Floating settings tray (top). Disabled as a unit while busy. */}
-        <div className="gen-panel gen-controls" inert={busy || undefined}>
+        {/* Top tray — same as the other tabs: the primary pickers. */}
+        <div className="gen-panel pat-top">
           <OptionScroller
             label="Provider"
             options={PROVIDER_OPTIONS.map((p) => ({ id: p.id, label: p.name }))}
@@ -152,22 +152,13 @@ export default function Generate() {
             onChange={(v) => update({ genProvider: v })}
             ariaLabel="Provider"
           />
-          {settings.genProvider === 'pollinations' ? (
+          {settings.genProvider === 'pollinations' && (
             <OptionScroller
               label="Model"
               options={POLLINATIONS_MODELS.map((m) => ({ id: m.value, label: m.label }))}
               value={settings.pollinationsModel}
               onChange={(v) => update({ pollinationsModel: v })}
               ariaLabel="Pollinations model"
-            />
-          ) : (
-            <input
-              type="text"
-              className="gen-inline-input"
-              value={settings.openaiModel}
-              onChange={(e) => update({ openaiModel: e.target.value })}
-              placeholder="dall-e-3"
-              aria-label="OpenAI model"
             />
           )}
           <OptionScroller
@@ -177,17 +168,6 @@ export default function Generate() {
             onChange={(v) => update({ genResolution: v })}
             ariaLabel="Resolution"
           />
-          {settings.genProvider === 'openai' && (
-            <input
-              type="password"
-              className="gen-inline-input"
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-              placeholder="sk-… (OpenAI key)"
-              disabled={!openaiKeyLoaded}
-              aria-label="OpenAI API key"
-            />
-          )}
         </div>
 
         {!lastResult && (
@@ -196,27 +176,52 @@ export default function Generate() {
           </p>
         )}
 
-        {status || error ? (
-          <div className="gen-status">
-            <StatusInline status={status} error={error} />
-          </div>
-        ) : null}
+        {/* Side panel — prompt + (model/key for OpenAI), like the others. */}
+        <div className="gen-panel pat-side" inert={busy || undefined}>
+          <label className="field">
+            <span>Prompt</span>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={4}
+              placeholder="describe the wallpaper you want…"
+              aria-label="Prompt"
+            />
+          </label>
+          {settings.genProvider === 'openai' && (
+            <>
+              <label className="field">
+                <span>Model</span>
+                <input
+                  type="text"
+                  value={settings.openaiModel}
+                  onChange={(e) => update({ openaiModel: e.target.value })}
+                  placeholder="dall-e-3"
+                  aria-label="OpenAI model"
+                />
+              </label>
+              <label className="field">
+                <span>API key</span>
+                <input
+                  type="password"
+                  value={openaiKey}
+                  onChange={(e) => setOpenaiKey(e.target.value)}
+                  placeholder="sk-…"
+                  disabled={!openaiKeyLoaded}
+                  aria-label="OpenAI API key"
+                />
+              </label>
+            </>
+          )}
+        </div>
 
-        {/* Floating prompt composer (bottom) — the site's hero-bottom pill. */}
-        <div className="gen-panel gen-composer">
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={1}
-            placeholder="describe the wallpaper you want…"
-            disabled={busy}
-            aria-label="Prompt"
-          />
+        <div className="pat-actions">
+          <StatusInline status={status} error={error} />
           <button
             type="button"
             onClick={go}
             disabled={busy || !prompt.trim()}
-            className="primary icon-btn gen-go"
+            className="primary icon-btn"
             aria-label="Generate and apply"
             title="Generate and apply (⌘⏎)"
           >

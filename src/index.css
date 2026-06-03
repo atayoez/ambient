@@ -389,7 +389,7 @@ button {
        lose their accent border
      - the borderless text link (.about-link) — gains an unwanted box
    Everything not listed (the default buttons) still gets the wash. */
-button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):hover:not(:disabled) {
+button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):not(.icon-btn):not(.pat-del):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
@@ -2071,4 +2071,45 @@ button.primary.icon-btn {
 .emoji-picker-cat {
   content-visibility: auto;
   contain-intrinsic-size: auto 140px;
+}
+
+/* Action buttons read as glass controls on the panels, not default
+   surface boxes: faint chip at rest, brighten on hover; the primary
+   (apply / generate) keeps the accent fill so it stands out; danger
+   (confirm-delete) gets a danger tint. */
+.pat-actions .icon-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
+  color: var(--text);
+}
+.pat-actions .icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+.pat-actions button.primary {
+  background: var(--accent-fill);
+  color: var(--accent-text);
+  border-color: transparent;
+}
+.pat-actions button.primary:hover:not(:disabled) {
+  background: var(--accent-fill-hover);
+}
+.pat-actions button.danger {
+  background: color-mix(in oklch, var(--danger) 16%, transparent);
+  border: 1px solid color-mix(in oklch, var(--danger) 38%, transparent);
+  color: var(--danger);
+}
+.pat-actions button.danger:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--danger) 26%, transparent);
+}
+/* Delete-palette badge — faint chip → danger on hover (its own rule
+   below provides the danger hover). */
+.pat-del {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
+}
+
+/* Inline rename for the active custom palette. */
+.palette-rename {
+  width: 100%;
+  font-size: var(--fs-body);
 }

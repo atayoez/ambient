@@ -306,6 +306,10 @@ export default function Patterns() {
     setConfig((c) => (c.colorPresetId === id ? { ...c, colorPresetId: undefined } : c));
   }
 
+  function renameCustomPreset(id: string, name: string) {
+    setCustomPresets((list) => list.map((p) => (p.id === id ? { ...p, name } : p)));
+  }
+
   // Selecting a preset sets BOTH the colors (light or dark variant for
   // the current theme) AND the emojis. The Emoji pattern type picks up
   // the new emojis on the next render; users who've customized the
@@ -339,6 +343,9 @@ export default function Patterns() {
   const activeRemovable = displayPresets.some(
     (d) => d.removable && d.preset.id === config.colorPresetId,
   );
+  // The custom palette currently selected (if any) — drives the rename
+  // field below the palette scroller.
+  const activeCustom = customPresets.find((p) => p.id === config.colorPresetId);
 
   return (
     <div className="patterns">
@@ -394,6 +401,17 @@ export default function Patterns() {
               </button>
             )}
           </div>
+
+          {activeCustom && (
+            <input
+              className="palette-rename"
+              type="text"
+              value={activeCustom.name}
+              onChange={(e) => renameCustomPreset(activeCustom.id, e.target.value)}
+              aria-label="Rename palette"
+              placeholder="Palette name"
+            />
+          )}
 
           {/* Colour roles: colors[0] is the background fill, colors[1..]
               the foreground (shapes / dots / stripes / mesh blobs), and
