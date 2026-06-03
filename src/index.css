@@ -163,25 +163,22 @@ textarea,
      drop-shadow than the original (the previous 32px-blur shadow read
      as a dark strip across the bottom; this 12px shadow gives the
      pill float without a band). */
+  /* Dark frosted pill — floats over the full-bleed preview now, so it
+     needs a dark base for the tab glyphs to read against bright art. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
-    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    rgba(12, 12, 18, 0.5);
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 0;
   box-shadow:
-    0 4px 12px rgb(var(--shadow-tint) / 0.18),
-    0 6px 22px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18),
-    inset 0 1px 0 var(--highlight-edge);
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   z-index: 50;
   transform: translateX(-50%);
-  transition:
-    background 600ms var(--ease-pill),
-    border-color 600ms var(--ease-pill),
-    box-shadow 600ms var(--ease-pill);
 }
 
 .tab-indicator {
@@ -2232,20 +2229,20 @@ button.primary.icon-btn {
 .gen-panel {
   position: absolute;
   z-index: 2;
+  /* DARK frosted glass: a near-black translucent base gives white text +
+     controls reliable contrast no matter how bright the preview behind
+     is, while backdrop-filter (blur + saturate) still refracts that
+     preview through it — real liquid glass, achromatic, just dark. A thin
+     white top sheen + hairline read as the glass edge. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
-    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.14);
-  backdrop-filter: var(--blur-overlay);
-  -webkit-backdrop-filter: var(--blur-overlay);
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.3);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 12, 18, 0.55);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow:
-    0 10px 30px rgb(var(--shadow-tint) / 0.3),
-    0 6px 22px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18),
-    inset 0 1px 0 var(--highlight-edge);
-  transition:
-    background 600ms var(--ease-pill),
-    border-color 600ms var(--ease-pill),
-    box-shadow 600ms var(--ease-pill);
+    0 16px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .gen-controls {
@@ -2432,6 +2429,17 @@ button.primary.icon-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 12, 18, 0.5);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* --- OptionScroller (arrow pill) --- */
@@ -2463,13 +2471,16 @@ button.primary.icon-btn {
 
 .opt-arrow {
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
+  padding: 0; /* override the global button padding */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text);
-  background: transparent;
+  /* Faint chip so the arrow reads as a button against the glass, not a
+     floating glyph; brightens on hover. */
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   border-radius: var(--radius-pill);
   cursor: pointer;
@@ -2477,7 +2488,7 @@ button.primary.icon-btn {
 }
 
 .opt-arrow:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .opt-arrow:disabled {
