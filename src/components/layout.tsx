@@ -1,72 +1,11 @@
-// Shared layout primitives used by Patterns / Sources / Generate.
-// Apple-style "document + inspector" arrangement: a preview on the left,
-// a vertical inspector with eyebrow-headed sections on the right, and
-// a single action bar across the bottom.
-import type { CSSProperties, ReactNode } from 'react';
+// Shared layout primitives. After the full-bleed redesign every tab
+// builds its own stage (preview backdrop + floating glass panels), so
+// the old TabLayout / Inspector / PreviewFrame / Select / Segmented
+// document-inspector scaffolding is gone — only the two genuinely shared
+// bits remain: the labelled slider row and the inline status line.
+import type { CSSProperties } from 'react';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-interface TabLayoutProps {
-  preview: ReactNode;
-  inspector: ReactNode;
-  actions: ReactNode;
-  // When true, the inspector controls are made non-interactive (and
-  // visually dimmed) — used while a wallpaper is being applied so the
-  // user can't mutate the config mid-render. The action buttons disable
-  // themselves separately; the preview stays live so the wallpaper being
-  // applied remains visible.
-  busy?: boolean;
-}
-
-export function TabLayout({ preview, inspector, actions, busy }: TabLayoutProps) {
-  // Tab titles moved to the window titlebar — see App.tsx. TabLayout
-  // no longer renders an h1; it just lays out the preview / inspector
-  // / actions grid for whichever tab's mounted.
-  return (
-    <div className="tab-grid">
-      <div className="preview-col">
-        {preview}
-        <div className="preview-actions">{actions}</div>
-      </div>
-      {/* `inert` (React 19) blocks all pointer + focus interaction on the
-          subtree; the [inert] CSS adds the dim. */}
-      <aside
-        className="inspector"
-        inert={busy || undefined}
-        aria-busy={busy || undefined}
-      >
-        {inspector}
-      </aside>
-    </div>
-  );
-}
-
-interface PreviewFrameProps {
-  children?: ReactNode;
-  empty?: ReactNode;
-}
-
-export function PreviewFrame({ children, empty }: PreviewFrameProps) {
-  return (
-    <div className="preview-wrap">
-      {children ?? (empty != null && <div className="preview-empty">{empty}</div>)}
-    </div>
-  );
-}
-
-interface InspectorSectionProps {
-  title: string;
-  children: ReactNode;
-}
-
-export function InspectorSection({ title, children }: InspectorSectionProps) {
-  return (
-    <section className="inspector-section">
-      <h3>{title}</h3>
-      {children}
-    </section>
-  );
-}
 
 interface ControlRowProps {
   label: string;
@@ -77,6 +16,7 @@ interface ControlRowProps {
   suffix?: string;
 }
 
+// Labelled slider — eyebrow label, intrinsic-width range, live value.
 export function ControlRow({
   label,
   value,
@@ -117,98 +57,5 @@ export function StatusInline({ status, error }: StatusInlineProps) {
       {status && <span className="status">{status}</span>}
       {error && <span className="error">{error}</span>}
     </>
-  );
-}
-
-interface SegmentedOption<T extends string> {
-  id: T;
-  label: string;
-  /** Optional icon (SVG ReactNode). When provided, the option renders
-   * the icon ONLY — the `label` becomes the button's aria-label + title
-   * for screen readers and hover-tooltips. */
-  icon?: ReactNode;
-}
-
-interface SegmentedProps<T extends string> {
-  options: SegmentedOption<T>[];
-  value: T;
-  onChange: (v: T) => void;
-  ariaLabel?: string;
-}
-
-// Compact 2-3 option picker. Apple-style segmented control — used when the
-// option list is short enough that radio rows would be excessive.
-export function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-}: SegmentedProps<T>) {
-  return (
-    <div className="segmented" role="radiogroup" aria-label={ariaLabel}>
-      {options.map(({ id, label, icon }) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={value === id}
-          aria-label={icon ? label : undefined}
-          title={icon ? label : undefined}
-          className={value === id ? 'segment active' : 'segment'}
-          onClick={() => onChange(id)}
-        >
-          {icon ? (
-            <span className="segment-icon" aria-hidden="true">
-              {icon}
-            </span>
-          ) : (
-            <span>{label}</span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-interface SelectOption<T extends string> {
-  id: T;
-  label: string;
-  // Optional prefix glyph rendered inside the option (e.g. pattern type
-  // emojis like 🎨 Mesh). Bare strings keep options readable in the OS
-  // dropdown popup; using a `<span>` here wouldn't render inside <option>.
-  emoji?: string;
-}
-
-interface SelectProps<T extends string> {
-  options: SelectOption<T>[];
-  value: T;
-  onChange: (v: T) => void;
-  ariaLabel?: string;
-  disabled?: boolean;
-}
-
-// Native dropdown wrapped as a typed component. Centralizes the API so the
-// app-wide select styling (centered text, chevron, focus ring) lives in CSS
-// once and every call site just passes options + value + onChange.
-export function Select<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-  disabled,
-}: SelectProps<T>) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as T)}
-      aria-label={ariaLabel}
-      disabled={disabled}
-    >
-      {options.map(({ id, label, emoji }) => (
-        <option key={id} value={id}>
-          {emoji ? `${emoji} ${label}` : label}
-        </option>
-      ))}
-    </select>
   );
 }

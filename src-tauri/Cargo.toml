@@ -128,7 +128,14 @@ opt-level = 3
 
 # Optimize third-party crates even in debug builds — image / tiny-skia /
 # png are CPU-bound and ~50× slower at opt-level=0, which made the first
-# preview render under `tauri dev` take 10+ seconds. Our own crate stays
-# at opt-level=0 so debugger/incremental compile remain fast.
+# preview render under `tauri dev` take 10+ seconds.
 [profile.dev.package."*"]
 opt-level = 3
+
+# Our own crate at opt-level=1 in dev too: the renderer's hot loops
+# (emoji compositing, dot/shape placement, the per-pixel paths) were the
+# remaining bottleneck once deps were optimized — opt-0 left apply/preview
+# renders sluggish under `tauri dev`. opt-level=1 is the sweet spot:
+# renders feel instant, incremental compiles stay quick.
+[profile.dev]
+opt-level = 1

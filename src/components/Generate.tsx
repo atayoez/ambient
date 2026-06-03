@@ -14,13 +14,8 @@ import {
 } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
 import { WandIcon } from './Icons';
-import {
-  InspectorSection,
-  PreviewFrame,
-  Select,
-  StatusInline,
-  TabLayout,
-} from './layout';
+import { StatusInline } from './layout';
+import OptionScroller from './OptionScroller';
 
 const PROVIDER_OPTIONS: { id: GenProvider; name: string; description: string }[] = [
   { id: 'pollinations', name: 'Pollinations', description: 'Free, no key required' },
@@ -138,101 +133,102 @@ export default function Generate() {
 
   return (
     <div className="generate">
-      <TabLayout
-        preview={
-          <PreviewFrame empty="Type a prompt and hit Generate to see a result here.">
-            {lastResult ? <img src={convertFileSrc(lastResult)} alt={prompt} /> : null}
-          </PreviewFrame>
-        }
-        inspector={
-          <>
-            <InspectorSection title="Provider">
-              <Select
-                options={PROVIDER_OPTIONS.map((p) => ({ id: p.id, label: p.name }))}
-                value={settings.genProvider}
-                onChange={(v) => update({ genProvider: v })}
-                disabled={busy}
-                ariaLabel="Provider"
-              />
-            </InspectorSection>
+      {/* Full-bleed stage: the result (or a tinted empty field) spans the
+          whole pane like the site's backdrop, and the settings + prompt
+          float over it in glass panels. */}
+      <div className="gen-stage">
+        {lastResult ? (
+          <img className="gen-bg" src={convertFileSrc(lastResult)} alt={prompt} />
+        ) : (
+          <div className="gen-bg gen-bg-empty" aria-hidden="true" />
+        )}
 
-            <InspectorSection title="Output">
-              <Select
-                options={RESOLUTION_OPTIONS.map((r) => ({
-                  id: r.value,
-                  label: r.label,
-                }))}
-                value={settings.genResolution}
-                onChange={(v) => update({ genResolution: v })}
-                disabled={busy}
-                ariaLabel="Resolution"
-              />
-            </InspectorSection>
+        {/* Top tray — same as the other tabs: the primary pickers. */}
+        <div className="gen-panel pat-top">
+          <OptionScroller
+            label="Provider"
+            options={PROVIDER_OPTIONS.map((p) => ({ id: p.id, label: p.name }))}
+            value={settings.genProvider}
+            onChange={(v) => update({ genProvider: v })}
+            ariaLabel="Provider"
+          />
+          {settings.genProvider === 'pollinations' && (
+            <OptionScroller
+              label="Model"
+              options={POLLINATIONS_MODELS.map((m) => ({ id: m.value, label: m.label }))}
+              value={settings.pollinationsModel}
+              onChange={(v) => update({ pollinationsModel: v })}
+              ariaLabel="Pollinations model"
+            />
+          )}
+          <OptionScroller
+            label="Resolution"
+            options={RESOLUTION_OPTIONS.map((r) => ({ id: r.value, label: r.label }))}
+            value={settings.genResolution}
+            onChange={(v) => update({ genResolution: v })}
+            ariaLabel="Resolution"
+          />
+        </div>
 
-            <InspectorSection title="Model">
-              {settings.genProvider === 'pollinations' ? (
-                <Select
-                  options={POLLINATIONS_MODELS.map((m) => ({
-                    id: m.value,
-                    label: m.label,
-                  }))}
-                  value={settings.pollinationsModel}
-                  onChange={(v) => update({ pollinationsModel: v })}
-                  disabled={busy}
-                  ariaLabel="Pollinations model"
-                />
-              ) : (
+        {!lastResult && (
+          <p className="gen-empty-hint">
+            Describe a wallpaper and hit Generate — it lands here and on your desktop.
+          </p>
+        )}
+
+        {/* Side panel — prompt + (model/key for OpenAI), like the others. */}
+        <div className="gen-panel pat-side" inert={busy || undefined}>
+          <label className="field">
+            <span>Prompt</span>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={4}
+              placeholder="describe the wallpaper you want…"
+              aria-label="Prompt"
+            />
+          </label>
+          {settings.genProvider === 'openai' && (
+            <>
+              <label className="field">
+                <span>Model</span>
                 <input
                   type="text"
                   value={settings.openaiModel}
                   onChange={(e) => update({ openaiModel: e.target.value })}
                   placeholder="dall-e-3"
-                  disabled={busy}
                   aria-label="OpenAI model"
                 />
-              )}
-            </InspectorSection>
-
-            <InspectorSection title="Prompt">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={5}
-                placeholder="describe the wallpaper you want…"
-                disabled={busy}
-              />
-            </InspectorSection>
-
-            {settings.genProvider === 'openai' && (
-              <InspectorSection title="API key">
+              </label>
+              <label className="field">
+                <span>API key</span>
                 <input
                   type="password"
                   value={openaiKey}
                   onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder="sk-..."
-                  disabled={busy || !openaiKeyLoaded}
+                  placeholder="sk-…"
+                  disabled={!openaiKeyLoaded}
                   aria-label="OpenAI API key"
                 />
-              </InspectorSection>
-            )}
-          </>
-        }
-        actions={
-          <>
-            <button
-              type="button"
-              onClick={go}
-              disabled={busy || !prompt.trim()}
-              className="primary icon-btn"
-              aria-label="Generate and apply"
-              title="Generate and apply (⌘⏎)"
-            >
-              <WandIcon />
-            </button>
-            <StatusInline status={status} error={error} />
-          </>
-        }
-      />
+              </label>
+            </>
+          )}
+        </div>
+
+        <div className="pat-actions">
+          <StatusInline status={status} error={error} />
+          <button
+            type="button"
+            onClick={go}
+            disabled={busy || !prompt.trim()}
+            className="primary icon-btn"
+            aria-label="Generate and apply"
+            title="Generate and apply (⌘⏎)"
+          >
+            <WandIcon />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

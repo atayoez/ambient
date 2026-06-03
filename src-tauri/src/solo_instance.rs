@@ -25,7 +25,7 @@
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, Signal, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
 /// Call once at startup, before the tauri::Builder runs. Best-effort
 /// throughout: any error here just logs and continues — we'd rather
@@ -100,11 +100,22 @@ fn take_over_previous(pid_path: &Path) {
     }
 
     tracing::info!(pid = old_pid, "solo-instance: replacing previous instance");
-    proc.kill_with(Signal::Term);
+    // SIGKILL, not SIGTERM. The polite SIGTERM path runs Tauri's
+    // WebKitGTK teardown (destroy the WebView, tear down the GPU process,
+    // join AVIF encoder threads), which races the shutdown and can
+    // heap-corrupt on the way out — the dying instance was aborting with
+    // "free(): corrupted unsorted chunks". A hard kill skips teardown
+    // entirely. It's safe here: settings + library writes are atomic
+    // (temp-file + rename, so a mid-write kill leaves the real file
+    // intact), and the StatusNotifier tray item is reclaimed by the host
+    // the moment our D-Bus connection drops.
+    proc.kill(); // SIGKILL
 
-    let deadline = Instant::now() + Duration::from_millis(1500);
+    // Brief wait so the new instance doesn't race the old on the shared
+    // settings/library files before it's fully gone.
+    let deadline = Instant::now() + Duration::from_millis(800);
     while Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(Duration::from_millis(25));
         sys.refresh_processes_specifics(
             ProcessesToUpdate::Some(&[pid]),
             true,
@@ -114,13 +125,7 @@ fn take_over_previous(pid_path: &Path) {
             return;
         }
     }
-
-    // Didn't go on SIGTERM — escalate. Tauri's WebKit child or a stuck
-    // GPU process can keep the parent alive past a polite shutdown.
-    tracing::warn!(pid = old_pid, "solo-instance: SIGTERM timed out, escalating to SIGKILL");
-    if let Some(proc) = sys.process(pid) {
-        proc.kill();
-    }
+    tracing::warn!(pid = old_pid, "solo-instance: previous instance still present after SIGKILL");
 }
 
 fn write_our_pid(pid_path: &Path) {

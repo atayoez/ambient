@@ -94,10 +94,11 @@ export function customToColorPreset(c: CustomPreset): ColorPreset {
   return { id: c.id, name: c.name, emojis: c.emojis, light: c.colors, dark: c.colors };
 }
 
-// Curated set of 7 themed palettes. Each ships with a light and dark
+// Curated set of 15 themed palettes. Each ships with a light and dark
 // variant chosen to read well against the corresponding bg-base, plus
 // paired emoji set so picking a theme auto-swaps the Emoji pattern's
-// glyphs to match. Cosmic is first because it's the brand default.
+// glyphs to match. Cosmic is first because it's the brand default;
+// Mono is kept last as the neutral ender.
 export const COLOR_PRESETS: ColorPreset[] = [
   {
     id: 'cosmic',
@@ -140,6 +141,62 @@ export const COLOR_PRESETS: ColorPreset[] = [
     emojis: ['🌅', '🌇', '🔥', '🌺', '🌴', '🌵', '🌞', '🦩', '🏝️', '☀️'],
     light: ['#fff7ed', '#fed7aa', '#fb923c', '#f43f5e', '#7c2d12'],
     dark: ['#1f0e3d', '#7b2cbf', '#e94560', '#ff9f1c', '#fcd34d'],
+  },
+  {
+    id: 'aurora',
+    name: 'Aurora',
+    emojis: ['🌌', '💚', '💜', '✨', '🏔️', '🌠', '❄️', '🌃'],
+    dark: ['#03111a', '#0a3d3a', '#10b981', '#5eead4', '#a78bfa'],
+    light: ['#ecfeff', '#a7f3d0', '#10b981', '#0891b2', '#7c3aed'],
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk',
+    emojis: ['⚡', '🌃', '🤖', '🔮', '💜', '🌆', '💎', '🎮'],
+    dark: ['#0a0118', '#ff007a', '#00e5ff', '#fde047', '#a855f7'],
+    light: ['#faf0ff', '#f0abfc', '#db2777', '#0891b2', '#7c3aed'],
+  },
+  {
+    id: 'autumn',
+    name: 'Autumn',
+    emojis: ['🍂', '🍁', '🌰', '🍄', '🦊', '🌾', '🍎', '🐿️'],
+    light: ['#fffbeb', '#fed7aa', '#ea580c', '#b45309', '#7c2d12'],
+    dark: ['#1a0f08', '#5a2e0e', '#c2410c', '#ea9a3e', '#fcd9a8'],
+  },
+  {
+    id: 'sakura',
+    name: 'Sakura',
+    emojis: ['🌸', '🌷', '🩷', '🦋', '🍃', '🌺', '🐦', '🎀'],
+    light: ['#fff5f7', '#fecdd3', '#fb7185', '#f9a8d4', '#a78bfa'],
+    dark: ['#2a1620', '#6b2848', '#f43f5e', '#fb7eb0', '#d8b4fe'],
+  },
+  {
+    id: 'vaporwave',
+    name: 'Vaporwave',
+    emojis: ['🌴', '🌊', '🌆', '💿', '🕶️', '🍹', '🐬', '⭐'],
+    dark: ['#190a2e', '#ff5ca8', '#36e0d8', '#b16cff', '#fef08a'],
+    light: ['#fdf2ff', '#fbcfe8', '#e879f9', '#22d3ee', '#818cf8'],
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    emojis: ['🌲', '🍄', '🦌', '🌿', '🦉', '🐻', '🍃', '🌰'],
+    light: ['#f2fbf4', '#bbe7c6', '#4d9e63', '#2f6b3c', '#3b2a1a'],
+    dark: ['#08130b', '#16301c', '#3f7d4f', '#86c08e', '#d8cba0'],
+  },
+  {
+    id: 'citrus',
+    name: 'Citrus',
+    emojis: ['🍋', '🍊', '🍈', '🌿', '🍹', '🐝', '🌼', '🥝'],
+    light: ['#fefce8', '#fef08a', '#facc15', '#65a30d', '#15803d'],
+    dark: ['#161a05', '#3f4d0a', '#a3b817', '#facc15', '#fff6a8'],
+  },
+  {
+    id: 'berry',
+    name: 'Berry',
+    emojis: ['🫐', '🍇', '🍓', '🍒', '🍷', '🌸', '🍰', '💜'],
+    light: ['#fdf4ff', '#f5d0fe', '#c026d3', '#9333ea', '#581c87'],
+    dark: ['#160a1f', '#3b0f52', '#a21caf', '#e056c7', '#f7c6f0'],
   },
   {
     id: 'mono',

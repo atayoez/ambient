@@ -125,6 +125,11 @@ pub fn run() {
             secrets::init(&app_data_dir);
             secrets::migrate_from_settings(&app_data_dir);
 
+            // Emoji cache dir for on-demand Fluent glyph fetches (the
+            // picker offers the full Unicode set; non-bundled glyphs are
+            // fetched + cached here on first use).
+            emojis::init(&app_data_dir);
+
             let loaded_settings = settings::load_or_default(&app_data_dir);
             let loaded_library = library_store::load_or_default(&app_data_dir);
             app.manage(settings::SettingsState::new(

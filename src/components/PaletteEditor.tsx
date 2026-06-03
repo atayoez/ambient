@@ -53,7 +53,12 @@ export default function PaletteEditor({
   useEffect(() => {
     if (!pickerOpen) return;
     function onDocMouseDown(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      // The picker is portaled to <body>, so it's not a DOM descendant
+      // of wrapRef — match it by class instead, otherwise clicking
+      // inside the popover (scrolling, category headers) would read as
+      // "outside" and close it.
+      if (!wrapRef.current?.contains(target) && !target.closest?.('.emoji-picker')) {
         setPickerOpen(false);
       }
     }
@@ -130,7 +135,7 @@ export default function PaletteEditor({
             onChange={(e) => onColorChange(i, e.target.value)}
             aria-label={`color ${i + 1}`}
           />
-          {colors.length > 2 && (
+          {colors.length > 1 && (
             <button
               onClick={() => onRemoveColor(i)}
               className="chip-remove"
@@ -142,7 +147,7 @@ export default function PaletteEditor({
           )}
         </div>
       ))}
-      {colors.length < 6 && (
+      {colors.length < 5 && (
         <button
           onClick={onAddColor}
           className="add-color"

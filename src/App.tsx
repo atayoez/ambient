@@ -18,7 +18,6 @@ import Sources from './components/Sources';
 import UpdateBanner from './components/UpdateBanner';
 import {
   useLicenseGate,
-  useSystemAccent,
   useTabKeybindings,
   useTrayThemeSync,
   useUpdateBanner,
@@ -104,7 +103,11 @@ export default function App() {
   const isMaximized = useWindowMaximized();
   const { license, licenseLoaded, revokedMsg, onActivated } = useLicenseGate();
   const { updateInfo, dismiss: dismissUpdate } = useUpdateBanner(license);
-  useSystemAccent();
+  // OS-accent chrome tinting intentionally removed: the app is fully
+  // achromatic liquid glass now (colour comes from the preview behind the
+  // glass, never the system accent). The System palette preset still
+  // reads the accent via useSystemAccentColor — that's wallpaper content,
+  // not chrome.
   useTrayThemeSync();
   useTabKeybindings<Tab>(TAB_IDS, setTab);
 

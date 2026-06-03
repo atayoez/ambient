@@ -7,6 +7,19 @@
  */
 @import '../design-system/colors_and_type.css';
 
+:root {
+  /* Glass film colour. Held achromatic (white) on purpose: this is REAL
+     liquid glass — the material is a thin neutral frost, and its colour
+     comes from refracting whatever sits behind it (backdrop-filter blur +
+     saturate over the live preview), NOT from a painted chromatic wash.
+     The surfaces below reference this triplet for their film / edge /
+     sheen, so keeping it white makes every glass surface achromatic while
+     the backdrop supplies the colour. */
+  --tint-r: 255;
+  --tint-g: 255;
+  --tint-b: 255;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -64,13 +77,27 @@ textarea,
      blurs in-page content, and window-vibrancy has no Linux support;
      it's a compositor-side effect.) The window background stays
      achromatic; visual interest lives in the preview / library. */
-  background: var(--bg-base);
+  /* Opaque base + a faint tint wash from the top so the window interior
+     carries the current palette's colour (the chrome's version of the
+     site's tinted field), plus a tinted edge + outer glow. */
+  background:
+    radial-gradient(
+      130% 90% at 50% 0%,
+      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.09) 0%,
+      transparent 58%
+    ),
+    var(--bg-base);
   border-radius: var(--radius-window);
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
   box-shadow:
     var(--shadow-window),
+    0 0 64px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.1),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
+  transition:
+    background 600ms var(--ease-pill),
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
 }
 
 /* When maximized, the window touches every screen edge — rounded corners
@@ -136,16 +163,20 @@ textarea,
      drop-shadow than the original (the previous 32px-blur shadow read
      as a dark strip across the bottom; this 12px shadow gives the
      pill float without a band). */
-  background: rgba(255, 255, 255, 0.06);
+  /* Dark frosted pill — floats over the full-bleed preview now, so it
+     needs a dark base for the tab glyphs to read against bright art. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    rgba(12, 12, 18, 0.5);
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 0;
   box-shadow:
-    0 4px 12px rgb(var(--shadow-tint) / 0.18),
-    inset 0 1px 0 var(--highlight-edge);
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   z-index: 50;
   transform: translateX(-50%);
 }
@@ -277,15 +308,6 @@ textarea,
   }
 }
 
-/* Inspector while a wallpaper is being applied — `inert` (set in
-   TabLayout) already blocks pointer + focus; this just signals the
-   frozen state visually. The preview + status pill stay fully lit. */
-.inspector[inert] {
-  opacity: 0.5;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-}
-
 .wc {
   display: inline-flex;
   align-items: center;
@@ -367,7 +389,7 @@ button {
        lose their accent border
      - the borderless text link (.about-link) — gains an unwanted box
    Everything not listed (the default buttons) still gets the wash. */
-button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):hover:not(:disabled) {
+button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):not(.icon-btn):not(.pat-del):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
@@ -640,148 +662,6 @@ input[type='range']:active::-moz-range-thumb {
   gap: 14px;
 }
 
-/* Shuffle controls panel pinned at the top of the Library tab. Compact —
-   we don't want the rotation toggle eating room from the wallpaper grid.
-   Centered with a sensible max-width so it doesn't span the entire 1280px
-   library width on big monitors. */
-.library-controls {
-  /* Just centering + width; the inner .inspector-section now carries
-     the visual tile (bg + border + radius + drop-shadow), so the outer
-     wrapper would only be nesting tile-in-tile if we kept its chrome. */
-  align-self: center;
-  width: 100%;
-  max-width: 480px;
-}
-
-.library-grid {
-  display: grid;
-  /* Compact cards — 180px min so 4-5 fit per row at typical widths.
-     Was 260px which felt too spacious for what's effectively a thumbnail
-     grid. */
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  overflow: hidden;
-  box-shadow:
-    0 2px 6px rgb(var(--shadow-tint) / 0.10),
-    inset 0 1px 0 var(--highlight-edge);
-  transition:
-    transform var(--t-base) ease,
-    border-color var(--t-base) ease,
-    box-shadow var(--t-base) ease;
-}
-
-.card:hover {
-  box-shadow:
-    0 4px 12px rgb(var(--shadow-tint) / 0.16),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-.card:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-1px);
-}
-
-/* Whole thumbnail is the apply target — click to apply, with an overlay
-   hint that fades in on hover. */
-.card-thumb {
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: 0;
-  background: var(--surface-2);
-  border: none;
-  border-radius: 0;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.card-thumb img {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  background: var(--surface-2);
-  display: block;
-  transition: transform var(--t-base) ease;
-}
-
-.card-thumb:hover img {
-  transform: scale(1.04);
-}
-
-.card-thumb-hint {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: var(--fw-medium);
-  font-size: var(--fs-body);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  background: linear-gradient(180deg, transparent, rgb(var(--shadow-tint) / 0.45));
-  opacity: 0;
-  transition: opacity var(--t-base) ease;
-  pointer-events: none;
-}
-
-.card-thumb:hover .card-thumb-hint,
-.card-thumb:focus-visible .card-thumb-hint {
-  opacity: 1;
-}
-
-.card-actions {
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-}
-
-/* Selection ring for "this card matches one of the active wallpaper
-   slots" — currently applied (.current), the theme-mode light slot
-   (.light-slot), or the dark slot (.dark-slot). All three share the
-   same accent ring so the visual treatment is uniform; the bottom-bar
-   icons (CheckIcon / SunIcon / MoonIcon) disambiguate which kind. A
-   card can carry multiple classes (e.g. the dark slot might also be
-   currently applied) and the ring just stays single. */
-.card.current,
-.card.light-slot,
-.card.dark-slot {
-  border-color: color-mix(in oklch, var(--accent-os, var(--accent)) 55%, var(--border));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklch, var(--accent-os, var(--accent)) 45%, transparent),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-/* Card actions bar: indicator chips on the left, delete button on the
-   right. The indicators are non-interactive — they're just at-a-glance
-   markers — so they sit ahead of the delete button via margin-left
-   on the action button. */
-.card-indicators {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--accent-os, var(--accent));
-  margin-right: auto;
-}
-
-.card-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-inline);
-  background: color-mix(in oklch, var(--accent-os, var(--accent)) 14%, transparent);
-}
-
 /* Ghost-style danger — same red on hover but neutral at rest, so the
    first click feels less destructive than the full-fill .danger. */
 .danger-ghost {
@@ -795,26 +675,21 @@ input[type='range']:active::-moz-range-thumb {
   background: color-mix(in oklch, var(--danger) 12%, transparent);
 }
 
-.card-meta {
-  padding: 0 8px 8px;
-  color: var(--muted);
-  font-size: var(--fs-eyebrow);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .empty {
   grid-column: 1 / -1;
   padding: 50px 20px;
   text-align: center;
   color: var(--muted);
-  border: 1px dashed var(--border);
+  border: 1px dashed rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
   border-radius: var(--radius-container);
   line-height: var(--lh-loose);
-  background: var(--surface);
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.05),
+      transparent 70%
+    ),
+    var(--surface);
 }
 
 .empty em {
@@ -890,67 +765,6 @@ input[type='range']:active::-moz-range-thumb {
   justify-content: center;
 }
 
-.inspector-section textarea {
-  resize: vertical;
-  min-height: 96px;
-  width: 100%;
-}
-
-/* --- Preview surface (shared by Patterns + Sources) ---
-   Single styled frame that wraps either a <canvas>, <img>, or empty-state
-   <div>. Sized smaller than full-width to feel like a preview, not a
-   full-bleed canvas. Centered in its column. */
-.preview-wrap {
-  position: relative;
-  width: 100%;
-  max-width: 640px;
-  align-self: center;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-container);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow:
-    0 6px 18px rgb(var(--shadow-tint) / 0.12),
-    inset 0 1px 0 var(--highlight-edge);
-  overflow: hidden;
-}
-
-.preview-wrap > canvas,
-.preview-wrap > img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  border-radius: inherit;
-}
-
-.preview-empty {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  font-size: var(--fs-body);
-  text-align: center;
-  padding: 20px;
-}
-
-/* ============================================================
-   Tab layout — preview on the left, inspector panel on the
-   right, action bar across the bottom. Apple's standard
-   "document + inspector" arrangement (Pages, Keynote, iOS
-   wallpaper editor). Shared by Patterns / Sources / Generate.
-   All surfaces sit on the app glass — no nested cards, sections
-   are grouped by eyebrow + spacing.
-   ============================================================ */
-.tab-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 22px;
-  align-items: start;
-}
-
 /* At wide window widths give the inspector column more room — 280px feels
    cramped at 1400+ px viewport, where there's no good reason to keep
    inputs narrow. Cap at 360 so the inspector doesn't dominate. */
@@ -972,21 +786,6 @@ input[type='range']:active::-moz-range-thumb {
   }
 }
 
-.preview-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-  /* Stick to the top of the tab's scroll container so the preview +
-     action buttons stay visible while the inspector column scrolls.
-     align-self:start (inherited from the grid's align-items) keeps the
-     column at its content height — required for sticky to engage. */
-  position: sticky;
-  top: 0;
-  align-self: start;
-}
-
 /* In single-column (narrow window) mode the preview stacks above the
    inspector, so sticky would let inspector text scroll behind it.
    Drop back to static positioning there. */
@@ -994,146 +793,6 @@ input[type='range']:active::-moz-range-thumb {
   .preview-col {
     position: static;
   }
-}
-
-.preview-actions {
-  width: 100%;
-  max-width: 640px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.inspector {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  min-width: 0;
-}
-
-.inspector-section {
-  /* Each section in the inspector is now a tile: same bg + border +
-     radius + drop-shadow recipe as .preview-wrap / .library-controls /
-     .card. The h3 eyebrow inside stays muted to read as a label, not a
-     card title. Padding insets the contents so the chips / sliders /
-     segmented controls don't kiss the tile edge. */
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  padding: 14px 16px;
-  box-shadow:
-    0 3px 8px rgb(var(--shadow-tint) / 0.10),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-.inspector-section h3 {
-  margin: 0;
-  font-size: var(--fs-eyebrow);
-  font-weight: var(--fw-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--muted);
-  /* Centered eyebrow — anchors the section visually above whatever
-     content follows (sliders / chips / toggles / inputs). The tile's
-     contents still left-align by default, so the title floats over the
-     top edge like a label rather than a left-aligned header. */
-  text-align: center;
-}
-
-/* Stretch text-shaped inputs to fill the inspector column. Checkbox,
-   color, and range have intrinsic dimensions and must be excluded —
-   without :not([type='checkbox']) the 100% rule was blowing the
-   Shuffle/Auto-rotate checkbox up to the full panel width and pushing
-   its label out of the container. */
-.inspector-section input:not([type='color']):not([type='range']):not([type='checkbox']),
-.inspector-section select {
-  width: 100%;
-}
-
-/* Slightly roomier padding for inputs that live in an inspector column —
-   they're already constrained to ~280px wide, so generous interior space
-   keeps them from feeling cramped. Same exclusions as above. */
-.inspector-section
-  input:not([type='color']):not([type='range']):not([type='checkbox']),
-.inspector-section textarea,
-.inspector-section select {
-  padding: 10px 12px;
-}
-
-.inspector-section .muted.small {
-  font-size: var(--fs-eyebrow);
-  margin: 0;
-  line-height: var(--lh-body);
-}
-
-/* Segmented control — 2-3 options, single-row pill with a sliding-active
-   state. Used for short toggle groups (theme mode, etc.). */
-.segmented {
-  /* Glass-pill style — matches .tabs and select dropdowns. The inner
-     .segment buttons are still rounded with their own radius (6px) and
-     gain a glassy active state via .segment.active below. Default
-     align-self: flex-start keeps it left-aligned when it lives inside
-     a labeled .field (Patterns shape/fill rows, where the eyebrow
-     above is also left-aligned). The .inspector-section > .segmented
-     override below re-centers it when it's a direct section child —
-     i.e. the Palette theme picker and Library System-theme picker,
-     where there's no inner eyebrow to fight against. */
-  display: inline-flex;
-  align-self: flex-start;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  padding: 2px;
-  gap: 2px;
-  box-shadow:
-    0 4px 12px rgb(var(--shadow-tint) / 0.18),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-.inspector-section > .segmented {
-  align-self: center;
-}
-
-.segmented .segment {
-  /* Pill radius so the inner segments nest cleanly inside the outer
-     .segmented pill — same concentric-corner logic as .tab-indicator
-     inside .tabs. */
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: transparent;
-  border: 1px solid transparent;
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  color: var(--muted);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-  transition:
-    background var(--t-fast) ease,
-    color var(--t-fast) ease;
-}
-
-.segmented .segment:hover:not(.active) {
-  color: var(--text);
-  background: transparent;
-}
-
-.segmented .segment.active {
-  background: var(--surface-2);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-
-.segment-icon {
-  font-size: 13px;
-  line-height: 1;
 }
 
 /* Inline horizontal slider rows — label on the left, slider centered,
@@ -1337,13 +996,13 @@ input[type='range']:active::-moz-range-thumb {
   display: inline-flex;
 }
 
-/* Centered viewport-fixed picker. The earlier absolute-positioned
-   variant anchored to the "+" button overflowed the 820px window
-   whenever the trigger sat near the right edge of the inspector
-   column (~270px wide). Fixed-bottom-center positions reliably
-   regardless of where the trigger lands. The picker stays in the
-   click-outside flow via the wrap ref in Patterns.tsx (DOM nesting
-   still works under position: fixed). */
+/* Centered viewport-fixed picker, portaled to <body> (see
+   EmojiPicker.tsx). Fixed positioning only resolves against the
+   viewport when no ancestor is transformed/filtered — but the picker
+   triggers from inside a backdrop-filter glass panel, which would
+   otherwise re-anchor it to that panel and clip its left edge. The
+   body portal sidesteps that; click-outside matches `.emoji-picker`
+   by class in PaletteEditor.tsx rather than relying on DOM nesting. */
 .emoji-picker {
   /* Same glass recipe as the bottom .tabs pill: low-alpha white tint
      so the backdrop-filter blur has something to bind to, subtle white
@@ -1410,85 +1069,6 @@ input[type='range']:active::-moz-range-thumb {
   .emoji-picker-item:hover {
     background: rgb(var(--shadow-tint) / 0.06);
   }
-}
-
-.presets-row {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-  /* Center the palette preset chips within the Palette inspector tile
-     so they sit visually under the centered "PALETTE" eyebrow and
-     Auto/Light/Dark segmented above. */
-  justify-content: center;
-}
-
-.preset-btn {
-  /* Glass-pill style — matches .tabs / select / .segmented. */
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  padding: 4px 12px;
-  font-size: var(--fs-caption);
-  color: var(--muted);
-  box-shadow:
-    0 4px 12px rgb(var(--shadow-tint) / 0.18),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-.preset-btn:hover:not(:disabled) {
-  color: var(--text);
-}
-
-.preset-btn.active {
-  color: var(--text);
-  background: var(--surface-3);
-  border-color: var(--border-strong);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent-os, var(--accent)) 30%, transparent);
-}
-
-.preset-emoji {
-  font-size: 14px;
-  line-height: 1;
-}
-
-/* Wraps a preset chip so the delete badge (custom palettes only) can sit
-   absolutely at its corner without disturbing the row's flex flow. */
-.preset-chip {
-  position: relative;
-  display: inline-flex;
-}
-
-.preset-del {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius-pill);
-  background: var(--danger);
-  color: #fff;
-  border: 1px solid var(--surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: 0;
-  cursor: pointer;
-  /* Same reveal-on-intent model as the chip-remove badges. */
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.preset-chip.removable:hover .preset-del,
-.preset-chip.removable:focus-within .preset-del,
-.preset-del:focus-visible {
-  opacity: 1;
 }
 
 /* "Save palette" — dashed ghost pill, matching the add-color affordance.
@@ -1695,10 +1275,17 @@ button.primary.icon-btn {
   padding: 40px 36px 32px;
   border-radius: var(--radius-container);
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background:
+    radial-gradient(
+      120% 80% at 50% 0%,
+      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.08) 0%,
+      transparent 60%
+    ),
+    var(--surface);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.2);
   box-shadow:
     var(--shadow-window),
+    0 0 50px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.1),
     inset 0 1px 0 var(--highlight-edge);
   overflow: hidden;
 }
@@ -1988,14 +1575,17 @@ button.primary.icon-btn {
   text-align: center;
   gap: 6px;
   padding: 28px 24px 20px;
-  /* Same glass recipe as the emoji picker / tab pill. */
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Tinted glass, matching the rest of the chrome. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
+  backdrop-filter: var(--blur-overlay);
+  -webkit-backdrop-filter: var(--blur-overlay);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.28);
   border-radius: var(--radius-container);
   box-shadow:
     0 18px 48px rgb(var(--shadow-tint) / 0.45),
+    0 8px 30px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18),
     inset 0 1px 0 var(--highlight-edge);
 }
 
@@ -2098,4 +1688,428 @@ button.primary.icon-btn {
 .about-legal {
   font-size: 11px;
   color: var(--muted);
+}
+
+/* ============================================================ */
+/* Generate tab — full-bleed stage + floating glass controls     */
+/* ============================================================ */
+/* Mirrors the marketing site: the result (or a tinted empty field)
+   spans the whole pane as a backdrop, and the settings + prompt float
+   over it in tinted-glass panels instead of a side inspector. */
+
+.gen-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-container);
+  overflow: hidden;
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
+  box-shadow:
+    0 6px 18px rgb(var(--shadow-tint) / 0.12),
+    0 0 26px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12),
+    inset 0 1px 0 var(--highlight-edge);
+  transition:
+    border-color 600ms var(--ease-pill),
+    box-shadow 600ms var(--ease-pill);
+}
+
+.gen-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* Empty state — a soft tinted mesh so the pane never reads as a blank
+   grey box before the first generation. */
+.gen-bg-empty {
+  background:
+    radial-gradient(60% 60% at 24% 26%, rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.55) 0%, transparent 70%),
+    radial-gradient(58% 58% at 80% 82%, rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.38) 0%, transparent 70%),
+    var(--bg-base);
+}
+
+
+
+/* Shared floating-glass panel for the controls tray + prompt composer. */
+.gen-panel {
+  position: absolute;
+  z-index: 2;
+  /* DARK frosted glass: a near-black translucent base gives white text +
+     controls reliable contrast no matter how bright the preview behind
+     is, while backdrop-filter (blur + saturate) still refracts that
+     preview through it — real liquid glass, achromatic, just dark. A thin
+     white top sheen + hairline read as the glass edge. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 12, 18, 0.55);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.gen-controls {
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-container);
+}
+
+/* Controls sit flat on the tray — translucent tint chips rather than the
+   inspector's opaque surface, so they read as part of the glass panel. */
+.gen-controls select,
+.gen-inline-input {
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.24);
+  border-radius: var(--radius-inline);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.gen-inline-input {
+  min-width: 150px;
+  cursor: text;
+}
+
+.gen-controls select:focus-visible,
+.gen-inline-input:focus-visible {
+  outline: none;
+  border-color: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.55);
+}
+
+.gen-empty-hint {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-width: 320px;
+  text-align: center;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.gen-status {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 150px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.3);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.gen-composer {
+  /* Sits well above the floating tab pill (bottom: 24px, ~42px tall, z
+     50) so the nav never overlaps the composer's controls. */
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94%, 600px);
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+}
+
+.gen-composer textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body-lg);
+  line-height: 1.4;
+  padding: 7px 8px;
+}
+
+.gen-composer textarea::placeholder {
+  color: var(--muted);
+}
+
+.gen-go {
+  flex: none;
+}
+
+/* ============================================================ */
+/* Patterns tab — full-bleed stage + arrow-scroller controls     */
+/* ============================================================ */
+/* Reuses the .gen-stage / .gen-bg / .gen-scrim / .gen-panel glass
+   primitives (now achromatic — the colour comes from refracting the
+   live preview behind the panels, not a tint). These rules only add
+   Patterns-specific positioning. */
+
+.pat-top {
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-container);
+}
+
+.pat-side {
+  top: 12px;
+  right: 12px;
+  bottom: 84px; /* clear of the centered tab pill */
+  width: 264px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-container);
+  overflow-y: auto;
+}
+
+.pat-palette-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pat-palette-row .opt-scroller {
+  flex: 1;
+  min-width: 0;
+}
+
+.pat-del {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  cursor: pointer;
+}
+
+.pat-del:hover {
+  color: #fff;
+  background: var(--danger);
+  border-color: transparent;
+}
+
+.pat-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pat-actions {
+  position: absolute;
+  z-index: 4;
+  right: 16px;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 12, 18, 0.5);
+  backdrop-filter: var(--blur-tabs);
+  -webkit-backdrop-filter: var(--blur-tabs);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* --- OptionScroller (arrow pill) --- */
+.opt-scroller {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.opt-scroller-eyebrow {
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-left: 2px;
+}
+
+.opt-scroller-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Subtle inset well so the control reads as a unit inside the glass
+     panel — achromatic, no tint. */
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+}
+
+.opt-arrow {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0; /* override the global button padding */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  /* Faint chip so the arrow reads as a button against the glass, not a
+     floating glyph; brightens on hover. */
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--t-fast) ease;
+}
+
+.opt-arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.opt-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.opt-value {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.opt-value-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.opt-value-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Library carousel — applied/light/dark badges next to the browse scroller. */
+.lib-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lib-badge {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+}
+
+/* Patterns colour roles — background picker + foreground label. */
+.role-bg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.role-label {
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.role-bg-chip {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+
+/* The emoji picker now holds the full ~1.4k Unicode set — skip layout
+   + paint for off-screen categories so opening it stays snappy. */
+.emoji-picker-cat {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 140px;
+}
+
+/* Action buttons read as glass controls on the panels, not default
+   surface boxes: faint chip at rest, brighten on hover; the primary
+   (apply / generate) keeps the accent fill so it stands out; danger
+   (confirm-delete) gets a danger tint. */
+.pat-actions .icon-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
+  color: var(--text);
+}
+.pat-actions .icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+.pat-actions button.primary {
+  background: var(--accent-fill);
+  color: var(--accent-text);
+  border-color: transparent;
+}
+.pat-actions button.primary:hover:not(:disabled) {
+  background: var(--accent-fill-hover);
+}
+.pat-actions button.danger {
+  background: color-mix(in oklch, var(--danger) 16%, transparent);
+  border: 1px solid color-mix(in oklch, var(--danger) 38%, transparent);
+  color: var(--danger);
+}
+.pat-actions button.danger:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--danger) 26%, transparent);
+}
+/* Delete-palette badge — faint chip → danger on hover (its own rule
+   below provides the danger hover). */
+.pat-del {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
+}
+
+/* Inline rename for the active custom palette. */
+.palette-rename {
+  width: 100%;
+  font-size: var(--fs-body);
 }

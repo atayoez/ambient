@@ -17,7 +17,7 @@ use image::ExtendedColorType;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use tiny_skia::{
-    Color, FillRule, GradientStop, Paint, PathBuilder, Pixmap, PixmapPaint,
+    Color, FillRule, FilterQuality, GradientStop, Paint, PathBuilder, Pixmap, PixmapPaint,
     Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
 };
 
@@ -31,8 +31,20 @@ use crate::util::ms_since_epoch;
 // (no browser scaling), but we cap at a sane ceiling to keep the per-
 // frame budget bounded during rapid slider drags on big monitors.
 const PREVIEW_MIN_DIM: u32 = 64;
-const PREVIEW_MAX_W: u32 = 1920;
-const PREVIEW_MAX_H: u32 = 1200;
+// Previews are 1× (no SSAA) and only need to look crisp at the on-screen
+// stage size, so cap them well below monitor resolution — keeps each
+// preview render cheap (cost scales with pixel count) and its pixmap
+// small (~1280×820 ≈ 4 MB) so rapid edits can't pile up into an OOM.
+const PREVIEW_MAX_W: u32 = 1280;
+const PREVIEW_MAX_H: u32 = 820;
+
+// Monotonic generation for preview renders. Each render_preview call
+// claims the next generation; if a newer call has since claimed a higher
+// one, the older render abandons its result instead of wasting the encode
+// + IPC (and the frontend ignores it anyway). This is the "cancel the old
+// preview job when a new one arrives" mechanism — apply_pattern does NOT
+// participate, so committing a wallpaper is never cancelled.
+static PREVIEW_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -521,6 +533,14 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
+    // Stripe bands draw from the foreground palette (colors[1..]); the
+    // background is colors[0] (filled above) — same background/foreground
+    // split as the other pattern types.
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
     let angle_deg = cfg.stripes_angle.unwrap_or(30.0).clamp(0.0, 90.0);
     let diag = ((w_f * w_f + h_f * h_f).sqrt() * 1.1).max(1.0);
     let scale = w_f.max(h_f) / 1920.0;
@@ -534,7 +554,7 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
     while x < diag {
         let stripe_w =
             (base_width * (1.0 + (rng.next() - 0.5) * width_var)).max(2.0);
-        let color = hex_to_color(&cfg.colors[i % cfg.colors.len()], 1.0);
+        let color = hex_to_color(palette[i % palette.len()], 1.0);
         let mut paint = Paint::default();
         paint.set_color(color);
         if let Some(rect) =
@@ -571,10 +591,11 @@ fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
         cfg.emoji_rotation_max.unwrap_or(34.0) * std::f32::consts::PI / 180.0;
     let size_var = cfg.emoji_size_var.unwrap_or(0.75);
 
-    // Pre-decode all emoji pixmaps from the bundled set (memoized in
-    // emojis::load). A miss means the glyph wasn't bundled — render a
-    // blank slot for it rather than failing the whole tile. The
-    // every_ui_emoji_is_bundled test ensures UI emojis never miss.
+    // Pre-decode each emoji pixmap via emojis::load (memoized:
+    // in-memory → bundled asset → on-disk fetch cache). apply_pattern /
+    // render_preview call emojis::preload first, so on-demand glyphs are
+    // already cached by now; a still-missing glyph renders a blank slot
+    // rather than failing the whole tile.
     let pixmaps: Vec<Option<Pixmap>> = emojis
         .iter()
         .map(|e| {
@@ -619,7 +640,15 @@ fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
                         -(emoji_pix.height() as f32) / 2.0,
                     );
 
-                let paint = PixmapPaint::default();
+                // Bicubic, not the default Nearest — Nearest made the
+                // 256px Fluent art read as blocky/aliased once scaled (and
+                // jagged when rotated/flipped). Bicubic resamples smoothly
+                // both up and down. The 256px source is still the detail
+                // ceiling, but this removes the "low quality" look.
+                let paint = PixmapPaint {
+                    quality: FilterQuality::Bicubic,
+                    ..PixmapPaint::default()
+                };
                 pix.draw_pixmap(0, 0, emoji_pix.as_ref(), &paint, transform, None);
             }
 
@@ -635,9 +664,12 @@ fn premultiply_into_pixmap(src: &image::RgbaImage, dst: &mut Pixmap) {
     for (pixel, slot) in src.pixels().zip(bytes.chunks_exact_mut(4)) {
         let [r, g, b, a] = pixel.0;
         let af = a as f32 / 255.0;
-        slot[0] = (r as f32 * af) as u8;
-        slot[1] = (g as f32 * af) as u8;
-        slot[2] = (b as f32 * af) as u8;
+        // Round, not truncate: `as u8` floors, which biased every
+        // anti-aliased rim pixel darker and made emoji edges read
+        // harsher than the source art.
+        slot[0] = (r as f32 * af + 0.5) as u8;
+        slot[1] = (g as f32 * af + 0.5) as u8;
+        slot[2] = (b as f32 * af + 0.5) as u8;
         slot[3] = a;
     }
 }
@@ -706,9 +738,45 @@ pub async fn render_preview(
     let w = width.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_W);
     let h = height.clamp(PREVIEW_MIN_DIM, PREVIEW_MAX_H);
 
-    let pix = tokio::task::spawn_blocking(move || render(&config, w, h))
-        .await
-        .map_err(|e| format!("render task join: {}", e))?;
+    // Fetch any not-yet-cached emoji glyphs before the sync render reads
+    // them (the picker offers more than we bundle).
+    if matches!(config.pattern_type, PatternType::Emoji) {
+        crate::emojis::preload(&config.emojis).await;
+    }
+
+    use std::sync::atomic::Ordering;
+    // Claim this render's generation; a later call bumps it past ours.
+    let my_gen = PREVIEW_GEN.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
+
+    let pix = tokio::task::spawn_blocking(move || {
+        // Superseded before we started — skip the render entirely.
+        if PREVIEW_GEN.load(Ordering::Relaxed) != my_gen {
+            return None;
+        }
+        // Emoji previews supersample 2× then Lanczos3-downscale so the
+        // preview's edge quality matches the applied wallpaper (WYSIWYG).
+        // Preview dims are small (≤1280×820), so the 2× intermediate is
+        // only ~16 MB and a few ms to downscale — cheap enough to keep
+        // the preview responsive. Vector previews stay 1×; tiny-skia
+        // already anti-aliases their edges.
+        let pix = if matches!(config.pattern_type, PatternType::Emoji) {
+            let big = render(&config, w * 2, h * 2);
+            downscale(&big, w, h)
+        } else {
+            render(&config, w, h)
+        };
+        // Superseded while rendering — drop it before the costly encode.
+        if PREVIEW_GEN.load(Ordering::Relaxed) != my_gen {
+            return None;
+        }
+        Some(pix)
+    })
+    .await
+    .map_err(|e| format!("render task join: {}", e))?;
+
+    let Some(pix) = pix else {
+        return Err("preview superseded".to_string());
+    };
 
     // Quality 75 is the sweet spot for preview encode time — visually
     // indistinguishable from 85 on pattern art, ~2× faster to encode.
@@ -734,6 +802,11 @@ pub async fn apply_pattern(
     config: PatternConfig,
     app: AppHandle,
 ) -> Result<Wallpaper, String> {
+    // Fetch any not-yet-cached emoji glyphs before the sync render.
+    if matches!(config.pattern_type, PatternType::Emoji) {
+        crate::emojis::preload(&config.emojis).await;
+    }
+
     let (w, h) = match get_primary_monitor_pixels() {
         Ok(info) => (info.width, info.height),
         Err(_) => (1920, 1080),
@@ -852,20 +925,38 @@ fn downscale(src: &Pixmap, w: u32, h: u32) -> Pixmap {
     out
 }
 
-/// Pick the SSAA factor for an apply render. Emoji patterns use raster
-/// assets so SSAA buys nothing; for vector patterns we scale SSAA
-/// inversely with the target so the intermediate render never exceeds
-/// ~8K, keeping memory < ~1 GB even on 5K monitors.
+/// Pick the SSAA factor for an apply render. We deliberately cap the
+/// supersampled intermediate at ~7680-wide so a single apply never
+/// allocates more than ~130 MB — the budget that, stacked with
+/// concurrent preview renders, kept us clear of OOM.
+///
+/// Emoji are raster sprites, but they still benefit from SSAA: each
+/// glyph is rotated/scaled/flipped, and at 1× the alpha *coverage* at
+/// the sprite boundary is rasterized one sample per output pixel — a
+/// hard, jagged edge that Bicubic's interior resampling can't soften.
+/// Supersampling + the Lanczos3 downscale gives 4–9 coverage samples
+/// per final pixel, which is what actually anti-aliases those edges.
+/// So emoji gets the more aggressive tier (3× at ≤1440p) while vector
+/// patterns, whose edges are already analytically anti-aliased by
+/// tiny-skia, only need 2×.
 fn pick_ssaa(t: PatternType, max_dim: u32) -> u32 {
-    if matches!(t, PatternType::Emoji) {
-        return 1;
-    }
-    if max_dim <= 1920 {
-        4
-    } else if max_dim <= 3840 {
-        2
-    } else {
-        1
+    match t {
+        PatternType::Emoji => {
+            if max_dim <= 2560 {
+                3
+            } else if max_dim <= 3840 {
+                2
+            } else {
+                1
+            }
+        }
+        _ => {
+            if max_dim <= 3840 {
+                2
+            } else {
+                1
+            }
+        }
     }
 }
 
