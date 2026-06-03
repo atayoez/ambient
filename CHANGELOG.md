@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.8.0] — 2026-06-03
+
+### Added
 - **8 new curated palettes** — Aurora, Cyberpunk, Autumn, Sakura,
   Vaporwave, Forest, Citrus, and Berry — bringing the themed set to 15,
   each with light/dark variants and a matching emoji set.
