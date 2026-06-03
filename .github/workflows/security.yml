@@ -20,7 +20,7 @@ jobs:
     name: cargo audit (Rust dep CVEs)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -39,7 +39,7 @@ jobs:
     name: gitleaks (secrets scan)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Full history so gitleaks can scan past commits, not just
           # the latest diff. Catches secrets that slipped in

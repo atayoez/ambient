@@ -36,7 +36,7 @@ jobs:
     name: TypeScript + lint
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -118,7 +118,7 @@ jobs:
               src-tauri/target/release/bundle/appimage/*.AppImage.sig
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -191,7 +191,7 @@ jobs:
             --appdir Ambient.AppDir --output appimage
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.artifact-glob }}
@@ -208,7 +208,7 @@ jobs:
     permissions:
       contents: write  # for gh release create
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -221,7 +221,7 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: ambient-*
