@@ -17,8 +17,8 @@ use image::ExtendedColorType;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use tiny_skia::{
-    Color, FillRule, FilterQuality, GradientStop, Paint, PathBuilder, Pixmap, PixmapPaint,
-    Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
+    Color, FillRule, FilterQuality, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap,
+    PixmapPaint, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
 };
 
 use crate::library_store::prepend_entry;
@@ -83,6 +83,15 @@ pub struct PatternConfig {
     pub emoji_size_var: Option<f32>,
     #[serde(default)]
     pub emoji_spacing: Option<f32>,
+    // Bloom: petal/ribbon count, swirl (tangential bend of each petal),
+    // and edge softness (blur). Recreates the Windows 11 "Bloom" look —
+    // flowing translucent gradient petals radiating from a centre.
+    #[serde(default)]
+    pub bloom_petals: Option<u32>,
+    #[serde(default)]
+    pub bloom_twist: Option<f32>,
+    #[serde(default)]
+    pub bloom_softness: Option<f32>,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -93,6 +102,7 @@ pub enum PatternType {
     Dots,
     Stripes,
     Emoji,
+    Bloom,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -168,6 +178,7 @@ pub fn render(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
         PatternType::Dots => render_dots(&mut pix, config),
         PatternType::Stripes => render_stripes(&mut pix, config),
         PatternType::Emoji => render_emoji(&mut pix, config),
+        PatternType::Bloom => render_bloom(&mut pix, config),
     }
     pix
 }
@@ -567,6 +578,183 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
     }
 }
 
+/// Windows 11 "Bloom"-style generator: flowing, translucent gradient
+/// petals radiating from a centre, optionally swirled. Each petal is a
+/// leaf-shaped closed path filled with a linear gradient between two
+/// palette colours; overlaps blend (SrcOver) and a final blur gives the
+/// soft, luminous quality. Two layers (a wide low-alpha back layer + a
+/// brighter front layer, angularly offset) add depth.
+///
+/// Modifiers: `bloom_petals` (count), `bloom_twist` (0–1 tangential
+/// swirl), `bloom_softness` (0–1 blur), plus global `size` (petal reach)
+/// and the foreground palette (`colors[1..]`) over the `colors[0]`
+/// background.
+fn render_bloom(pix: &mut Pixmap, cfg: &PatternConfig) {
+    let mut rng = SeededRng::new(cfg.seed);
+    if let Some(base) = cfg.colors.first() {
+        fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
+    if palette.is_empty() {
+        return;
+    }
+
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let max_dim = w_f.max(h_f);
+    let min_dim = w_f.min(h_f);
+
+    let petals = cfg.bloom_petals.unwrap_or(12).clamp(2, 64);
+    let twist = cfg.bloom_twist.unwrap_or(0.5).clamp(0.0, 1.0);
+    let softness = cfg.bloom_softness.unwrap_or(0.45).clamp(0.0, 1.0);
+    let two_pi = std::f32::consts::PI * 2.0;
+
+    // Centre, slightly seed-jittered off the middle for an organic
+    // composition rather than a perfectly symmetric flower.
+    let cx = w_f * (0.5 + (rng.next() - 0.5) * 0.12);
+    let cy = h_f * (0.5 + (rng.next() - 0.5) * 0.12);
+
+    let size_scale = cfg.size.max(10.0) / 100.0; // 1.0 at size 100
+    let base_r = min_dim * 0.02; // near-point convergence
+    let length = min_dim * 0.55 * size_scale; // petal reach
+    let global_rot = rng.next() * two_pi;
+
+    // Luminous core: a soft radial bloom under the petals so the centre
+    // glows instead of collapsing to a dark convergence point — the key
+    // to the "bloom" read rather than "starburst". Uses the first
+    // foreground accent; on a light background it's gentle, on dark it
+    // lifts the middle.
+    {
+        let glow_r = length * 0.7;
+        let glow_c = palette[0];
+        let stops = vec![
+            GradientStop::new(0.0, hex_to_color(glow_c, 0.55)),
+            GradientStop::new(0.5, hex_to_color(glow_c, 0.22)),
+            GradientStop::new(1.0, hex_to_color(glow_c, 0.0)),
+        ];
+        if let Some(shader) = RadialGradient::new(
+            Point::from_xy(cx, cy),
+            0.0,
+            Point::from_xy(cx, cy),
+            glow_r,
+            stops,
+            SpreadMode::Pad,
+            Transform::identity(),
+        ) {
+            let paint = Paint {
+                shader,
+                anti_alias: true,
+                ..Paint::default()
+            };
+            if let Some(rect) = Rect::from_xywh(0.0, 0.0, w_f, h_f) {
+                pix.fill_rect(rect, &paint, Transform::identity(), None);
+            }
+        }
+    }
+
+    // Back layer: longer + wider + dimmer. Front layer: shorter, brighter,
+    // angularly offset by half a petal step so it sits between the back
+    // petals.
+    for layer in 0..2 {
+        let layer_f = layer as f32;
+        let len = length * (1.0 - layer_f * 0.30);
+        let half_w = len * 0.32;
+        let bend = twist * len * 1.4; // tangential offset of the tip
+        let alpha = if layer == 0 { 0.42 } else { 0.68 };
+        let angle_off = global_rot + layer_f * (two_pi / petals as f32) * 0.5;
+        for i in 0..petals {
+            let t = i as f32 / petals as f32;
+            let jitter_len = len * (1.0 + (rng.next() - 0.5) * 0.18);
+            let angle = angle_off
+                + t * two_pi
+                + (rng.next() - 0.5) * (two_pi / petals as f32) * 0.25;
+            let c0 = palette[i as usize % palette.len()];
+            let c1 = palette[(i as usize + 1) % palette.len()];
+            draw_petal(pix, cx, cy, base_r, jitter_len, half_w, bend, angle, c0, c1, alpha);
+        }
+    }
+
+    let blur_px = (max_dim * (0.004 + softness * 0.03)).round();
+    if blur_px > 0.5 {
+        apply_blur(pix, blur_px);
+    }
+}
+
+/// Draw one bloom petal. Built in local space (pointing along +x from
+/// `r0` out to `r0+len`, bulging to ±`half_w` and bending tangentially by
+/// `bend` toward +y at the tip), then rotated about `(cx, cy)` by
+/// `angle_rad`. Filled with a base→tip linear gradient `c0`→`c1` at
+/// `alpha`. The gradient shares the petal's transform so it follows the
+/// rotation.
+#[allow(clippy::too_many_arguments)]
+fn draw_petal(
+    pix: &mut Pixmap,
+    cx: f32,
+    cy: f32,
+    r0: f32,
+    len: f32,
+    half_w: f32,
+    bend: f32,
+    angle_rad: f32,
+    c0: &str,
+    c1: &str,
+    alpha: f32,
+) {
+    let r1 = r0 + len;
+    let mut pb = PathBuilder::new();
+    pb.move_to(r0, 0.0);
+    // Top edge: base → tip, bulging out to +half_w then easing to the
+    // bent tip.
+    pb.cubic_to(
+        r0 + len * 0.35,
+        half_w,
+        r0 + len * 0.72,
+        half_w * 0.5 + bend * 0.7,
+        r1,
+        bend,
+    );
+    // Bottom edge: tip → base, mirrored.
+    pb.cubic_to(
+        r0 + len * 0.72,
+        -half_w * 0.5 + bend * 0.7,
+        r0 + len * 0.35,
+        -half_w,
+        r0,
+        0.0,
+    );
+    pb.close();
+    let path = match pb.finish() {
+        Some(p) => p,
+        None => return,
+    };
+
+    let transform = Transform::from_translate(cx, cy).pre_rotate(angle_rad.to_degrees());
+    let stops = vec![
+        GradientStop::new(0.0, hex_to_color(c0, alpha)),
+        GradientStop::new(1.0, hex_to_color(c1, alpha)),
+    ];
+    let shader = match LinearGradient::new(
+        Point::from_xy(r0, 0.0),
+        Point::from_xy(r1, bend),
+        stops,
+        SpreadMode::Pad,
+        transform,
+    ) {
+        Some(s) => s,
+        None => return,
+    };
+    let paint = Paint {
+        shader,
+        anti_alias: true,
+        ..Paint::default()
+    };
+    pix.fill_path(&path, &paint, FillRule::Winding, transform, None);
+}
+
 fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
     let mut rng = SeededRng::new(cfg.seed);
     if let Some(base) = cfg.colors.first() {
@@ -874,6 +1062,7 @@ fn pattern_type_slug(t: PatternType) -> &'static str {
         PatternType::Dots => "dots",
         PatternType::Stripes => "stripes",
         PatternType::Emoji => "emoji",
+        PatternType::Bloom => "bloom",
     }
 }
 
@@ -884,6 +1073,7 @@ fn pattern_type_label(t: PatternType) -> &'static str {
         PatternType::Dots => "Dots",
         PatternType::Stripes => "Stripes",
         PatternType::Emoji => "Emoji",
+        PatternType::Bloom => "Bloom",
     }
 }
 
@@ -1060,6 +1250,9 @@ mod tests {
             emoji_rotation_max: None,
             emoji_size_var: None,
             emoji_spacing: None,
+            bloom_petals: None,
+            bloom_twist: None,
+            bloom_softness: None,
         };
         let pix = render(&cfg, 100, 100);
         // Background is #000000 + bubbles in red/green. At least some
@@ -1069,5 +1262,45 @@ mod tests {
             .chunks_exact(4)
             .any(|p| p[0] > 5 || p[1] > 5 || p[2] > 5);
         assert!(any_non_black, "mesh render produced all-black pixmap");
+    }
+
+    #[test]
+    fn render_bloom_produces_non_background_pixels() {
+        let cfg = PatternConfig {
+            pattern_type: PatternType::Bloom,
+            colors: vec![
+                "#0c0a1f".into(),
+                "#7c5cff".into(),
+                "#ec4899".into(),
+                "#fbbf24".into(),
+            ],
+            density: 40.0,
+            size: 100.0,
+            emojis: vec![],
+            seed: 7,
+            color_preset_id: None,
+            mesh_bubbles: None,
+            mesh_softness: None,
+            geometric_shape: None,
+            geometric_fill: None,
+            dots_jitter: None,
+            dots_size_var: None,
+            stripes_angle: None,
+            stripes_width_var: None,
+            emoji_rotation_max: None,
+            emoji_size_var: None,
+            emoji_spacing: None,
+            bloom_petals: Some(10),
+            bloom_twist: Some(0.6),
+            bloom_softness: Some(0.4),
+        };
+        let pix = render(&cfg, 240, 160);
+        // Petals in violet/pink/amber over the dark base — some pixels
+        // must differ from the #0c0a1f background.
+        let lit = pix
+            .data()
+            .chunks_exact(4)
+            .any(|p| p[0] > 40 || p[1] > 30 || p[2] > 60);
+        assert!(lit, "bloom render produced only background pixels");
     }
 }

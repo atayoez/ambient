@@ -12,6 +12,7 @@ import {
   PATTERN_TYPES,
   type PatternConfig,
   type PatternType,
+  randomizedModifiers,
   renderPreview,
   SLIDER_RANGES,
   SYSTEM_PRESET_ID,
@@ -230,8 +231,12 @@ export default function Patterns() {
     patch({ type: id, ...TYPE_DEFAULTS[id] });
   }
 
+  // Randomize re-rolls EVERY modifier the current generator exposes
+  // (counts, sizes, knobs, shape/fill, swirl, …) plus the seed — not
+  // just the seed. The set of randomized variables is kept in lockstep
+  // with the exposed sliders via randomizedModifiers() in patterns.ts.
   function reroll() {
-    patch({ seed: randomSeed() });
+    patch({ ...randomizedModifiers(config.type), seed: randomSeed() });
   }
 
   // Any direct palette edit (chip color change, add, remove) marks the
@@ -585,6 +590,33 @@ export default function Patterns() {
                   min={0}
                   max={100}
                   onChange={(v) => patch({ emojiSizeVar: v / 100 })}
+                />
+              </>
+            )}
+            {config.type === 'bloom' && (
+              <>
+                <ControlRow
+                  label="Petals"
+                  value={config.bloomPetals ?? 12}
+                  min={5}
+                  max={40}
+                  onChange={(v) => patch({ bloomPetals: v })}
+                />
+                <ControlRow
+                  label="Swirl"
+                  value={Math.round((config.bloomTwist ?? 0.5) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ bloomTwist: v / 100 })}
+                />
+                <ControlRow
+                  label="Softness"
+                  value={Math.round((config.bloomSoftness ?? 0.45) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ bloomSoftness: v / 100 })}
                 />
               </>
             )}

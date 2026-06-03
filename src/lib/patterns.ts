@@ -6,7 +6,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
-export type PatternType = 'mesh' | 'geometric' | 'dots' | 'stripes' | 'emoji';
+export type PatternType = 'mesh' | 'geometric' | 'dots' | 'stripes' | 'emoji' | 'bloom';
 
 export type GeometricShape =
   | 'circles'
@@ -63,6 +63,13 @@ export interface PatternConfig {
   emojiRotationMax?: number;
   emojiSizeVar?: number;
   emojiSpacing?: number;
+
+  // Bloom (Windows 11-style): petal/ribbon count, swirl amount (0–1 =
+  // straight radial → strongly curled), and edge softness (0–1 blur).
+  // Petal reach is driven by the global `size`.
+  bloomPetals?: number;
+  bloomTwist?: number;
+  bloomSoftness?: number;
 }
 
 export interface ColorPreset {
@@ -337,6 +344,7 @@ export const PATTERN_TYPES: { id: PatternType; emoji: string; name: string }[] =
   { id: 'dots', emoji: '🔘', name: 'Dots' },
   { id: 'stripes', emoji: '🦓', name: 'Stripes' },
   { id: 'emoji', emoji: '😀', name: 'Emoji' },
+  { id: 'bloom', emoji: '🌀', name: 'Bloom' },
 ];
 
 // When the user switches pattern types we re-seed density/size + the
@@ -358,6 +366,12 @@ export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
     emojiRotationMax: 34,
     emojiSizeVar: 0.75,
     emojiSpacing: 175,
+  },
+  bloom: {
+    size: 100,
+    bloomPetals: 12,
+    bloomTwist: 0.5,
+    bloomSoftness: 0.45,
   },
 };
 
@@ -386,7 +400,83 @@ export const SLIDER_RANGES: Partial<
   },
   stripes: { size: { min: 10, max: 140 } },
   emoji: { size: { min: 40, max: 140 } },
+  bloom: { size: { min: 40, max: 160 } },
 };
+
+// Modifier ranges used by both the randomizer and (where applicable) the
+// UI knobs, so "Randomize" and the sliders stay in lockstep — every
+// modifier a generator exposes is also a variable Randomize re-rolls,
+// and vice versa. Per-type maps of knob → [min, max] (continuous 0–1
+// knobs are stored as 0..1; integer knobs round).
+type Knob = { min: number; max: number; int?: boolean };
+const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
+  mesh: {
+    meshBubbles: { min: 6, max: 40, int: true },
+    meshSoftness: { min: 0, max: 1 },
+  },
+  geometric: {
+    density: { min: 10, max: 200, int: true },
+    size: { min: 12, max: 120, int: true },
+  },
+  dots: {
+    density: { min: 8, max: 60, int: true },
+    size: { min: 6, max: 80, int: true },
+    dotsJitter: { min: 0, max: 1 },
+    dotsSizeVar: { min: 0, max: 1 },
+  },
+  stripes: {
+    size: { min: 10, max: 140, int: true },
+    stripesAngle: { min: 0, max: 90, int: true },
+    stripesWidthVar: { min: 0, max: 1 },
+  },
+  emoji: {
+    size: { min: 40, max: 140, int: true },
+    emojiSpacing: { min: 50, max: 300, int: true },
+    emojiRotationMax: { min: 0, max: 90, int: true },
+    emojiSizeVar: { min: 0, max: 1 },
+  },
+  bloom: {
+    size: { min: 40, max: 160, int: true },
+    bloomPetals: { min: 5, max: 40, int: true },
+    bloomTwist: { min: 0, max: 1 },
+    bloomSoftness: { min: 0, max: 1 },
+  },
+};
+
+// Enum-valued modifiers that Randomize should also pick from.
+const MODIFIER_CHOICES: Partial<Record<PatternType, Record<string, string[]>>> = {
+  geometric: {
+    geometricShape: [
+      'mix',
+      'circles',
+      'triangles',
+      'squares',
+      'hexagons',
+      'stars',
+      'plus',
+    ],
+    geometricFill: ['solid', 'outline', 'mix'],
+  },
+};
+
+// Roll a fresh value for every modifier the given pattern type exposes —
+// numeric knobs across their full range, enum knobs from their choice
+// set. The Randomize button spreads this over the current config (plus a
+// new seed), so a re-roll changes every variable the renderer reads, not
+// just the seed.
+export function randomizedModifiers(type: PatternType): Partial<PatternConfig> {
+  const out: Record<string, number | string> = {};
+  const knobs = MODIFIER_RANGES[type] ?? {};
+  for (const [key, k] of Object.entries(knobs)) {
+    const v = k.min + Math.random() * (k.max - k.min);
+    out[key] = k.int ? Math.round(v) : v;
+  }
+  const choices = MODIFIER_CHOICES[type] ?? {};
+  for (const [key, opts] of Object.entries(choices)) {
+    out[key] = opts[Math.floor(Math.random() * opts.length)];
+  }
+  return out as Partial<PatternConfig>;
+}
 
 // Request a fresh preview render from Rust at the given pixel size
 // (caller passes `.preview-wrap` element size × devicePixelRatio).
