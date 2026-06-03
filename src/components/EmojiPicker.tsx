@@ -8,6 +8,8 @@
 // and `emoji-mart` add 70-200 KB to the bundle for capabilities Ambient
 // doesn't need (categories, search, recents, skin tones, locale).
 
+import { createPortal } from 'react-dom';
+
 interface EmojiPickerProps {
   onPick: (emoji: string) => void;
 }
@@ -1438,7 +1440,15 @@ const CATEGORIES: { name: string; emojis: string[] }[] = [
 ];
 
 export default function EmojiPicker({ onPick }: EmojiPickerProps) {
-  return (
+  // Portaled to <body> so the fixed-position popover escapes the
+  // backdrop-filter glass panel it's triggered from. A filtered (or
+  // transformed) ancestor becomes the containing block for fixed
+  // descendants, which re-anchored the picker to the narrow side panel
+  // and clipped its left edge. As a body child it positions against the
+  // real viewport — what the centered `left: 50%` rule intends. The
+  // consumer's click-outside check matches `.emoji-picker` by class
+  // (not DOM nesting), so closing still works across the portal.
+  return createPortal(
     <div className="emoji-picker" role="dialog" aria-label="Emoji picker">
       {CATEGORIES.map((cat) => (
         <div key={cat.name} className="emoji-picker-cat">
@@ -1459,6 +1469,7 @@ export default function EmojiPicker({ onPick }: EmojiPickerProps) {
           </div>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

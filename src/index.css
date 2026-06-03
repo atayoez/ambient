@@ -996,13 +996,13 @@ input[type='range']:active::-moz-range-thumb {
   display: inline-flex;
 }
 
-/* Centered viewport-fixed picker. The earlier absolute-positioned
-   variant anchored to the "+" button overflowed the 820px window
-   whenever the trigger sat near the right edge of the inspector
-   column (~270px wide). Fixed-bottom-center positions reliably
-   regardless of where the trigger lands. The picker stays in the
-   click-outside flow via the wrap ref in Patterns.tsx (DOM nesting
-   still works under position: fixed). */
+/* Centered viewport-fixed picker, portaled to <body> (see
+   EmojiPicker.tsx). Fixed positioning only resolves against the
+   viewport when no ancestor is transformed/filtered — but the picker
+   triggers from inside a backdrop-filter glass panel, which would
+   otherwise re-anchor it to that panel and clip its left edge. The
+   body portal sidesteps that; click-outside matches `.emoji-picker`
+   by class in PaletteEditor.tsx rather than relying on DOM nesting. */
 .emoji-picker {
   /* Same glass recipe as the bottom .tabs pill: low-alpha white tint
      so the backdrop-filter blur has something to bind to, subtle white

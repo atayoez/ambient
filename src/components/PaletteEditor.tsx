@@ -53,7 +53,12 @@ export default function PaletteEditor({
   useEffect(() => {
     if (!pickerOpen) return;
     function onDocMouseDown(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      // The picker is portaled to <body>, so it's not a DOM descendant
+      // of wrapRef — match it by class instead, otherwise clicking
+      // inside the popover (scrolling, category headers) would read as
+      // "outside" and close it.
+      if (!wrapRef.current?.contains(target) && !target.closest?.('.emoji-picker')) {
         setPickerOpen(false);
       }
     }

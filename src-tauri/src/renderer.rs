@@ -591,10 +591,11 @@ fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
         cfg.emoji_rotation_max.unwrap_or(34.0) * std::f32::consts::PI / 180.0;
     let size_var = cfg.emoji_size_var.unwrap_or(0.75);
 
-    // Pre-decode all emoji pixmaps from the bundled set (memoized in
-    // emojis::load). A miss means the glyph wasn't bundled — render a
-    // blank slot for it rather than failing the whole tile. The
-    // every_ui_emoji_is_bundled test ensures UI emojis never miss.
+    // Pre-decode each emoji pixmap via emojis::load (memoized:
+    // in-memory → bundled asset → on-disk fetch cache). apply_pattern /
+    // render_preview call emojis::preload first, so on-demand glyphs are
+    // already cached by now; a still-missing glyph renders a blank slot
+    // rather than failing the whole tile.
     let pixmaps: Vec<Option<Pixmap>> = emojis
         .iter()
         .map(|e| {
@@ -663,9 +664,12 @@ fn premultiply_into_pixmap(src: &image::RgbaImage, dst: &mut Pixmap) {
     for (pixel, slot) in src.pixels().zip(bytes.chunks_exact_mut(4)) {
         let [r, g, b, a] = pixel.0;
         let af = a as f32 / 255.0;
-        slot[0] = (r as f32 * af) as u8;
-        slot[1] = (g as f32 * af) as u8;
-        slot[2] = (b as f32 * af) as u8;
+        // Round, not truncate: `as u8` floors, which biased every
+        // anti-aliased rim pixel darker and made emoji edges read
+        // harsher than the source art.
+        slot[0] = (r as f32 * af + 0.5) as u8;
+        slot[1] = (g as f32 * af + 0.5) as u8;
+        slot[2] = (b as f32 * af + 0.5) as u8;
         slot[3] = a;
     }
 }
@@ -749,7 +753,18 @@ pub async fn render_preview(
         if PREVIEW_GEN.load(Ordering::Relaxed) != my_gen {
             return None;
         }
-        let pix = render(&config, w, h);
+        // Emoji previews supersample 2× then Lanczos3-downscale so the
+        // preview's edge quality matches the applied wallpaper (WYSIWYG).
+        // Preview dims are small (≤1280×820), so the 2× intermediate is
+        // only ~16 MB and a few ms to downscale — cheap enough to keep
+        // the preview responsive. Vector previews stay 1×; tiny-skia
+        // already anti-aliases their edges.
+        let pix = if matches!(config.pattern_type, PatternType::Emoji) {
+            let big = render(&config, w * 2, h * 2);
+            downscale(&big, w, h)
+        } else {
+            render(&config, w, h)
+        };
         // Superseded while rendering — drop it before the costly encode.
         if PREVIEW_GEN.load(Ordering::Relaxed) != my_gen {
             return None;
@@ -910,18 +925,39 @@ fn downscale(src: &Pixmap, w: u32, h: u32) -> Pixmap {
     out
 }
 
-/// Pick the SSAA factor for an apply render. Emoji patterns use raster
-/// assets so SSAA buys nothing. For vector patterns 2× is plenty of
-/// anti-aliasing; we deliberately cap the supersampled intermediate at
-/// ~4K-wide so a single apply never allocates more than ~130 MB (the
-/// old 4×-at-1080p tier hit a 7680px / 132 MB intermediate, which —
-/// stacked with concurrent preview renders — was the OOM risk). Above
-/// 4K the target is already dense enough that 1× looks clean.
+/// Pick the SSAA factor for an apply render. We deliberately cap the
+/// supersampled intermediate at ~7680-wide so a single apply never
+/// allocates more than ~130 MB — the budget that, stacked with
+/// concurrent preview renders, kept us clear of OOM.
+///
+/// Emoji are raster sprites, but they still benefit from SSAA: each
+/// glyph is rotated/scaled/flipped, and at 1× the alpha *coverage* at
+/// the sprite boundary is rasterized one sample per output pixel — a
+/// hard, jagged edge that Bicubic's interior resampling can't soften.
+/// Supersampling + the Lanczos3 downscale gives 4–9 coverage samples
+/// per final pixel, which is what actually anti-aliases those edges.
+/// So emoji gets the more aggressive tier (3× at ≤1440p) while vector
+/// patterns, whose edges are already analytically anti-aliased by
+/// tiny-skia, only need 2×.
 fn pick_ssaa(t: PatternType, max_dim: u32) -> u32 {
-    if matches!(t, PatternType::Emoji) {
-        return 1;
+    match t {
+        PatternType::Emoji => {
+            if max_dim <= 2560 {
+                3
+            } else if max_dim <= 3840 {
+                2
+            } else {
+                1
+            }
+        }
+        _ => {
+            if max_dim <= 3840 {
+                2
+            } else {
+                1
+            }
+        }
     }
-    if max_dim <= 3840 { 2 } else { 1 }
 }
 
 /// Save the pixmap as 16-bit-per-channel PNG. tiny-skia is 8-bit
