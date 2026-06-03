@@ -17,7 +17,7 @@ use image::ExtendedColorType;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use tiny_skia::{
-    Color, FillRule, GradientStop, Paint, PathBuilder, Pixmap, PixmapPaint,
+    Color, FillRule, FilterQuality, GradientStop, Paint, PathBuilder, Pixmap, PixmapPaint,
     Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
 };
 
@@ -619,7 +619,15 @@ fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
                         -(emoji_pix.height() as f32) / 2.0,
                     );
 
-                let paint = PixmapPaint::default();
+                // Bicubic, not the default Nearest — Nearest made the
+                // 256px Fluent art read as blocky/aliased once scaled (and
+                // jagged when rotated/flipped). Bicubic resamples smoothly
+                // both up and down. The 256px source is still the detail
+                // ceiling, but this removes the "low quality" look.
+                let paint = PixmapPaint {
+                    quality: FilterQuality::Bicubic,
+                    ..PixmapPaint::default()
+                };
                 pix.draw_pixmap(0, 0, emoji_pix.as_ref(), &paint, transform, None);
             }
 
