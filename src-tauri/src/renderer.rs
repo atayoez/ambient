@@ -98,6 +98,23 @@ pub struct PatternConfig {
     pub flow_amplitude: Option<f32>,
     #[serde(default)]
     pub flow_frequency: Option<f32>,
+    // Waves: stacked wavy translucent bands (layered-silk look).
+    #[serde(default)]
+    pub waves_layers: Option<u32>,
+    #[serde(default)]
+    pub waves_amplitude: Option<f32>,
+    #[serde(default)]
+    pub waves_frequency: Option<f32>,
+    // Aurora: vertical northern-lights curtains (blurred gradient ribbons).
+    #[serde(default)]
+    pub aurora_bands: Option<u32>,
+    #[serde(default)]
+    pub aurora_spread: Option<f32>,
+    #[serde(default)]
+    pub aurora_amplitude: Option<f32>,
+    // Bokeh: soft glowing orbs (count = density, radius = size).
+    #[serde(default)]
+    pub bokeh_softness: Option<f32>,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -111,6 +128,9 @@ pub enum PatternType {
     #[serde(alias = "bloom")]
     Flower,
     Flow,
+    Waves,
+    Aurora,
+    Bokeh,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -188,6 +208,9 @@ pub fn render(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
         PatternType::Emoji => render_emoji(&mut pix, config),
         PatternType::Flower => render_flower(&mut pix, config),
         PatternType::Flow => render_flow(&mut pix, config),
+        PatternType::Waves => render_waves(&mut pix, config),
+        PatternType::Aurora => render_aurora(&mut pix, config),
+        PatternType::Bokeh => render_bokeh(&mut pix, config),
     }
     pix
 }
@@ -855,6 +878,264 @@ fn render_flow(pix: &mut Pixmap, cfg: &PatternConfig) {
     }
 }
 
+/// "Waves" generator: translucent wavy bands stacked back-to-front like
+/// layered silk / paper hills. Each layer is a filled region under a
+/// wavy top edge, drawn from a higher baseline (back) to a lower one
+/// (front), with a vertical gradient fill and slight translucency so the
+/// layers behind show through — giving depth.
+///
+/// Modifiers: `waves_layers` (count), `waves_amplitude` (0–1 crest
+/// height), `waves_frequency` (0–1 → cycles across the width), and the
+/// foreground palette over the background.
+fn render_waves(pix: &mut Pixmap, cfg: &PatternConfig) {
+    let mut rng = SeededRng::new(cfg.seed);
+    if let Some(base) = cfg.colors.first() {
+        fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
+    if palette.is_empty() {
+        return;
+    }
+
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let two_pi = std::f32::consts::PI * 2.0;
+
+    let layers = cfg.waves_layers.unwrap_or(7).clamp(2, 24);
+    let amp = cfg.waves_amplitude.unwrap_or(0.5).clamp(0.0, 1.0);
+    let freq = cfg.waves_frequency.unwrap_or(0.4).clamp(0.0, 1.0);
+    let cycles = remap(freq, 0.5, 3.0);
+    let amp_px = amp * h_f * 0.11;
+    let samples = 160usize;
+    let gphase = rng.next() * two_pi;
+
+    for layer in 0..layers {
+        let t = if layers > 1 {
+            layer as f32 / (layers - 1) as f32
+        } else {
+            0.5
+        };
+        // Back layers sit high, front layers low — they march down the
+        // frame so each new (closer) band overlaps the one behind.
+        let baseline = remap(t, h_f * 0.12, h_f * 0.9);
+        let phase = gphase + layer as f32 * 0.7;
+        let amp_l = amp_px * (0.6 + rng.next() * 0.6);
+        let c_top = palette[layer as usize % palette.len()];
+        let c_bot = palette[(layer as usize + 1) % palette.len()];
+
+        let wave_at = |u: f32| -> f32 {
+            let a = (phase + u * cycles * two_pi).sin();
+            let b = (phase * 1.6 + u * cycles * 2.1 * two_pi).sin();
+            baseline + amp_l * (a + 0.35 * b)
+        };
+
+        let mut pb = PathBuilder::new();
+        pb.move_to(0.0, h_f);
+        pb.line_to(0.0, wave_at(0.0));
+        for s in 1..=samples {
+            let u = s as f32 / samples as f32;
+            pb.line_to(u * w_f, wave_at(u));
+        }
+        pb.line_to(w_f, h_f);
+        pb.close();
+        let path = match pb.finish() {
+            Some(p) => p,
+            None => continue,
+        };
+
+        // Vertical gradient from the crest colour down to the next
+        // palette colour; translucent so layers behind read through.
+        let shader = match LinearGradient::new(
+            Point::from_xy(0.0, baseline - amp_l),
+            Point::from_xy(0.0, h_f),
+            vec![
+                GradientStop::new(0.0, hex_to_color(c_top, 0.92)),
+                GradientStop::new(1.0, hex_to_color(c_bot, 0.92)),
+            ],
+            SpreadMode::Pad,
+            Transform::identity(),
+        ) {
+            Some(s) => s,
+            None => continue,
+        };
+        let paint = Paint {
+            shader,
+            anti_alias: true,
+            ..Paint::default()
+        };
+        pix.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+    }
+}
+
+/// "Aurora" generator: vertical northern-lights curtains. Each band is a
+/// soft vertical ribbon that sways horizontally down the frame, filled
+/// with a gradient that fades in at the top and out at the bottom;
+/// everything is heavily blurred for the luminous, smoky quality.
+///
+/// Modifiers: `aurora_bands` (count), `aurora_spread` (0–1 curtain
+/// width), `aurora_amplitude` (0–1 horizontal sway), over the palette.
+fn render_aurora(pix: &mut Pixmap, cfg: &PatternConfig) {
+    let mut rng = SeededRng::new(cfg.seed);
+    if let Some(base) = cfg.colors.first() {
+        fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
+    if palette.is_empty() {
+        return;
+    }
+
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let max_dim = w_f.max(h_f);
+    let two_pi = std::f32::consts::PI * 2.0;
+
+    let bands = cfg.aurora_bands.unwrap_or(5).clamp(2, 16);
+    let spread = cfg.aurora_spread.unwrap_or(0.5).clamp(0.0, 1.0);
+    let amp = cfg.aurora_amplitude.unwrap_or(0.5).clamp(0.0, 1.0);
+    let curtain_w = w_f * remap(spread, 0.05, 0.2);
+    let sway = amp * w_f * 0.1;
+    let samples = 80usize;
+    let gphase = rng.next() * two_pi;
+
+    for band in 0..bands {
+        let bx = (band as f32 + 0.5) / bands as f32 * w_f
+            + (rng.next() - 0.5) * (w_f / bands as f32) * 0.5;
+        let phase = gphase + band as f32 * 0.9;
+        let hw = curtain_w * (0.6 + rng.next() * 0.7) * 0.5;
+        let color = palette[band as usize % palette.len()];
+
+        let center_at = |v: f32| -> f32 {
+            bx + sway * ((phase + v * 1.6 * two_pi).sin() + 0.4 * (phase * 1.9 + v * two_pi).sin())
+        };
+
+        let mut pb = PathBuilder::new();
+        // Left edge, top → bottom.
+        pb.move_to(center_at(0.0) - hw, 0.0);
+        for s in 1..=samples {
+            let v = s as f32 / samples as f32;
+            pb.line_to(center_at(v) - hw, v * h_f);
+        }
+        // Right edge, bottom → top.
+        for s in (0..=samples).rev() {
+            let v = s as f32 / samples as f32;
+            pb.line_to(center_at(v) + hw, v * h_f);
+        }
+        pb.close();
+        let path = match pb.finish() {
+            Some(p) => p,
+            None => continue,
+        };
+
+        // Vertical fade: transparent top → bright middle → transparent
+        // bottom, like a hanging curtain of light.
+        let shader = match LinearGradient::new(
+            Point::from_xy(0.0, 0.0),
+            Point::from_xy(0.0, h_f),
+            vec![
+                GradientStop::new(0.0, hex_to_color(color, 0.0)),
+                GradientStop::new(0.45, hex_to_color(color, 0.75)),
+                GradientStop::new(0.75, hex_to_color(color, 0.5)),
+                GradientStop::new(1.0, hex_to_color(color, 0.0)),
+            ],
+            SpreadMode::Pad,
+            Transform::identity(),
+        ) {
+            Some(s) => s,
+            None => continue,
+        };
+        let paint = Paint {
+            shader,
+            anti_alias: true,
+            ..Paint::default()
+        };
+        pix.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+    }
+
+    // Heavy blur is what turns the ribbons into soft light.
+    apply_blur(pix, (max_dim * 0.02).round().max(1.0));
+}
+
+/// "Bokeh" generator: soft glowing orbs of light scattered with varying
+/// size + opacity (a defocused, depth-of-field look). Each orb is a
+/// radial gradient (bright centre → transparent edge); overlaps blend,
+/// and a light blur finishes the dreaminess.
+///
+/// Modifiers: count = `density`, orb radius = `size`, `bokeh_softness`
+/// (0–1 blur), over the palette.
+fn render_bokeh(pix: &mut Pixmap, cfg: &PatternConfig) {
+    let mut rng = SeededRng::new(cfg.seed);
+    if let Some(base) = cfg.colors.first() {
+        fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    let palette: Vec<&String> = if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    };
+    if palette.is_empty() {
+        return;
+    }
+
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let max_dim = w_f.max(h_f);
+    let scale = max_dim / 1920.0;
+
+    let count = cfg.density.max(4.0) as u32;
+    let base_r = (cfg.size.max(4.0) * scale * 2.2).max(8.0);
+    let softness = cfg.bokeh_softness.unwrap_or(0.4).clamp(0.0, 1.0);
+    let seed_off = (rng.next() * 1000.0) as u32;
+
+    for i in 0..count {
+        let cx = halton(i + 1 + seed_off, 2) * w_f;
+        let cy = halton(i + 1 + seed_off, 3) * h_f;
+        let r = base_r * remap(rng.next(), 0.4, 1.5);
+        let alpha = remap(rng.next(), 0.18, 0.6);
+        let color = palette[i as usize % palette.len()];
+        // Brighter rim than centre reads as an out-of-focus light disc
+        // rather than a filled dot.
+        let stops = vec![
+            GradientStop::new(0.0, hex_to_color(color, alpha * 0.5)),
+            GradientStop::new(0.72, hex_to_color(color, alpha)),
+            GradientStop::new(0.92, hex_to_color(color, alpha * 0.9)),
+            GradientStop::new(1.0, hex_to_color(color, 0.0)),
+        ];
+        let shader = match RadialGradient::new(
+            Point::from_xy(cx, cy),
+            0.0,
+            Point::from_xy(cx, cy),
+            r,
+            stops,
+            SpreadMode::Pad,
+            Transform::identity(),
+        ) {
+            Some(s) => s,
+            None => continue,
+        };
+        let paint = Paint {
+            shader,
+            anti_alias: true,
+            ..Paint::default()
+        };
+        if let Some(rect) = Rect::from_xywh(cx - r, cy - r, r * 2.0, r * 2.0) {
+            pix.fill_rect(rect, &paint, Transform::identity(), None);
+        }
+    }
+
+    let blur_px = (max_dim * (0.002 + softness * 0.012)).round();
+    if blur_px > 0.5 {
+        apply_blur(pix, blur_px);
+    }
+}
+
 fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
     let mut rng = SeededRng::new(cfg.seed);
     if let Some(base) = cfg.colors.first() {
@@ -1164,6 +1445,9 @@ fn pattern_type_slug(t: PatternType) -> &'static str {
         PatternType::Emoji => "emoji",
         PatternType::Flower => "flower",
         PatternType::Flow => "flow",
+        PatternType::Waves => "waves",
+        PatternType::Aurora => "aurora",
+        PatternType::Bokeh => "bokeh",
     }
 }
 
@@ -1176,6 +1460,9 @@ fn pattern_type_label(t: PatternType) -> &'static str {
         PatternType::Emoji => "Emoji",
         PatternType::Flower => "Flower",
         PatternType::Flow => "Flow",
+        PatternType::Waves => "Waves",
+        PatternType::Aurora => "Aurora",
+        PatternType::Bokeh => "Bokeh",
     }
 }
 
@@ -1357,6 +1644,13 @@ mod tests {
             flow_lines: None,
             flow_amplitude: None,
             flow_frequency: None,
+            waves_layers: None,
+            waves_amplitude: None,
+            waves_frequency: None,
+            aurora_bands: None,
+            aurora_spread: None,
+            aurora_amplitude: None,
+            bokeh_softness: None,
         };
         let pix = render(&cfg, 100, 100);
         // Background is #000000 + bubbles in red/green. At least some
@@ -1368,43 +1662,53 @@ mod tests {
         assert!(any_non_black, "mesh render produced all-black pixmap");
     }
 
-    #[test]
-    fn render_flower_produces_non_background_pixels() {
-        let cfg = base_cfg(PatternType::Flower, Some(10), Some(0.6), None, None, None);
-        let pix = render(&cfg, 240, 160);
-        // Petals in violet/pink/amber over the dark base — some pixels
-        // must differ from the #0c0a1f background.
-        let lit = pix
-            .data()
-            .chunks_exact(4)
-            .any(|p| p[0] > 40 || p[1] > 30 || p[2] > 60);
-        assert!(lit, "flower render produced only background pixels");
-    }
-
-    #[test]
-    fn render_flow_produces_non_background_pixels() {
-        let cfg = base_cfg(PatternType::Flow, None, None, Some(20), Some(0.6), Some(0.5));
+    // Every generator must paint *something* over its background — a
+    // cheap guard against a render fn that silently no-ops (bad path,
+    // empty palette handling, etc.). Dark base + bright foreground, so
+    // any lit pixel proves the generator drew.
+    fn assert_paints(pattern_type: PatternType) {
+        let cfg = PatternConfig {
+            pattern_type,
+            ..base_cfg()
+        };
         let pix = render(&cfg, 320, 180);
         let lit = pix
             .data()
             .chunks_exact(4)
             .any(|p| p[0] > 40 || p[1] > 30 || p[2] > 60);
-        assert!(lit, "flow render produced only background pixels");
+        assert!(lit, "{pattern_type:?} render produced only background pixels");
     }
 
-    // Shared config builder for the Flower/Flow render tests — dark base
-    // + violet/pink/amber foreground, with the type-specific knobs.
-    #[allow(clippy::too_many_arguments)]
-    fn base_cfg(
-        pattern_type: PatternType,
-        flower_petals: Option<u32>,
-        flower_twist: Option<f32>,
-        flow_lines: Option<u32>,
-        flow_amplitude: Option<f32>,
-        flow_frequency: Option<f32>,
-    ) -> PatternConfig {
+    #[test]
+    fn render_flower_produces_non_background_pixels() {
+        assert_paints(PatternType::Flower);
+    }
+
+    #[test]
+    fn render_flow_produces_non_background_pixels() {
+        assert_paints(PatternType::Flow);
+    }
+
+    #[test]
+    fn render_waves_produces_non_background_pixels() {
+        assert_paints(PatternType::Waves);
+    }
+
+    #[test]
+    fn render_aurora_produces_non_background_pixels() {
+        assert_paints(PatternType::Aurora);
+    }
+
+    #[test]
+    fn render_bokeh_produces_non_background_pixels() {
+        assert_paints(PatternType::Bokeh);
+    }
+
+    // Shared config: dark base + violet/pink/amber foreground, all
+    // per-type knobs left at their renderer defaults (None).
+    fn base_cfg() -> PatternConfig {
         PatternConfig {
-            pattern_type,
+            pattern_type: PatternType::Mesh,
             colors: vec![
                 "#0c0a1f".into(),
                 "#7c5cff".into(),
@@ -1427,11 +1731,18 @@ mod tests {
             emoji_rotation_max: None,
             emoji_size_var: None,
             emoji_spacing: None,
-            flower_petals,
-            flower_twist,
-            flow_lines,
-            flow_amplitude,
-            flow_frequency,
+            flower_petals: None,
+            flower_twist: None,
+            flow_lines: None,
+            flow_amplitude: None,
+            flow_frequency: None,
+            waves_layers: None,
+            waves_amplitude: None,
+            waves_frequency: None,
+            aurora_bands: None,
+            aurora_spread: None,
+            aurora_amplitude: None,
+            bokeh_softness: None,
         }
     }
 }

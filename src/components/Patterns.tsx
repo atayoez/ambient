@@ -639,6 +639,70 @@ export default function Patterns() {
                 />
               </>
             )}
+            {config.type === 'waves' && (
+              <>
+                <ControlRow
+                  label="Layers"
+                  value={config.wavesLayers ?? 7}
+                  min={3}
+                  max={20}
+                  onChange={(v) => patch({ wavesLayers: v })}
+                />
+                <ControlRow
+                  label="Amplitude"
+                  value={Math.round((config.wavesAmplitude ?? 0.5) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ wavesAmplitude: v / 100 })}
+                />
+                <ControlRow
+                  label="Frequency"
+                  value={Math.round((config.wavesFrequency ?? 0.4) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ wavesFrequency: v / 100 })}
+                />
+              </>
+            )}
+            {config.type === 'aurora' && (
+              <>
+                <ControlRow
+                  label="Bands"
+                  value={config.auroraBands ?? 5}
+                  min={3}
+                  max={14}
+                  onChange={(v) => patch({ auroraBands: v })}
+                />
+                <ControlRow
+                  label="Spread"
+                  value={Math.round((config.auroraSpread ?? 0.5) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ auroraSpread: v / 100 })}
+                />
+                <ControlRow
+                  label="Sway"
+                  value={Math.round((config.auroraAmplitude ?? 0.5) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ auroraAmplitude: v / 100 })}
+                />
+              </>
+            )}
+            {config.type === 'bokeh' && (
+              <ControlRow
+                label="Softness"
+                value={Math.round((config.bokehSoftness ?? 0.4) * 100)}
+                suffix="%"
+                min={0}
+                max={100}
+                onChange={(v) => patch({ bokehSoftness: v / 100 })}
+              />
+            )}
           </div>
         </div>
 

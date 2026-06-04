@@ -13,7 +13,10 @@ export type PatternType =
   | 'stripes'
   | 'emoji'
   | 'flower'
-  | 'flow';
+  | 'flow'
+  | 'waves'
+  | 'aurora'
+  | 'bokeh';
 
 export type GeometricShape =
   | 'circles'
@@ -82,6 +85,22 @@ export interface PatternConfig {
   flowLines?: number;
   flowAmplitude?: number;
   flowFrequency?: number;
+
+  // Waves: stacked translucent wavy bands (layered-silk). Layer count,
+  // crest amplitude (0–1), wave frequency (0–1).
+  wavesLayers?: number;
+  wavesAmplitude?: number;
+  wavesFrequency?: number;
+
+  // Aurora: vertical northern-lights curtains. Band count, curtain
+  // width/spread (0–1), horizontal sway amplitude (0–1).
+  auroraBands?: number;
+  auroraSpread?: number;
+  auroraAmplitude?: number;
+
+  // Bokeh: soft glowing orbs. Count = density, radius = size, plus
+  // softness (0–1 blur).
+  bokehSoftness?: number;
 }
 
 export interface ColorPreset {
@@ -358,6 +377,9 @@ export const PATTERN_TYPES: { id: PatternType; emoji: string; name: string }[] =
   { id: 'emoji', emoji: '😀', name: 'Emoji' },
   { id: 'flower', emoji: '🌸', name: 'Flower' },
   { id: 'flow', emoji: '🌊', name: 'Flow' },
+  { id: 'waves', emoji: '🏔️', name: 'Waves' },
+  { id: 'aurora', emoji: '🌌', name: 'Aurora' },
+  { id: 'bokeh', emoji: '🫧', name: 'Bokeh' },
 ];
 
 // When the user switches pattern types we re-seed density/size + the
@@ -391,6 +413,21 @@ export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
     flowAmplitude: 0.5,
     flowFrequency: 0.4,
   },
+  waves: {
+    wavesLayers: 7,
+    wavesAmplitude: 0.5,
+    wavesFrequency: 0.4,
+  },
+  aurora: {
+    auroraBands: 5,
+    auroraSpread: 0.5,
+    auroraAmplitude: 0.5,
+  },
+  bokeh: {
+    density: 22,
+    size: 60,
+    bokehSoftness: 0.4,
+  },
 };
 
 // Per-type slider ranges + labels. Patterns that don't use a given control
@@ -420,6 +457,10 @@ export const SLIDER_RANGES: Partial<
   emoji: { size: { min: 40, max: 140 } },
   flower: { size: { min: 40, max: 160 } },
   flow: { size: { min: 6, max: 120 } },
+  bokeh: {
+    density: { min: 8, max: 60, label: 'Count' },
+    size: { min: 10, max: 120 },
+  },
 };
 
 // Modifier ranges used by both the randomizer and (where applicable) the
@@ -464,6 +505,21 @@ const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
     flowLines: { min: 6, max: 120, int: true },
     flowAmplitude: { min: 0, max: 1 },
     flowFrequency: { min: 0, max: 1 },
+  },
+  waves: {
+    wavesLayers: { min: 3, max: 20, int: true },
+    wavesAmplitude: { min: 0, max: 1 },
+    wavesFrequency: { min: 0, max: 1 },
+  },
+  aurora: {
+    auroraBands: { min: 3, max: 14, int: true },
+    auroraSpread: { min: 0, max: 1 },
+    auroraAmplitude: { min: 0, max: 1 },
+  },
+  bokeh: {
+    density: { min: 8, max: 60, int: true },
+    size: { min: 10, max: 120, int: true },
+    bokehSoftness: { min: 0, max: 1 },
   },
 };
 
