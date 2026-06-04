@@ -14,10 +14,27 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Five new pattern generators**, bringing the total to ten:
+  - **Flower** — flowing, translucent gradient petals radiating from a
+    luminous centre, optionally swirled (the Windows 11 "Bloom" motif).
+    Controls: Petals, Swirl, Size.
+  - **Flow** — smooth wavy lines spanning the canvas edge-to-edge,
+    flowing together like wind-blown strands. Controls: Lines,
+    Amplitude, Frequency, Size.
+  - **Waves** — translucent wavy bands stacked back-to-front (the
+    layered-paper / silk look). Controls: Layers, Amplitude, Frequency.
+  - **Aurora** — vertical northern-lights curtains of soft, swaying
+    light. Controls: Bands, Spread, Sway.
+  - **Bokeh** — scattered soft glowing orbs (a defocused depth-of-field
+    look). Controls: Count, Size.
 
 ### Changed
+- **Randomize now re-rolls every modifier** the active generator
+  exposes — counts, sizes, shape/fill, swirl, amplitude, and so on —
+  not just the seed.
 
 ### Fixed
+- (none)
 
 ## [0.8.0] — 2026-06-03
 
