@@ -101,6 +101,7 @@ async fn generate_pollinations(
         added_at: ms_since_epoch(),
         prompt: Some(prompt.to_string()),
         title: Some(truncate(prompt, 60)),
+        mode: crate::types::WallpaperMode::Both,
     })
 }
 
@@ -161,6 +162,7 @@ async fn generate_openai(
         added_at: ms_since_epoch(),
         prompt: Some(prompt.to_string()),
         title: Some(truncate(prompt, 60)),
+        mode: crate::types::WallpaperMode::Both,
     })
 }
 

@@ -1422,6 +1422,7 @@ pub async fn apply_pattern(
             pattern_type_label(config.pattern_type),
             config.colors.len()
         )),
+        mode: crate::types::WallpaperMode::Both,
     };
     let _ = prepend_entry(&app, entry.clone()).await;
     Ok(entry)

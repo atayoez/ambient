@@ -13,13 +13,14 @@ import {
   type PatternConfig,
   type PatternType,
   randomizedModifiers,
+  randomPalette,
   renderPreview,
   SLIDER_RANGES,
   SYSTEM_PRESET_ID,
   TYPE_DEFAULTS,
 } from '../lib/patterns';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
-import { CheckIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
+import { CheckIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
 import { ControlRow, StatusInline } from './layout';
 import OptionScroller from './OptionScroller';
 import PaletteEditor from './PaletteEditor';
@@ -237,6 +238,12 @@ export default function Patterns() {
   // with the exposed sliders via randomizedModifiers() in patterns.ts.
   function reroll() {
     patch({ ...randomizedModifiers(config.type), seed: randomSeed() });
+  }
+
+  // Randomize just the colours — a fresh random palette tuned for the
+  // current theme. Clears colorPresetId so it's treated as custom.
+  function rerollColors() {
+    patch({ colors: randomPalette(effectiveDark), colorPresetId: undefined });
   }
 
   // Any direct palette edit (chip color change, add, remove) marks the
@@ -693,21 +700,37 @@ export default function Patterns() {
                 />
               </>
             )}
+
+            {/* Randomizers live in the control pane — both are
+                per-pattern now (the modifiers + the palette), not global
+                actions, so they sit with the knobs they re-roll. */}
+            <div className="pat-randomize">
+              <button
+                type="button"
+                onClick={reroll}
+                disabled={busy}
+                className="randomize-btn"
+                title="Randomize pattern (⌘⇧R)"
+              >
+                <ShuffleIcon />
+                <span>Shuffle</span>
+              </button>
+              <button
+                type="button"
+                onClick={rerollColors}
+                disabled={busy}
+                className="randomize-btn"
+                title="Randomize colors"
+              >
+                <PaletteIcon />
+                <span>Colors</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <div className="pat-actions">
           <StatusInline status={status} error={error} />
-          <button
-            type="button"
-            onClick={reroll}
-            disabled={busy}
-            className="icon-btn"
-            aria-label="Re-roll"
-            title="Re-roll (⌘⇧R)"
-          >
-            <ShuffleIcon />
-          </button>
           <button
             type="button"
             onClick={apply}

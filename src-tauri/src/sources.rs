@@ -83,6 +83,7 @@ async fn fetch_nasa_apod(app: &AppHandle) -> Result<Wallpaper, String> {
                     added_at: ms_since_epoch(),
                     prompt: None,
                     title: c.title.clone(),
+                    mode: crate::types::WallpaperMode::Both,
                 });
             }
         }
@@ -140,6 +141,7 @@ async fn fetch_nasa_apod(app: &AppHandle) -> Result<Wallpaper, String> {
         added_at: ms_since_epoch(),
         prompt: None,
         title,
+        mode: crate::types::WallpaperMode::Both,
     })
 }
 
@@ -202,6 +204,7 @@ async fn fetch_unsplash(
         added_at: ms_since_epoch(),
         prompt: None,
         title,
+        mode: crate::types::WallpaperMode::Both,
     })
 }
 
@@ -273,6 +276,7 @@ async fn fetch_pexels(
         added_at: ms_since_epoch(),
         prompt: None,
         title,
+        mode: crate::types::WallpaperMode::Both,
     })
 }
 

@@ -36,6 +36,31 @@ pub enum ThemeMode {
     Dark,
 }
 
+/// Per-wallpaper light/dark eligibility. `Both` (default) shows in either
+/// system theme; `Light`/`Dark` restrict it. The rotation / "Next" pools
+/// are derived from these tags — a light-tagged wallpaper is auto-included
+/// in the light pool.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum WallpaperMode {
+    #[default]
+    Both,
+    Light,
+    Dark,
+}
+
+impl WallpaperMode {
+    /// Whether a wallpaper with this tag belongs in the pool for the
+    /// given system theme. `Both` always; the others only in their mode.
+    pub fn matches(self, dark: bool) -> bool {
+        match self {
+            WallpaperMode::Both => true,
+            WallpaperMode::Light => !dark,
+            WallpaperMode::Dark => dark,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -53,8 +78,10 @@ pub struct Settings {
     pub rotation_source: RotationSource,
     pub rotation_interval_minutes: u32,
     pub theme_mode: ThemeMode,
-    pub theme_follow_light_path: Option<String>,
-    pub theme_follow_dark_path: Option<String>,
+    // Also mirror the applied wallpaper onto the OS lock screen (KDE).
+    // `#[serde(default)]` so legacy stores deserialize to false.
+    #[serde(default)]
+    pub lockscreen: bool,
     // Newly introduced in Phase 1. `#[serde(default)]` so legacy stores
     // without this field deserialize cleanly to None.
     #[serde(default)]
@@ -74,8 +101,7 @@ impl Default for Settings {
             rotation_source: RotationSource::Off,
             rotation_interval_minutes: 60,
             theme_mode: ThemeMode::Auto,
-            theme_follow_light_path: None,
-            theme_follow_dark_path: None,
+            lockscreen: false,
             last_applied: None,
         }
     }
@@ -95,4 +121,7 @@ pub struct Wallpaper {
     pub prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    // Light/dark eligibility tag. Defaults to Both for legacy entries.
+    #[serde(default)]
+    pub mode: WallpaperMode,
 }

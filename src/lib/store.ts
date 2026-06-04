@@ -12,7 +12,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { load, type Store } from '@tauri-apps/plugin-store';
-import type { Settings, Wallpaper } from './types';
+import type { Settings, Wallpaper, WallpaperMode } from './types';
 
 // ---------------------------------------------------------------------
 // Settings
@@ -43,6 +43,7 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
 // pipelines, so JS never constructs those variants.
 type LibraryOp =
   | { op: 'remove'; data: { path: string } }
+  | { op: 'setMode'; data: { path: string; mode: WallpaperMode } }
   | { op: 'removeOrphans'; data: { existing: string[] } };
 
 export async function loadLibrary(): Promise<Wallpaper[]> {
@@ -59,6 +60,15 @@ export async function removeFromLibrary(path: string): Promise<Wallpaper[]> {
 
 export async function removeLibraryOrphans(existing: string[]): Promise<Wallpaper[]> {
   return patchLibrary({ op: 'removeOrphans', data: { existing } });
+}
+
+// Tag a library entry's light/dark eligibility. Drives the rotation /
+// "Next" pools (a light-tagged wallpaper joins the light pool).
+export async function setWallpaperMode(
+  path: string,
+  mode: WallpaperMode,
+): Promise<Wallpaper[]> {
+  return patchLibrary({ op: 'setMode', data: { path, mode } });
 }
 
 // ---------------------------------------------------------------------

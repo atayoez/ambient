@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::RwLock;
 
 use crate::settings::{strip_keys_from_legacy, write_atomic};
-use crate::types::Wallpaper;
+use crate::types::{Wallpaper, WallpaperMode};
 
 #[derive(Deserialize, Clone, Debug)]
 #[serde(tag = "op", content = "data", rename_all = "camelCase")]
@@ -25,6 +25,9 @@ pub enum LibraryOp {
     Prepend(Wallpaper),
     Remove { path: String },
     PromoteToHead { path: String },
+    /// Set a single entry's light/dark eligibility tag (drives the
+    /// rotation / "Next" pools). No-op if the path isn't in the library.
+    SetMode { path: String, mode: WallpaperMode },
     /// Filter the library down to entries whose path appears in
     /// `existing`. Used by Library.tsx's mount-time orphan sweep
     /// (list files on disk, drop index rows pointing at deleted files).
@@ -87,6 +90,19 @@ pub(crate) fn apply_op(current: &[Wallpaper], op: LibraryOp) -> Vec<Wallpaper> {
                 _ => current.to_vec(),
             }
         }
+        LibraryOp::SetMode { path, mode } => current
+            .iter()
+            .map(|w| {
+                if w.path == path {
+                    Wallpaper {
+                        mode,
+                        ..w.clone()
+                    }
+                } else {
+                    w.clone()
+                }
+            })
+            .collect(),
         LibraryOp::RemoveOrphans { existing } => {
             let set: HashSet<&str> = existing.iter().map(String::as_str).collect();
             current
@@ -167,6 +183,7 @@ mod tests {
             added_at: 0,
             prompt: None,
             title: None,
+            mode: crate::types::WallpaperMode::Both,
         }
     }
 
@@ -186,6 +203,35 @@ mod tests {
         // is dropped by the dedup pass.
         assert_eq!(next.iter().map(|w| w.path.as_str()).collect::<Vec<_>>(),
                    vec!["/b", "/a"]);
+    }
+
+    #[test]
+    fn set_mode_tags_only_the_target() {
+        use crate::types::WallpaperMode;
+        let cur = vec![wp("/a"), wp("/b"), wp("/c")];
+        let next = apply_op(
+            &cur,
+            LibraryOp::SetMode {
+                path: "/b".to_string(),
+                mode: WallpaperMode::Dark,
+            },
+        );
+        assert_eq!(next[0].mode, WallpaperMode::Both, "/a untouched");
+        assert_eq!(next[1].mode, WallpaperMode::Dark, "/b tagged dark");
+        assert_eq!(next[2].mode, WallpaperMode::Both, "/c untouched");
+        // Order + membership preserved.
+        assert_eq!(
+            next.iter().map(|w| w.path.as_str()).collect::<Vec<_>>(),
+            vec!["/a", "/b", "/c"]
+        );
+    }
+
+    #[test]
+    fn wallpaper_mode_matches_pools() {
+        use crate::types::WallpaperMode::{Both, Dark, Light};
+        assert!(Both.matches(true) && Both.matches(false), "both → either");
+        assert!(Light.matches(false) && !Light.matches(true), "light → light only");
+        assert!(Dark.matches(true) && !Dark.matches(false), "dark → dark only");
     }
 
     #[test]

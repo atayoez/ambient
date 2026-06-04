@@ -89,13 +89,19 @@ async fn theme_check_task(app: AppHandle) {
 /// menu item can trigger an out-of-band advance.
 pub async fn tick(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, String> {
     match cfg.rotation_source {
+        // Library rotation AND the tray "Next wallpaper" (Off) advance
+        // through the saved library, filtered to the current theme's
+        // pool. Off only falls back to a source fetch when the library
+        // is empty (nothing to advance through).
         RotationSource::Library => shuffle_library(app, cfg).await,
-        // Off + Sources both go to the source fetcher. The Off case is
-        // for the tray "Next wallpaper" menu item — user explicitly
-        // asked for a new image, treat as "fetch from source".
-        RotationSource::Off | RotationSource::Sources => {
-            fetch_and_apply_source(app).await
+        RotationSource::Off => {
+            if app.state::<LibraryState>().get().await.is_empty() {
+                fetch_and_apply_source(app).await
+            } else {
+                shuffle_library(app, cfg).await
+            }
         }
+        RotationSource::Sources => fetch_and_apply_source(app).await,
     }
 }
 
@@ -113,26 +119,41 @@ async fn fetch_and_apply_source(app: &AppHandle) -> Result<Wallpaper, String> {
     Ok(entry)
 }
 
+/// The system-theme darkness the rotation pools should target: the
+/// locked Light/Dark mode if set, otherwise the live system theme.
+fn effective_dark(cfg: &Settings) -> bool {
+    match cfg.theme_mode {
+        ThemeMode::Light => false,
+        ThemeMode::Dark => true,
+        ThemeMode::Auto => is_system_dark(),
+    }
+}
+
 async fn shuffle_library(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, String> {
     let lib = app.state::<LibraryState>().get().await;
     if lib.is_empty() {
         return Err("Library is empty — nothing to shuffle from.".to_string());
     }
-    // Filter out the most-recently-applied entry so we don't pick the
-    // same image two ticks in a row. With a one-item library, filtering
-    // empties the pool — fall back to the unfiltered list so the user
-    // still sees the tick produce something.
+    let dark = effective_dark(cfg);
+    // Pool = entries eligible for the current theme (light-tagged when
+    // light, dark-tagged when dark, both-tagged always). If nothing
+    // matches — e.g. every entry is tagged the opposite mode — fall back
+    // to the whole library so "Next" still produces something.
+    let eligible: Vec<Wallpaper> =
+        lib.iter().filter(|w| w.mode.matches(dark)).cloned().collect();
+    let base = if eligible.is_empty() { lib } else { eligible };
+    // Avoid repeating the current wallpaper when there's an alternative.
     let pool: Vec<Wallpaper> = match cfg.last_applied.as_ref() {
         Some(last) => {
             let filtered: Vec<Wallpaper> =
-                lib.iter().filter(|w| &w.path != last).cloned().collect();
+                base.iter().filter(|w| &w.path != last).cloned().collect();
             if filtered.is_empty() {
-                lib
+                base
             } else {
                 filtered
             }
         }
-        None => lib,
+        None => base,
     };
     let idx = (pseudo_seed() as usize) % pool.len();
     let pick = pool[idx].clone();
@@ -141,22 +162,30 @@ async fn shuffle_library(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, S
     Ok(pick)
 }
 
+/// Auto mode only (gated by the caller). On a system light/dark flip,
+/// if the current wallpaper no longer fits the new theme, switch to one
+/// from the matching pool. A `Both`-tagged wallpaper always fits, so it's
+/// never disturbed; only mode-specific wallpapers trigger a swap.
 async fn theme_check(app: &AppHandle, cfg: &Settings) -> Result<(), String> {
-    let want = if is_system_dark() {
-        &cfg.theme_follow_dark_path
-    } else {
-        &cfg.theme_follow_light_path
-    };
-    let Some(want) = want.as_ref() else {
-        // No slot wallpaper yet for the current system theme — nothing
-        // to apply. User needs to apply a wallpaper while in the target
-        // mode to populate the slot.
-        return Ok(());
-    };
-    if cfg.last_applied.as_deref() == Some(want.as_str()) {
+    let dark = is_system_dark();
+    let lib = app.state::<LibraryState>().get().await;
+    if lib.is_empty() {
         return Ok(());
     }
-    apply_wallpaper(want, app).await
+    // Current wallpaper already eligible for the system theme → leave it.
+    if let Some(last) = cfg.last_applied.as_ref() {
+        if let Some(cur) = lib.iter().find(|w| &w.path == last) {
+            if cur.mode.matches(dark) {
+                return Ok(());
+            }
+        }
+    }
+    // Otherwise apply the first wallpaper tagged for the new theme. No
+    // match (nothing light/both when light, etc.) → nothing to do.
+    let Some(pick) = lib.iter().find(|w| w.mode.matches(dark)) else {
+        return Ok(());
+    };
+    apply_wallpaper(&pick.path, app).await
 }
 
 #[tauri::command]

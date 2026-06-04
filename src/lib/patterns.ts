@@ -319,6 +319,26 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${to(r1)}${to(g1)}${to(b1)}`;
 }
 
+// Generate a fresh random palette — a background plus four foreground
+// colours anchored on one random base hue (with spread), tuned for the
+// current theme (dark bg + bright accents when dark, light bg + deeper
+// accents when light). Returns [background, ...foreground].
+export function randomPalette(dark: boolean): string[] {
+  const rand = (a: number, b: number) => a + Math.random() * (b - a);
+  const baseHue = Math.random() * 360;
+  const bg = dark
+    ? hslToHex(baseHue, rand(12, 32), rand(6, 12))
+    : hslToHex(baseHue, rand(14, 38), rand(92, 97));
+  const fg: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const h = (baseHue + rand(20, 70) * (i + 1)) % 360;
+    const s = rand(55, 90);
+    const l = dark ? rand(48, 76) : rand(38, 62);
+    fg.push(hslToHex(h, s, l));
+  }
+  return [bg, ...fg];
+}
+
 // Builds a 5-stop palette anchored on the OS accent hue — a monochromatic
 // ramp from a near-base tone up through the accent to a near-edge tint, so
 // generated wallpapers read as "tinted with the system color" rather than

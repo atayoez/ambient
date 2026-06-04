@@ -7,14 +7,26 @@ import {
   patchSettings,
   removeFromLibrary,
   removeLibraryOrphans,
+  setWallpaperMode,
 } from '../lib/store';
 import type { ThemeMode } from '../lib/theme';
-import { DEFAULT_SETTINGS, type Settings, type Wallpaper } from '../lib/types';
+import {
+  DEFAULT_SETTINGS,
+  type Settings,
+  type Wallpaper,
+  type WallpaperMode,
+} from '../lib/types';
 import { deleteWallpaper, listLocalWallpapers, setWallpaper } from '../lib/wallpaper';
 import { CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
 import { StatusInline } from './layout';
 import OptionScroller from './OptionScroller';
 import RotationControl from './RotationControl';
+
+// Whether a wallpaper's tag makes it eligible for the given theme.
+function modeMatches(mode: WallpaperMode | undefined, dark: boolean): boolean {
+  const m = mode ?? 'both';
+  return m === 'both' || (dark ? m === 'dark' : m === 'light');
+}
 
 const THEME_MODE_OPTIONS: { id: ThemeMode; label: string }[] = [
   { id: 'auto', label: 'Auto' },
@@ -101,8 +113,26 @@ export default function Library() {
 
   const selected = sortedLibrary.find((w) => w.path === selectedPath) ?? null;
   const selectedIsCurrent = !!selected && selected.path === currentPath;
-  const selectedIsLight = !!selected && settings.themeFollowLightPath === selected.path;
-  const selectedIsDark = !!selected && settings.themeFollowDarkPath === selected.path;
+  const selectedMode: WallpaperMode = selected?.mode ?? 'both';
+  const selectedIsLight = selectedMode === 'light';
+  const selectedIsDark = selectedMode === 'dark';
+
+  // Tag the selected wallpaper's light/dark eligibility. Tapping the
+  // active mode again clears it back to 'both'. Light and dark are
+  // mutually exclusive.
+  const tagMode = useCallback(
+    async (mode: WallpaperMode) => {
+      if (!selected) return;
+      const next = selectedMode === mode ? 'both' : mode;
+      try {
+        const updated = await setWallpaperMode(selected.path, next);
+        setLibrary(updated);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [selected, selectedMode],
+  );
 
   const applyExisting = useCallback(async (path: string) => {
     let alreadyBusy = false;
@@ -150,32 +180,32 @@ export default function Library() {
     }
   }, []);
 
-  // Mode switch: persist + immediately apply the matching slot, so the
-  // user gets visible feedback (matches the prior grid behaviour).
+  // Mode switch: persist, then — if the current wallpaper doesn't fit
+  // the chosen theme's pool — apply one that does (the selected wallpaper
+  // when eligible, else the first in the pool), for instant feedback.
   const onChangeThemeMode = useCallback(
     async (mode: ThemeMode) => {
       const next = await patchSettings({ themeMode: mode });
       setSettings(next);
       dispatch('settings-changed');
 
-      let target: string | null = null;
-      if (mode === 'auto') {
-        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        target = dark ? next.themeFollowDarkPath : next.themeFollowLightPath;
-      } else if (mode === 'light') {
-        target = next.themeFollowLightPath;
-      } else {
-        target = next.themeFollowDarkPath;
-      }
-      if (target && target !== currentPath) {
+      const dark =
+        mode === 'dark' ||
+        (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const current = library.find((w) => w.path === currentPath);
+      if (current && modeMatches(current.mode, dark)) return; // already fits
+
+      const pool = library.filter((w) => modeMatches(w.mode, dark));
+      const target = pool.find((w) => w.path === selectedPath) ?? pool[0] ?? null;
+      if (target && target.path !== currentPath) {
         try {
-          await setWallpaper(target);
+          await setWallpaper(target.path);
         } catch {
           // non-fatal — the mode is still saved.
         }
       }
     },
-    [currentPath],
+    [library, currentPath, selectedPath],
   );
 
   // Reset the delete confirmation whenever the selection changes.
@@ -216,23 +246,11 @@ export default function Library() {
               onChange={setSelectedPath}
               ariaLabel="Browse library"
             />
-            {(selectedIsCurrent || selectedIsLight || selectedIsDark) && (
+            {selectedIsCurrent && (
               <div className="lib-badges" aria-hidden="true">
-                {selectedIsCurrent && (
-                  <span className="lib-badge" title="Currently applied">
-                    <CheckIcon size={13} />
-                  </span>
-                )}
-                {selectedIsLight && (
-                  <span className="lib-badge" title="Light-mode wallpaper">
-                    <SunIcon size={13} />
-                  </span>
-                )}
-                {selectedIsDark && (
-                  <span className="lib-badge" title="Dark-mode wallpaper">
-                    <MoonIcon size={13} />
-                  </span>
-                )}
+                <span className="lib-badge" title="Currently applied">
+                  <CheckIcon size={13} />
+                </span>
               </div>
             )}
           </div>
@@ -254,11 +272,54 @@ export default function Library() {
               otherInUseHint="Sources auto-rotate is on — this will replace it."
             />
           </div>
+          <label className="field lib-lockscreen">
+            <span>Lock screen</span>
+            <input
+              type="checkbox"
+              checked={settings.lockscreen}
+              onChange={async (e) => {
+                const next = await patchSettings({ lockscreen: e.target.checked });
+                setSettings(next);
+                dispatch('settings-changed');
+              }}
+              aria-label="Also set the lock screen wallpaper"
+            />
+          </label>
         </div>
 
         {selected && (
           <div className="pat-actions">
             <StatusInline status={status} error={error} />
+            <button
+              type="button"
+              onClick={() => tagMode('light')}
+              className={selectedIsLight ? 'icon-btn primary' : 'icon-btn'}
+              aria-pressed={selectedIsLight}
+              aria-label="Show in Light mode only"
+              title={
+                selectedIsLight
+                  ? 'Light-mode only — tap to clear'
+                  : 'Show this only in Light mode'
+              }
+              disabled={busy}
+            >
+              <SunIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => tagMode('dark')}
+              className={selectedIsDark ? 'icon-btn primary' : 'icon-btn'}
+              aria-pressed={selectedIsDark}
+              aria-label="Show in Dark mode only"
+              title={
+                selectedIsDark
+                  ? 'Dark-mode only — tap to clear'
+                  : 'Show this only in Dark mode'
+              }
+              disabled={busy}
+            >
+              <MoonIcon />
+            </button>
             {confirmingDelete ? (
               <>
                 <button

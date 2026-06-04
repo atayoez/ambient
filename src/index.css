@@ -389,7 +389,7 @@ button {
        lose their accent border
      - the borderless text link (.about-link) — gains an unwanted box
    Everything not listed (the default buttons) still gets the wash. */
-button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):not(.icon-btn):not(.pat-del):hover:not(:disabled) {
+button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):not(.icon-btn):not(.pat-del):not(.randomize-btn):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
@@ -1100,6 +1100,58 @@ input[type='range']:active::-moz-range-thumb {
 .save-palette:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Per-pattern randomizers (Shuffle modifiers + Colors), in the control
+   pane next to the knobs they re-roll. */
+.pat-randomize {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.randomize-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  font-size: var(--fs-caption);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-inline);
+  cursor: pointer;
+  line-height: 1;
+  transition:
+    background var(--t-fast) ease,
+    border-color var(--t-fast) ease;
+}
+
+.randomize-btn:hover:not(:disabled),
+.randomize-btn:focus-visible:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.randomize-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Lock-screen toggle row in the Library side panel. */
+.lib-lockscreen {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lib-lockscreen input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-os, var(--accent));
+  cursor: pointer;
 }
 
 /* Icon-only action button. Replaces text labels on most action affordances

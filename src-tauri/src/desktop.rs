@@ -3,15 +3,18 @@
 //      own COSMIC-specific RON write on Linux under COSMIC).
 //   2. Stamp settings.lastApplied for the "currently applied" indicator
 //      that survives webview destroy/rebuild.
-//   3. Slot capture for the theme-follow feature — write the path
-//      into themeFollowLightPath or themeFollowDarkPath depending on
-//      the current theme_mode + (for auto) the live system theme.
+//   3. Mirror the wallpaper to the lock screen when settings.lockscreen
+//      is on (KDE Plasma; no-op on other DEs / OSes).
 //   4. Promote the entry to the head of the library so the grid is
 //      sorted by most-recently-applied.
 //   5. Emit a `wallpaper-applied` Tauri event.
 //   6. If the window is hidden/destroyed (tray-only state), fire a
 //      system notification — when the window IS visible the status
 //      pill in-tab is enough feedback.
+//
+// (Per-wallpaper light/dark eligibility now lives as a tag on each
+// library entry — see WallpaperMode + rotation.rs — replacing the old
+// single themeFollow{Light,Dark}Path slots.)
 //
 // Phase 4 consolidated all of this on the Rust side. Pre-Phase-4 the
 // notification + library-promote + slot-capture lived in JS, which
@@ -25,8 +28,6 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::library_store::{LibraryOp, LibraryState};
 use crate::settings::SettingsState;
-use crate::tray_icon::is_system_dark;
-use crate::types::ThemeMode;
 
 /// Internal: full apply pipeline. Called by both the #[tauri::command]
 /// wrapper (frontend invokes) and the rotation task (background tick).
@@ -49,9 +50,59 @@ pub async fn apply_wallpaper(path: &str, app: &AppHandle) -> Result<(), String> 
 
     apply_os(&abs_str)?;
 
+    // Mirror to the lock screen when enabled (KDE; no-op elsewhere).
+    // Best-effort — a lock-screen failure shouldn't fail the apply.
+    if app.state::<SettingsState>().get().await.lockscreen {
+        let _ = set_lockscreen(&abs_str);
+    }
+
     record_post_apply(&abs_str, app).await;
     let _ = app.emit("wallpaper-applied", abs_str.as_str());
 
+    Ok(())
+}
+
+/// Mirror the wallpaper onto the OS lock screen. Only KDE Plasma exposes
+/// a scriptable lock-screen wallpaper (kscreenlocker + the org.kde.image
+/// plugin); other Linux DEs and non-Linux OSes have no stable mechanism,
+/// so this is a no-op there.
+#[cfg(target_os = "linux")]
+fn set_lockscreen(abs_path: &str) -> Result<(), String> {
+    use std::process::Command;
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    if !matches!(linux_strategy(&desktop), LinuxWallpaper::Kde) {
+        return Ok(());
+    }
+    // kwriteconfig6 (Plasma 6) preferred; fall back to kwriteconfig5.
+    for tool in ["kwriteconfig6", "kwriteconfig5"] {
+        if let Ok(out) = Command::new(tool)
+            .args([
+                "--file",
+                "kscreenlockerrc",
+                "--group",
+                "Greeter",
+                "--group",
+                "Wallpaper",
+                "--group",
+                "org.kde.image",
+                "--group",
+                "General",
+                "--key",
+                "Image",
+                abs_path,
+            ])
+            .output()
+        {
+            if out.status.success() {
+                return Ok(());
+            }
+        }
+    }
+    Err("no kwriteconfig6/5 available to set the lock screen".to_string())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn set_lockscreen(_abs_path: &str) -> Result<(), String> {
     Ok(())
 }
 
@@ -160,31 +211,15 @@ fn set_wallpaper_kde(abs_path: &str) -> Result<(), String> {
 }
 
 async fn record_post_apply(abs_str: &str, app: &AppHandle) {
-    // Build the patch — lastApplied plus the matching theme-follow slot.
-    // is_system_dark() is only called when theme_mode is Auto (it's a
-    // shell-out — fine per apply, but avoid when the mode is locked).
+    // Stamp lastApplied so the "currently applied" indicator + the
+    // theme-check's "does the current wallpaper still fit?" logic survive
+    // a webview destroy/rebuild.
     let state = app.state::<SettingsState>();
-    let current = state.get().await;
-    let slot_key = match current.theme_mode {
-        ThemeMode::Light => Some("themeFollowLightPath"),
-        ThemeMode::Dark => Some("themeFollowDarkPath"),
-        ThemeMode::Auto => Some(if is_system_dark() {
-            "themeFollowDarkPath"
-        } else {
-            "themeFollowLightPath"
-        }),
-    };
     let mut patch = serde_json::Map::new();
     patch.insert(
         "lastApplied".to_string(),
         serde_json::Value::String(abs_str.to_string()),
     );
-    if let Some(key) = slot_key {
-        patch.insert(
-            key.to_string(),
-            serde_json::Value::String(abs_str.to_string()),
-        );
-    }
     let _ = state.patch(serde_json::Value::Object(patch), app).await;
 
     // Promote to head of library — no-op when not in library (the
