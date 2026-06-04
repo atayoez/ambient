@@ -14,10 +14,28 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Per-wallpaper light/dark tags.** Mark any saved wallpaper as
+  light-only or dark-only (Sun/Moon toggles on the Library tab); the
+  rotation pools are built from these tags automatically.
+- **Lock screen.** A "Lock screen" toggle on the Library tab — when on,
+  applying a wallpaper also mirrors it to the KDE lock screen.
+- **Randomize colors.** A new button that rolls a fresh themed palette
+  for the current pattern.
 
 ### Changed
+- **"Next wallpaper" actually works now.** The tray "Next wallpaper" (and
+  auto-rotate) advance through the saved library filtered to the current
+  system theme's pool, instead of trying to fetch a fresh source image.
+  On a system light↔dark flip, the wallpaper auto-switches to a matching
+  one only when the current one no longer fits.
+- The pattern **Shuffle** and the new **Randomize colors** now live in
+  the control pane next to the sliders (they're per-pattern, not global).
 
 ### Fixed
+- **AppImage no longer crashes on launch** on systems where the bundled
+  WebKit and host Mesa disagree on EGL (the "Could not create surfaceless
+  EGL display: EGL_BAD_ALLOC" abort) — the DMABUF renderer is disabled so
+  the webview falls back to a path that initializes reliably.
 
 ## [0.8.1] — 2026-06-04
 
