@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.8.2] — 2026-06-04
+
+### Added
 - **Per-wallpaper light/dark tags.** Mark any saved wallpaper as
   light-only or dark-only (Sun/Moon toggles on the Library tab); the
   rotation pools are built from these tags automatically.
