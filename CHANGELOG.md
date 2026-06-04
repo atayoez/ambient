@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.8.1] — 2026-06-04
+
+### Added
 - **Five new pattern generators**, bringing the total to ten:
   - **Flower** — flowing, translucent gradient petals radiating from a
     luminous centre, optionally swirled (the Windows 11 "Bloom" motif).
