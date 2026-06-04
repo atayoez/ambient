@@ -112,9 +112,6 @@ pub struct PatternConfig {
     pub aurora_spread: Option<f32>,
     #[serde(default)]
     pub aurora_amplitude: Option<f32>,
-    // Bokeh: soft glowing orbs (count = density, radius = size).
-    #[serde(default)]
-    pub bokeh_softness: Option<f32>,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -910,7 +907,9 @@ fn render_waves(pix: &mut Pixmap, cfg: &PatternConfig) {
     let freq = cfg.waves_frequency.unwrap_or(0.4).clamp(0.0, 1.0);
     let cycles = remap(freq, 0.5, 3.0);
     let amp_px = amp * h_f * 0.11;
-    let samples = 160usize;
+    // Sample ~every 4px so the wave edge stays a smooth curve rather
+    // than a visibly faceted polyline at apply (4K) resolution.
+    let samples = ((w_f / 4.0) as usize).clamp(200, 1200);
     let gphase = rng.next() * two_pi;
 
     for layer in 0..layers {
@@ -948,13 +947,15 @@ fn render_waves(pix: &mut Pixmap, cfg: &PatternConfig) {
         };
 
         // Vertical gradient from the crest colour down to the next
-        // palette colour; translucent so layers behind read through.
+        // palette colour. Opaque, so each band's top edge is a crisp,
+        // sharp boundary against the band behind it (the layered-paper
+        // look) rather than a muddy translucent blend.
         let shader = match LinearGradient::new(
             Point::from_xy(0.0, baseline - amp_l),
             Point::from_xy(0.0, h_f),
             vec![
-                GradientStop::new(0.0, hex_to_color(c_top, 0.92)),
-                GradientStop::new(1.0, hex_to_color(c_bot, 0.92)),
+                GradientStop::new(0.0, hex_to_color(c_top, 1.0)),
+                GradientStop::new(1.0, hex_to_color(c_bot, 1.0)),
             ],
             SpreadMode::Pad,
             Transform::identity(),
@@ -994,7 +995,6 @@ fn render_aurora(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
-    let max_dim = w_f.max(h_f);
     let two_pi = std::f32::consts::PI * 2.0;
 
     let bands = cfg.aurora_bands.unwrap_or(5).clamp(2, 16);
@@ -1058,18 +1058,15 @@ fn render_aurora(pix: &mut Pixmap, cfg: &PatternConfig) {
         };
         pix.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
     }
-
-    // Heavy blur is what turns the ribbons into soft light.
-    apply_blur(pix, (max_dim * 0.02).round().max(1.0));
 }
 
 /// "Bokeh" generator: soft glowing orbs of light scattered with varying
 /// size + opacity (a defocused, depth-of-field look). Each orb is a
 /// radial gradient (bright centre → transparent edge); overlaps blend,
-/// and a light blur finishes the dreaminess.
+/// and the radial alpha falloff gives each orb a naturally soft edge —
+/// no blur needed.
 ///
-/// Modifiers: count = `density`, orb radius = `size`, `bokeh_softness`
-/// (0–1 blur), over the palette.
+/// Modifiers: count = `density`, orb radius = `size`, over the palette.
 fn render_bokeh(pix: &mut Pixmap, cfg: &PatternConfig) {
     let mut rng = SeededRng::new(cfg.seed);
     if let Some(base) = cfg.colors.first() {
@@ -1091,7 +1088,6 @@ fn render_bokeh(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let count = cfg.density.max(4.0) as u32;
     let base_r = (cfg.size.max(4.0) * scale * 2.2).max(8.0);
-    let softness = cfg.bokeh_softness.unwrap_or(0.4).clamp(0.0, 1.0);
     let seed_off = (rng.next() * 1000.0) as u32;
 
     for i in 0..count {
@@ -1128,11 +1124,6 @@ fn render_bokeh(pix: &mut Pixmap, cfg: &PatternConfig) {
         if let Some(rect) = Rect::from_xywh(cx - r, cy - r, r * 2.0, r * 2.0) {
             pix.fill_rect(rect, &paint, Transform::identity(), None);
         }
-    }
-
-    let blur_px = (max_dim * (0.002 + softness * 0.012)).round();
-    if blur_px > 0.5 {
-        apply_blur(pix, blur_px);
     }
 }
 
@@ -1650,7 +1641,6 @@ mod tests {
             aurora_bands: None,
             aurora_spread: None,
             aurora_amplitude: None,
-            bokeh_softness: None,
         };
         let pix = render(&cfg, 100, 100);
         // Background is #000000 + bubbles in red/green. At least some
@@ -1742,7 +1732,6 @@ mod tests {
             aurora_bands: None,
             aurora_spread: None,
             aurora_amplitude: None,
-            bokeh_softness: None,
         }
     }
 }

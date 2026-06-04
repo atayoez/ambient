@@ -693,16 +693,6 @@ export default function Patterns() {
                 />
               </>
             )}
-            {config.type === 'bokeh' && (
-              <ControlRow
-                label="Softness"
-                value={Math.round((config.bokehSoftness ?? 0.4) * 100)}
-                suffix="%"
-                min={0}
-                max={100}
-                onChange={(v) => patch({ bokehSoftness: v / 100 })}
-              />
-            )}
           </div>
         </div>
 

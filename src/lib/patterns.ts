@@ -98,9 +98,8 @@ export interface PatternConfig {
   auroraSpread?: number;
   auroraAmplitude?: number;
 
-  // Bokeh: soft glowing orbs. Count = density, radius = size, plus
-  // softness (0–1 blur).
-  bokehSoftness?: number;
+  // Bokeh: soft glowing orbs. Count = density, radius = size (the orbs'
+  // radial alpha falloff is soft on its own — no blur knob).
 }
 
 export interface ColorPreset {
@@ -426,7 +425,6 @@ export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
   bokeh: {
     density: 22,
     size: 60,
-    bokehSoftness: 0.4,
   },
 };
 
@@ -519,7 +517,6 @@ const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
   bokeh: {
     density: { min: 8, max: 60, int: true },
     size: { min: 10, max: 120, int: true },
-    bokehSoftness: { min: 0, max: 1 },
   },
 };
 
