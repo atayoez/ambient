@@ -54,6 +54,21 @@ pub fn run() {
                 std::env::set_var("GDK_BACKEND", "wayland,x11");
             }
         }
+
+        // Disable WebKitGTK's DMABUF renderer. The bundled AppImage
+        // WebKit + the host Mesa frequently disagree on EGL, producing
+        // "Could not create surfaceless EGL display: EGL_BAD_ALLOC.
+        // Aborting..." — WebKit's GPU process then abort()s and the whole
+        // app SIGABRTs on launch. Forcing the non-DMABUF fallback path
+        // makes the webview initialize reliably across driver/Mesa combos
+        // (a well-worn WebKitGTK-on-Linux workaround). Negligible cost for
+        // a mostly-static UI. Only set if the user hasn't overridden it.
+        // SAFETY: same as above — set before any GTK/WebKit thread spawns.
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            unsafe {
+                std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+            }
+        }
     }
 
     // "New launch wins" solo-instance handoff. Reads the previous
