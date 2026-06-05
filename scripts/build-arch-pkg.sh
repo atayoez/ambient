@@ -19,6 +19,12 @@ VERSION="${1:?Usage: $0 <version> <deb> [outdir]}"
 DEB="${2:?Usage: $0 <version> <deb> [outdir]}"
 OUTDIR="${3:-$PWD}"
 
+# Resolve the output dir to an absolute path up front — we `cd` into $WORK
+# below, so a relative outdir (e.g. "dist/arch") would otherwise be created
+# under packaging/arch instead of the caller's directory.
+mkdir -p "$OUTDIR"
+OUTDIR="$(cd "$OUTDIR" && pwd)"
+
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$REPO_ROOT/packaging/arch"
 
