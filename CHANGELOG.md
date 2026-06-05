@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.9.0] — 2026-06-05
+
+### Added
 - **Unified notifications.** Every success and error across the app now
   appears in one consistent toast stack (bottom-right) instead of inline
   text that showed up in a different spot on each tab.
