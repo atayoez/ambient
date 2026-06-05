@@ -2,21 +2,25 @@
 #
 # - check: fast TypeScript + Biome + cargo tests on Ubuntu. Gates every
 #   downstream job. Runs on push, PR, dispatch, and tag-push.
-# - build-tauri: five-arch matrix —
-#     macOS aarch64 (.dmg + .dmg.sig)
+# - build-tauri: arch matrix —
+#     macOS aarch64 (.dmg + signed .app.tar.gz for the updater)
 #     Windows x86_64 (.msi + .msi.sig)
 #     Windows aarch64 (.msi + .msi.sig)
-#     Linux aarch64 (.AppImage + .AppImage.sig)   ← native ARM runner
-#     Linux x86_64 (.AppImage + .AppImage.sig)
+#     Linux aarch64 (.deb + .rpm)                  ← native ARM runner
+#     Linux x86_64 (.deb + .rpm)
 #   Gated to tag pushes (`refs/tags/v*`) and manual dispatch so plain
 #   main pushes only spend the cheap `check` minutes — macOS runners
 #   are ~10× priced on the free tier.
-# - release: depends on the full matrix, runs only on tag push. Renames
-#   the 5 artifacts to the release filename convention, uploads them
-#   to R2, generates dual-shape latest.json (legacy `downloads.*` for
-#   the worker's /downloads/latest aliases + signed `platforms.*` for
-#   tauri-plugin-updater), and cuts the GitHub release with all 5
-#   attached + notes pulled from CHANGELOG.md.
+# - build-arch: repackages the x86_64 .deb into a native Arch
+#   .pkg.tar.zst via makepkg in an archlinux container.
+# - release: depends on build-tauri + build-arch, runs only on tag push.
+#   Renames artifacts to the release filename convention, uploads them
+#   to R2, generates latest.json (`downloads.*` aliases for the worker +
+#   signed `platforms.*` for tauri-plugin-updater — macOS/Windows only;
+#   Linux native packages update via the system package manager), and
+#   cuts the GitHub release with everything attached + CHANGELOG notes.
+#   Linux ships native packages only — no AppImage (its bundled GPU libs
+#   blank-screened on some hosts; native packages use system WebKitGTK).
 #
 # Release flow from the developer's side: `bun run release X.Y.Z`,
 # which is now just version-bump + commit + tag + push. The tag-push
@@ -109,15 +113,11 @@ jobs:
           - platform: ubuntu-22.04-arm
             arch: aarch64
             artifact-glob: |
-              src-tauri/target/release/bundle/appimage/*.AppImage
-              src-tauri/target/release/bundle/appimage/*.AppImage.sig
               src-tauri/target/release/bundle/deb/*.deb
               src-tauri/target/release/bundle/rpm/*.rpm
           - platform: ubuntu-22.04
             arch: x86_64
             artifact-glob: |
-              src-tauri/target/release/bundle/appimage/*.AppImage
-              src-tauri/target/release/bundle/appimage/*.AppImage.sig
               src-tauri/target/release/bundle/deb/*.deb
               src-tauri/target/release/bundle/rpm/*.rpm
     runs-on: ${{ matrix.platform }}
@@ -163,36 +163,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri auto-signs each bundle when this env var is set. The
-          # .sig files end up next to the bundle artifact (.dmg.sig,
-          # .msi.sig, .AppImage.sig) and ship as part of the upload
-          # artifact for the release job to read into latest.json.
+          # Tauri auto-signs the updater bundles when this is set: the
+          # macOS .app.tar.gz and the Windows .msi (.sig files land next to
+          # them and drive latest.json). Linux ships native packages
+          # (deb/rpm/pacman) which update via the system package manager,
+          # so there's no Linux updater artifact to sign.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      # tauri's bundling step occasionally fails the linuxdeploy
-      # invocation even though the AppDir is fine. Detect a missing
-      # .AppImage and re-run linuxdeploy manually using the extracted
-      # AppRun (CI runners don't have FUSE so we can't exec the
-      # AppImage directly).
-      - name: Fallback AppImage bundling for Linux
-        if: startsWith(matrix.platform, 'ubuntu-')
-        shell: bash
-        run: |
-          APPIMAGE_DIR="src-tauri/target/release/bundle/appimage"
-          if ls "$APPIMAGE_DIR"/*.AppImage >/dev/null 2>&1; then
-            echo "AppImage produced by tauri-action; no fallback needed."
-            exit 0
-          fi
-          echo "Tauri didn't emit AppImage. Running linuxdeploy manually."
-          ARCH=$(uname -m)
-          curl -L -o /tmp/linuxdeploy.AppImage \
-            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage"
-          chmod +x /tmp/linuxdeploy.AppImage
-          (cd /tmp && ./linuxdeploy.AppImage --appimage-extract >/dev/null)
-          cd "$GITHUB_WORKSPACE/$APPIMAGE_DIR"
-          NO_STRIP=true /tmp/squashfs-root/AppRun \
-            --appdir Ambient.AppDir --output appimage
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v7

@@ -830,16 +830,61 @@ code {
   line-height: 1.55;
 }
 
-/* Three per-OS download cards (macOS / Windows / Linux). macOS is a
-   single button; Windows picks an arch; Linux picks a format + arch.
-   download.js highlights the visitor's detected card and floats it first
-   (order:-1). Default hrefs in the markup are the no-JS x86_64 fallback. */
+/* Per-OS download cards. The visitor's detected platform sits alone in
+   the primary slot; the other two live in the "Other platforms"
+   disclosure (a 2-up grid). macOS is a single button, Windows picks an
+   arch, Linux picks a format + arch. download.js moves the detected card
+   up and recomputes hrefs; default markup is the no-JS x86_64 fallback. */
+.dl-primary-slot {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.dl-primary-slot .dl-card {
+  width: 100%;
+  max-width: 360px;
+}
+
+.dl-others {
+  max-width: 760px;
+  margin: 14px auto 0;
+  text-align: left;
+}
+
+.dl-others > summary {
+  cursor: pointer;
+  list-style: none;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 0;
+  transition: color var(--t-base) ease;
+}
+
+.dl-others > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dl-others > summary::after {
+  content: ' ▾';
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.dl-others[open] > summary::after {
+  content: ' ▴';
+}
+
+.dl-others > summary:hover {
+  color: var(--text);
+}
+
 .dl-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
-  max-width: 760px;
-  margin: 0 auto;
+  margin-top: 12px;
   text-align: left;
 }
 
@@ -913,18 +958,6 @@ code {
 
 .dl-card-btn:hover {
   transform: translateY(-1px);
-}
-
-/* The auto-detected card gets an accent ring + a check after the OS name. */
-.dl-card-detected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.dl-card-detected .dl-card-os::after {
-  content: ' ✓';
-  color: var(--accent);
-  font-size: 13px;
 }
 
 .dl-note {

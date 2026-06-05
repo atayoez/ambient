@@ -4,20 +4,21 @@
 // signer (run inside tauri-action when TAURI_SIGNING_PRIVATE_KEY is
 // set) and emits the dual-shape manifest the rest of the stack reads:
 //
-//   - `version` + `downloads.{macos,windows,windows-arm64,linux,
-//     linux-arm64}` — what worker.js's /downloads/latest/<platform>
-//     302 aliases resolve through. Keys match the worker's regex.
+//   - `version` + `downloads.{macos,windows,windows-arm64,linux-deb,
+//     linux-deb-arm64,linux-rpm,linux-rpm-arm64,linux-pacman}` — what
+//     worker.js's /downloads/latest/<key> 302 aliases resolve through.
 //
-//   - `pub_date` + `platforms.{darwin,windows,linux}-{x86_64,aarch64}`
-//     with `signature` + `url` — what tauri-plugin-updater calls
-//     check() against.
+//   - `pub_date` + `platforms.{darwin,windows}-{x86_64,aarch64}` with
+//     `signature` + `url` — what tauri-plugin-updater calls check()
+//     against. macOS + Windows only; Linux installs are native packages
+//     that update via the system package manager, so there is no Linux
+//     updater platform entry.
 //
 // CLI:
 //   node build-latest-json.mjs \
-//     --version 0.7.0 \
+//     --version 1.0.0 \
 //     --macos-updater-sig path/to/Ambient.app.tar.gz.sig \
 //     --msi-x64-sig ... --msi-arm-sig ... \
-//     --appimage-x64-sig ... --appimage-arm-sig ... \
 //     --output /tmp/latest.json
 //
 // macOS note: the updater consumes the .app.tar.gz (Tauri signs the
@@ -34,8 +35,6 @@ const { values } = parseArgs({
     'macos-updater-sig': { type: 'string' },
     'msi-x64-sig': { type: 'string' },
     'msi-arm-sig': { type: 'string' },
-    'appimage-x64-sig': { type: 'string' },
-    'appimage-arm-sig': { type: 'string' },
     output: { type: 'string' },
   },
 });
@@ -45,8 +44,6 @@ for (const k of [
   'macos-updater-sig',
   'msi-x64-sig',
   'msi-arm-sig',
-  'appimage-x64-sig',
-  'appimage-arm-sig',
   'output',
 ]) {
   if (!values[k]) {
@@ -64,8 +61,6 @@ const names = {
   macos_updater: `Ambient-${v}-macOS-aarch64.app.tar.gz`,
   msi_x64: `Ambient-${v}-Windows-x86_64.msi`,
   msi_arm: `Ambient-${v}-Windows-aarch64.msi`,
-  app_x64: `Ambient-${v}-Linux-x86_64.AppImage`,
-  app_arm: `Ambient-${v}-Linux-aarch64.AppImage`,
   deb_x64: `Ambient-${v}-Linux-x86_64.deb`,
   deb_arm: `Ambient-${v}-Linux-aarch64.deb`,
   rpm_x64: `Ambient-${v}-Linux-x86_64.rpm`,
@@ -83,9 +78,7 @@ const manifest = {
     macos: `${base}/${names.dmg}`,
     windows: `${base}/${names.msi_x64}`,
     'windows-arm64': `${base}/${names.msi_arm}`,
-    linux: `${base}/${names.app_x64}`,
-    'linux-arm64': `${base}/${names.app_arm}`,
-    // Native Linux packages (website distro/arch dropdown). Keys match
+    // Linux ships native packages only (no AppImage). Keys match
     // download.js's composed `linux-<format>[-arm64]` aliases.
     'linux-deb': `${base}/${names.deb_x64}`,
     'linux-deb-arm64': `${base}/${names.deb_arm}`,
@@ -106,14 +99,9 @@ const manifest = {
       signature: read(values['msi-arm-sig']),
       url: `${base}/${names.msi_arm}`,
     },
-    'linux-x86_64': {
-      signature: read(values['appimage-x64-sig']),
-      url: `${base}/${names.app_x64}`,
-    },
-    'linux-aarch64': {
-      signature: read(values['appimage-arm-sig']),
-      url: `${base}/${names.app_arm}`,
-    },
+    // No linux-* entries: Linux installs are native packages that update
+    // via the system package manager, not tauri-plugin-updater. check()
+    // on Linux finds no platform entry and reports up-to-date.
   },
 };
 

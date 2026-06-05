@@ -17,8 +17,9 @@
 #   dist/ambient-macos-latest-aarch64/      *.dmg + *.dmg.sig
 #   dist/ambient-windows-latest-x86_64/     *.msi + *.msi.sig
 #   dist/ambient-windows-11-arm-aarch64/    *.msi + *.msi.sig
-#   dist/ambient-ubuntu-22.04-arm-aarch64/  *.AppImage + *.AppImage.sig
-#   dist/ambient-ubuntu-22.04-x86_64/       *.AppImage + *.AppImage.sig
+#   dist/ambient-ubuntu-22.04-arm-aarch64/  *.deb + *.rpm
+#   dist/ambient-ubuntu-22.04-x86_64/       *.deb + *.rpm
+#   dist/ambient-arch-x86_64/               *.pkg.tar.zst
 
 set -euo pipefail
 
@@ -55,11 +56,9 @@ MSI_X64=$(find_one "*.msi"      "$ACCT_DIR/ambient-windows-latest-x86_64")
 MSI_X64_SIG=$(find_one "*.msi.sig" "$ACCT_DIR/ambient-windows-latest-x86_64")
 MSI_ARM=$(find_one "*.msi"      "$ACCT_DIR/ambient-windows-11-arm-aarch64")
 MSI_ARM_SIG=$(find_one "*.msi.sig" "$ACCT_DIR/ambient-windows-11-arm-aarch64")
-APP_ARM=$(find_one "*.AppImage" "$ACCT_DIR/ambient-ubuntu-22.04-arm-aarch64")
-APP_ARM_SIG=$(find_one "*.AppImage.sig" "$ACCT_DIR/ambient-ubuntu-22.04-arm-aarch64")
-APP_X64=$(find_one "*.AppImage" "$ACCT_DIR/ambient-ubuntu-22.04-x86_64")
-APP_X64_SIG=$(find_one "*.AppImage.sig" "$ACCT_DIR/ambient-ubuntu-22.04-x86_64")
-# Native packages — deb + rpm for both arches, pacman (Arch) x86_64 only.
+# Linux ships native packages only (no AppImage) — deb + rpm for both
+# arches, pacman (Arch) x86_64 only. These update via the system package
+# manager, so there's no Linux updater artifact / signature.
 DEB_X64=$(find_one "*.deb" "$ACCT_DIR/ambient-ubuntu-22.04-x86_64")
 DEB_ARM=$(find_one "*.deb" "$ACCT_DIR/ambient-ubuntu-22.04-arm-aarch64")
 RPM_X64=$(find_one "*.rpm" "$ACCT_DIR/ambient-ubuntu-22.04-x86_64")
@@ -71,8 +70,6 @@ DMG_NAME="Ambient-${VERSION}-macOS-aarch64.dmg"
 APP_TAR_NAME="Ambient-${VERSION}-macOS-aarch64.app.tar.gz"
 MSI_X64_NAME="Ambient-${VERSION}-Windows-x86_64.msi"
 MSI_ARM_NAME="Ambient-${VERSION}-Windows-aarch64.msi"
-APP_ARM_NAME="Ambient-${VERSION}-Linux-aarch64.AppImage"
-APP_X64_NAME="Ambient-${VERSION}-Linux-x86_64.AppImage"
 DEB_X64_NAME="Ambient-${VERSION}-Linux-x86_64.deb"
 DEB_ARM_NAME="Ambient-${VERSION}-Linux-aarch64.deb"
 RPM_X64_NAME="Ambient-${VERSION}-Linux-x86_64.rpm"
@@ -84,8 +81,6 @@ cp "$DMG"     "$OUT/$DMG_NAME"
 cp "$APP_TAR" "$OUT/$APP_TAR_NAME"
 cp "$MSI_X64" "$OUT/$MSI_X64_NAME"
 cp "$MSI_ARM" "$OUT/$MSI_ARM_NAME"
-cp "$APP_ARM" "$OUT/$APP_ARM_NAME"
-cp "$APP_X64" "$OUT/$APP_X64_NAME"
 cp "$DEB_X64" "$OUT/$DEB_X64_NAME"
 cp "$DEB_ARM" "$OUT/$DEB_ARM_NAME"
 cp "$RPM_X64" "$OUT/$RPM_X64_NAME"
@@ -98,8 +93,6 @@ node scripts/build-latest-json.mjs \
   --macos-updater-sig "$APP_TAR_SIG" \
   --msi-x64-sig "$MSI_X64_SIG" \
   --msi-arm-sig "$MSI_ARM_SIG" \
-  --appimage-x64-sig "$APP_X64_SIG" \
-  --appimage-arm-sig "$APP_ARM_SIG" \
   --output "$OUT/latest.json"
 
 echo "==> Extracting release notes from CHANGELOG.md"
@@ -125,8 +118,6 @@ upload "$OUT/$DMG_NAME"      "$DMG_NAME"      "application/x-apple-diskimage"
 upload "$OUT/$APP_TAR_NAME"  "$APP_TAR_NAME"  "application/gzip"
 upload "$OUT/$MSI_X64_NAME"  "$MSI_X64_NAME"  "application/x-msi"
 upload "$OUT/$MSI_ARM_NAME"  "$MSI_ARM_NAME"  "application/x-msi"
-upload "$OUT/$APP_X64_NAME"  "$APP_X64_NAME"  "application/x-executable"
-upload "$OUT/$APP_ARM_NAME"  "$APP_ARM_NAME"  "application/x-executable"
 upload "$OUT/$DEB_X64_NAME"  "$DEB_X64_NAME"  "application/vnd.debian.binary-package"
 upload "$OUT/$DEB_ARM_NAME"  "$DEB_ARM_NAME"  "application/vnd.debian.binary-package"
 upload "$OUT/$RPM_X64_NAME"  "$RPM_X64_NAME"  "application/x-rpm"
@@ -145,8 +136,6 @@ if gh release view "v$VERSION" >/dev/null 2>&1; then
     "$OUT/$DMG_NAME#Ambient $VERSION (macOS Apple Silicon)" \
     "$OUT/$MSI_X64_NAME#Ambient $VERSION (Windows x86_64 MSI)" \
     "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)" \
-    "$OUT/$APP_X64_NAME#Ambient $VERSION (Linux x86_64 AppImage)" \
-    "$OUT/$APP_ARM_NAME#Ambient $VERSION (Linux aarch64 AppImage)" \
     "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)" \
     "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)" \
     "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL x86_64)" \
@@ -159,8 +148,6 @@ else
     "$OUT/$DMG_NAME#Ambient $VERSION (macOS Apple Silicon)" \
     "$OUT/$MSI_X64_NAME#Ambient $VERSION (Windows x86_64 MSI)" \
     "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)" \
-    "$OUT/$APP_X64_NAME#Ambient $VERSION (Linux x86_64 AppImage)" \
-    "$OUT/$APP_ARM_NAME#Ambient $VERSION (Linux aarch64 AppImage)" \
     "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)" \
     "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)" \
     "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL x86_64)" \

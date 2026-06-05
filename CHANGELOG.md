@@ -16,6 +16,14 @@ is added on top. Edit this file as you go, not at release time.
 ### Added
 
 ### Changed
+- **Linux is native-packages-only now** — the AppImage was dropped. Its
+  bundled GPU/Mesa libraries blank-screened the window on some hosts;
+  `.deb`/`.rpm`/`.pkg.tar.zst` link the system WebKitGTK and don't. Linux
+  updates come from your package manager (the in-app updater is now
+  macOS/Windows only).
+- **Download page** shows just your detected platform up front; the others
+  tuck into an "Other platforms" disclosure, and the unsigned-app note only
+  appears when it's actually about the platform on offer.
 
 ### Fixed
 
