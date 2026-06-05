@@ -126,33 +126,36 @@ upload "$OUT/$PACMAN_X64_NAME" "$PACMAN_X64_NAME" "application/zstd"
 upload "$OUT/latest.json"    "latest.json"    "application/json"
 
 echo "==> Creating GitHub release"
-# `gh release create` is idempotent-ish — if the tag's release already
-# exists (e.g. re-running this job after a partial failure) it returns
-# non-zero. Detect + upload assets to the existing release instead so
-# retries don't strand us.
+# Release Drafter keeps a DRAFT release for the upcoming version. If a
+# DRAFT exists for this tag, delete it (keeping the tag) so we publish a
+# clean, non-draft release with only this version's assets — otherwise gh
+# would upload into the draft and strand it as an unpublished release
+# carrying the drafter's stale assets (which is exactly what happened to
+# v1.0.1). A non-draft release (e.g. re-running this job after a partial
+# failure) is kept and clobbered instead, preserving download counts.
+ASSETS=(
+  "$OUT/$DMG_NAME#Ambient $VERSION (macOS Apple Silicon)"
+  "$OUT/$MSI_X64_NAME#Ambient $VERSION (Windows x86_64 MSI)"
+  "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)"
+  "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)"
+  "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)"
+  "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE x86_64)"
+  "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE aarch64)"
+  "$OUT/$PACMAN_X64_NAME#Ambient $VERSION (Arch x86_64)"
+)
+if [[ "$(gh release view "v$VERSION" --json isDraft -q .isDraft 2>/dev/null)" == "true" ]]; then
+  echo "    Removing stale DRAFT release for v$VERSION (Release Drafter) so we publish cleanly"
+  gh release delete "v$VERSION" --yes   # keeps the tag (no --cleanup-tag)
+fi
 if gh release view "v$VERSION" >/dev/null 2>&1; then
-  echo "    Release v$VERSION already exists — uploading assets via gh release upload --clobber"
-  gh release upload "v$VERSION" --clobber \
-    "$OUT/$DMG_NAME#Ambient $VERSION (macOS Apple Silicon)" \
-    "$OUT/$MSI_X64_NAME#Ambient $VERSION (Windows x86_64 MSI)" \
-    "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)" \
-    "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)" \
-    "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)" \
-    "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE x86_64)" \
-    "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE aarch64)" \
-    "$OUT/$PACMAN_X64_NAME#Ambient $VERSION (Arch x86_64)"
+  echo "    Release v$VERSION already published — clobbering assets"
+  gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
+  gh release edit "v$VERSION" --draft=false --latest
 else
-  gh release create "v$VERSION" \
+  gh release create "v$VERSION" --latest \
     --title "v$VERSION" \
     --notes-file "$OUT/notes.md" \
-    "$OUT/$DMG_NAME#Ambient $VERSION (macOS Apple Silicon)" \
-    "$OUT/$MSI_X64_NAME#Ambient $VERSION (Windows x86_64 MSI)" \
-    "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)" \
-    "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)" \
-    "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)" \
-    "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE x86_64)" \
-    "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE aarch64)" \
-    "$OUT/$PACMAN_X64_NAME#Ambient $VERSION (Arch x86_64)"
+    "${ASSETS[@]}"
 fi
 
 echo
