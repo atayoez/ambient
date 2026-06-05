@@ -23,8 +23,48 @@ use tauri::{
     AppHandle, Manager, RunEvent,
 };
 
+/// Uninstall from inside the app (About panel "Uninstall" button).
+/// Removes the desktop integration (binary copy, launcher entry, icon),
+/// optionally purges settings + saved wallpapers, then quits. On Linux
+/// only — `remove_integration` returns a friendly error elsewhere.
+#[tauri::command]
+async fn uninstall_self(purge: bool, app: AppHandle) -> Result<(), String> {
+    integrate::remove_integration()?;
+    if purge {
+        if let Ok(dir) = app.path().app_data_dir() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        if let Ok(dir) = app.path().app_config_dir() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+    // Quit shortly after so the IPC reply reaches the UI first.
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        solo_instance::cleanup();
+        handle.exit(0);
+    });
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Headless uninstall path: `Ambient.AppImage --uninstall` (also what
+    // the launcher's "Uninstall" desktop action runs). Remove the desktop
+    // integration and exit before spinning up GTK / the webview. Settings
+    // and saved wallpapers are intentionally left in place.
+    if std::env::args().any(|a| a == "--uninstall") {
+        match integrate::remove_integration() {
+            Ok(()) => println!(
+                "Ambient: removed the launcher entry, icon, and integrated binary. \
+                 Your settings and saved wallpapers were left in place."
+            ),
+            Err(e) => eprintln!("Ambient: uninstall failed: {e}"),
+        }
+        return;
+    }
+
     // Structured logging via the `tracing` crate. The env-filter reads
     // RUST_LOG so dev can crank up verbosity for specific modules
     // (`RUST_LOG=ambient_lib::rotation=debug tauri dev`) without
@@ -107,6 +147,7 @@ pub fn run() {
             renderer::render_preview,
             rotation::rotate_now,
             tray_icon::update_tray_theme,
+            uninstall_self,
         ])
         .setup(|app| {
             // Self-integrate when launched from an AppImage on Linux —

@@ -9,6 +9,7 @@
 // the website if that path fails (unsigned manifest, locked binary, …).
 
 import { getVersion } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { check } from '@tauri-apps/plugin-updater';
 import { useEffect, useState } from 'react';
@@ -29,6 +30,10 @@ type UpdateState =
 export default function About({ onClose }: { onClose: () => void }) {
   const [version, setVersion] = useState('');
   const [update, setUpdate] = useState<UpdateState>({ kind: 'idle' });
+  const [confirmingUninstall, setConfirmingUninstall] = useState(false);
+  const [purgeData, setPurgeData] = useState(false);
+  const [uninstalling, setUninstalling] = useState(false);
+  const [uninstallErr, setUninstallErr] = useState<string | null>(null);
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -49,6 +54,20 @@ export default function About({ onClose }: { onClose: () => void }) {
     if (r.status === 'available') setUpdate({ kind: 'available', version: r.version });
     else if (r.status === 'uptodate') setUpdate({ kind: 'uptodate' });
     else setUpdate({ kind: 'error' });
+  }
+
+  async function doUninstall() {
+    if (uninstalling) return;
+    setUninstalling(true);
+    setUninstallErr(null);
+    try {
+      // On success the app removes its launcher entry/binary and exits,
+      // so this invoke won't return.
+      await invoke('uninstall_self', { purge: purgeData });
+    } catch (e) {
+      setUninstalling(false);
+      setUninstallErr(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function install() {
@@ -122,6 +141,55 @@ export default function About({ onClose }: { onClose: () => void }) {
             {update.kind === 'available' && 'A new version is available.'}
             {update.kind === 'error' && 'Check failed — try again later.'}
           </span>
+        </div>
+
+        <div className="about-uninstall">
+          {confirmingUninstall ? (
+            <>
+              <label className="about-uninstall-purge">
+                <input
+                  type="checkbox"
+                  checked={purgeData}
+                  onChange={(e) => setPurgeData(e.target.checked)}
+                />
+                <span>Also delete my settings &amp; saved wallpapers</span>
+              </label>
+              <div className="about-uninstall-actions">
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={doUninstall}
+                  disabled={uninstalling}
+                >
+                  {uninstalling ? 'Removing…' : 'Confirm uninstall'}
+                </button>
+                <button
+                  type="button"
+                  className="about-link"
+                  onClick={() => {
+                    setConfirmingUninstall(false);
+                    setUninstallErr(null);
+                  }}
+                  disabled={uninstalling}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="about-uninstall-btn"
+              onClick={() => setConfirmingUninstall(true)}
+            >
+              Uninstall Ambient…
+            </button>
+          )}
+          {uninstallErr && (
+            <span className="about-uninstall-err" role="alert">
+              {uninstallErr}
+            </span>
+          )}
         </div>
 
         <div className="about-footer">

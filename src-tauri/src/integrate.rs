@@ -69,34 +69,88 @@ pub fn integrate_if_needed() {
     let _ = std::fs::write(&icon_dst, ICON_PNG);
 
     let bin_str = bin_dst.to_string_lossy();
+    let ver = env!("CARGO_PKG_VERSION");
+    // The "Uninstall" desktop action lets the user right-click the
+    // launcher icon → Uninstall, which re-runs the AppImage with
+    // `--uninstall` (handled in lib.rs run() before the GUI builds).
     let desktop = format!(
         "[Desktop Entry]\n\
          Type=Application\n\
          Name=Ambient\n\
          GenericName=Wallpaper Studio\n\
          Comment=Generate, fetch, and apply desktop wallpapers\n\
-         Exec={} %F\n\
+         Exec={bin_str} %F\n\
          Icon=me.oezcan.ambient\n\
          Categories=Graphics;Utility;\n\
          Keywords=wallpaper;background;desktop;pattern;emoji;generate;\n\
          StartupWMClass=Ambient\n\
          StartupNotify=true\n\
          Terminal=false\n\
-         X-AppImage-Version={}\n",
-        bin_str,
-        env!("CARGO_PKG_VERSION"),
+         Actions=Uninstall;\n\
+         X-AppImage-Version={ver}\n\
+         \n\
+         [Desktop Action Uninstall]\n\
+         Name=Uninstall Ambient\n\
+         Exec={bin_str} --uninstall\n",
     );
     let _ = std::fs::write(&desktop_dst, desktop);
 
-    // Refresh launcher caches. Both tools are best-effort — neither is
-    // guaranteed to exist on every distro, and the launcher usually
-    // picks up new .desktop files within a few seconds anyway.
+    refresh_launcher_caches(&home);
+}
+
+/// Refresh the launcher's .desktop + icon caches. Best-effort — neither
+/// tool is guaranteed to exist on every distro, and the launcher usually
+/// picks up changes within a few seconds anyway.
+#[cfg(target_os = "linux")]
+fn refresh_launcher_caches(home: &std::path::Path) {
     let _ = std::process::Command::new("update-desktop-database")
         .arg(home.join(".local/share/applications"))
         .status();
     let _ = std::process::Command::new("gtk-update-icon-cache")
         .arg(home.join(".local/share/icons/hicolor"))
         .status();
+}
+
+/// Remove the desktop integration this app wrote (binary copy, .desktop
+/// entry, icon) — for both the current `me.oezcan.ambient` id and the
+/// legacy `com.ambient.app` id, best-effort. Does NOT touch settings,
+/// library, or saved wallpapers; the caller decides whether to purge
+/// those. Invoked via `--uninstall` (CLI / desktop action) and the
+/// `uninstall_self` command (About panel).
+#[cfg(target_os = "linux")]
+pub fn remove_integration() -> Result<(), String> {
+    use std::path::PathBuf;
+    let home = PathBuf::from(std::env::var("HOME").map_err(|_| "no $HOME".to_string())?);
+    let apps = home.join(".local/share/applications");
+    let icons = home.join(".local/share/icons/hicolor/512x512/apps");
+    let targets = [
+        home.join(".local/bin/Ambient.AppImage"),
+        apps.join("me.oezcan.ambient.desktop"),
+        icons.join("me.oezcan.ambient.png"),
+        // Legacy (pre-0.7 bundle id), in case an old install lingers.
+        apps.join("com.ambient.app.desktop"),
+        icons.join("com.ambient.app.png"),
+    ];
+    let mut first_err = None;
+    for t in &targets {
+        if t.exists() {
+            if let Err(e) = std::fs::remove_file(t) {
+                first_err.get_or_insert(format!("remove {}: {e}", t.display()));
+            }
+        }
+    }
+    refresh_launcher_caches(&home);
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn remove_integration() -> Result<(), String> {
+    Err("Self-uninstall is only available for the Linux AppImage. On macOS \
+         drag Ambient to the Trash; on Windows use Settings → Apps."
+        .to_string())
 }
 
 #[cfg(not(target_os = "linux"))]
