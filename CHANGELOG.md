@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [1.0.2] — 2026-06-05
+
+### Added
 - **Three new wallpaper sources:** Bing Photo of the Day and Lorem Picsum
   (both free, no key), and Wallhaven (search-driven; works anonymously for
   SFW, optional key for more). Joins NASA, Unsplash, and Pexels.
