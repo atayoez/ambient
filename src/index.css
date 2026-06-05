@@ -119,15 +119,16 @@ textarea,
   position: absolute;
   top: 3px;
   left: 0;
-  /* Width and x-offset are driven by --ind-w / --ind-x, which App.tsx
-     writes onto .tabs after measuring the active tab's offsetWidth /
-     offsetLeft. Fallbacks (60 / 3) match the natural width of the
-     first emoji tab so the indicator lands roughly correctly on the
-     very first paint, before useLayoutEffect's measurement has had a
-     chance to refine it. */
-  width: var(--ind-w, 60px);
+  /* Pure-CSS positioning: every tab is a fixed --tab-w, so the indicator
+     just slides to `padding (3px) + active-index × tab-width`. App.tsx
+     sets --active-index (a plain number) on .tabs — no measuring, no
+     refs, no resize listener. The transform is correct on first paint
+     (no "jump from a fallback" to guard against), so the slide
+     transition is always on. */
+  --tab-w: 60px;
+  width: var(--tab-w);
   height: 36px;
-  background: rgba(255, 255, 255, 0.20);
+  background: rgba(255, 255, 255, 0.2);
   /* Full pill radius so the inner indicator nests cleanly inside the
      outer .tabs pill — both are capped to half their own height, so
      `outer_radius - inner_radius` equals the .tabs padding (3px) and
@@ -137,20 +138,9 @@ textarea,
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     inset 0 -1px 0 rgb(var(--shadow-tint) / 0.08),
     0 1px 3px rgb(var(--shadow-tint) / 0.18);
-  /* Transition is intentionally disabled until App.tsx adds the
-     `initialized` class on .tabs after the first measurement runs.
-     Without this guard, the indicator visibly animates from its
-     fallback width/x to the measured values on first mount — reads as
-     "indicator is bugged" rather than "indicator is sliding". */
-  transition: none;
   pointer-events: none;
-  transform: translateX(var(--ind-x, 3px));
-}
-
-.tabs.initialized .tab-indicator {
-  transition:
-    transform var(--t-pill) var(--ease-pill),
-    width var(--t-pill) var(--ease-pill);
+  transform: translateX(calc(3px + var(--active-index, 0) * var(--tab-w)));
+  transition: transform var(--t-pill) var(--ease-pill);
 }
 
 /* --- Glass tab-style buttons --- */
@@ -162,13 +152,13 @@ textarea,
 }
 
 .tab {
-  /* Each tab renders a big emoji glyph (🎨 🌌 ✨ 🖼️). 28px font-size
-     reads as a real nav target rather than a chip. The 36px height +
-     line-height: 1 vertically center the glyph in the pill cleanly. */
+  /* Fixed 60px width so the .tab-indicator can position itself purely in
+     CSS from --active-index (index × 60px). The icon is flex-centred. */
   position: relative;
+  width: 60px;
   min-width: 60px;
   height: 36px;
-  padding: 0 14px;
+  padding: 0;
   background: transparent;
   border: none;
   outline: none;

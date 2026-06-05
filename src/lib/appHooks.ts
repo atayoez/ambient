@@ -11,7 +11,6 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen as listenTauri } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useCallback, useEffect, useState } from 'react';
 import { getStartupLicense, type LicenseInfo } from './license';
 import { checkForUpdate, type UpdateInfo } from './updater';
@@ -102,48 +101,6 @@ export function useUpdateBanner(license: LicenseInfo | null): UseUpdateBanner {
   const dismiss = useCallback(() => setUpdateInfo(null), []);
 
   return { updateInfo, dismiss };
-}
-
-// ---------------------------------------------------------------------
-// Window maximize state
-// ---------------------------------------------------------------------
-
-export function useWindowMaximized(): boolean {
-  const [isMaximized, setIsMaximized] = useState(false);
-
-  useEffect(() => {
-    const win = getCurrentWindow();
-    let cancelled = false;
-    let unlistenResized: (() => void) | null = null;
-    (async () => {
-      try {
-        const initial = await win.isMaximized();
-        if (cancelled) return;
-        setIsMaximized(initial);
-        // onResized fires for both user drag-resizes and OS-driven
-        // maximize/restore. We re-check isMaximized rather than diffing
-        // sizes because some WMs (KDE Wayland especially) report
-        // tiled-edge as "maximized" — the Tauri API gives the
-        // canonical answer.
-        unlistenResized = await win.onResized(async () => {
-          try {
-            const max = await win.isMaximized();
-            if (cancelled) return;
-            setIsMaximized(max);
-          } catch {}
-        });
-      } catch {
-        // No window API available (running outside Tauri, e.g. plain
-        // vite dev in a browser tab). Stay in the windowed default.
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (unlistenResized) unlistenResized();
-    };
-  }, []);
-
-  return isMaximized;
 }
 
 // ---------------------------------------------------------------------

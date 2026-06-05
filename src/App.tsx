@@ -1,5 +1,5 @@
 import { listen as listenTauri } from '@tauri-apps/api/event';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import {
@@ -104,28 +104,11 @@ export default function App() {
   useTrayThemeSync();
   useTabKeybindings<Tab>(TAB_IDS, setTab);
 
+  // Tabs are equal fixed width, so the sliding indicator is pure CSS:
+  // we just hand it the active index and it positions itself
+  // (translateX = padding + index × tab-width). No measuring, no refs,
+  // no resize listener — see `.tab-indicator` in index.css.
   const activeTabIndex = TABS.findIndex((t) => t.id === tab);
-
-  // Dynamic tab-pill sizing. The indicator's width and x-offset are
-  // measured from the active tab's offsetLeft / offsetWidth, so emoji
-  // glyphs (or future localizations) slot in cleanly. Re-measures on
-  // active-tab change and on window resize.
-  const tabsContainerRef = useRef<HTMLElement>(null);
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [tabsInitialized, setTabsInitialized] = useState(false);
-  useLayoutEffect(() => {
-    function measure() {
-      const container = tabsContainerRef.current;
-      const active = tabRefs.current[activeTabIndex];
-      if (!container || !active) return;
-      container.style.setProperty('--ind-x', `${active.offsetLeft}px`);
-      container.style.setProperty('--ind-w', `${active.offsetWidth}px`);
-    }
-    measure();
-    setTabsInitialized(true);
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [activeTabIndex]);
 
   return (
     <div className="app">
@@ -170,16 +153,13 @@ export default function App() {
         // participate in tab-content scroll, and gated on `license` so the
         // gate screen isn't littered with non-functional nav.
         <nav
-          className={tabsInitialized ? 'tabs initialized' : 'tabs'}
-          ref={tabsContainerRef}
+          className="tabs"
+          style={{ '--active-index': activeTabIndex } as React.CSSProperties}
         >
           <div className="tab-indicator" />
-          {TABS.map(({ id, label, icon }, idx) => (
+          {TABS.map(({ id, label, icon }) => (
             <button
               key={id}
-              ref={(el) => {
-                tabRefs.current[idx] = el;
-              }}
               className={tab === id ? 'tab active' : 'tab'}
               onClick={() => setTab(id)}
               aria-label={label}
