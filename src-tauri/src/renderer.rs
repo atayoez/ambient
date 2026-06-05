@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use image::codecs::jpeg::JpegEncoder;
 use image::ExtendedColorType;
 use serde::Deserialize;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tiny_skia::{
     Color, FillRule, FilterQuality, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap,
     PixmapPaint, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
@@ -1520,11 +1520,7 @@ fn save_pixmap_16bit_png(
     filename: &str,
     app: &AppHandle,
 ) -> Result<String, String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("resolve app_data_dir: {}", e))?;
-    let wallpapers = data_dir.join("wallpapers");
+    let wallpapers = crate::library::wallpaper_dir(app)?;
     std::fs::create_dir_all(&wallpapers)
         .map_err(|e| format!("create wallpapers dir: {}", e))?;
     let safe = crate::library::safe_filename(filename);
