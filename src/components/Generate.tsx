@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { generateWallpaper } from '../lib/aigen';
 import { dispatch } from '../lib/events';
 import { useDebouncedCallback, useDraftState, useKeydown } from '../lib/hooks';
-import { useSecret } from '../lib/secrets';
 import { loadSettings, patchSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
@@ -59,10 +58,6 @@ export default function Generate() {
     'generate.lastResult',
     null,
   );
-  // OpenAI key moved to the OS keyring in Phase 3 — bound via useSecret
-  // instead of patchSettings.
-  const [openaiKey, setOpenaiKey, openaiKeyLoaded] = useSecret('openai_key');
-
   useEffect(() => {
     loadSettings().then(setSettings);
   }, []);
@@ -189,29 +184,16 @@ export default function Generate() {
             />
           </label>
           {settings.genProvider === 'openai' && (
-            <>
-              <label className="field">
-                <span>Model</span>
-                <input
-                  type="text"
-                  value={settings.openaiModel}
-                  onChange={(e) => update({ openaiModel: e.target.value })}
-                  placeholder="dall-e-3"
-                  aria-label="OpenAI model"
-                />
-              </label>
-              <label className="field">
-                <span>API key</span>
-                <input
-                  type="password"
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder="sk-…"
-                  disabled={!openaiKeyLoaded}
-                  aria-label="OpenAI API key"
-                />
-              </label>
-            </>
+            <label className="field">
+              <span>Model</span>
+              <input
+                type="text"
+                value={settings.openaiModel}
+                onChange={(e) => update({ openaiModel: e.target.value })}
+                placeholder="dall-e-3"
+                aria-label="OpenAI model"
+              />
+            </label>
           )}
         </div>
 

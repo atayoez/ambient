@@ -15,7 +15,6 @@ import { setWallpaper } from '../lib/wallpaper';
 import { CheckIcon, RefreshIcon } from './Icons';
 import { StatusInline } from './layout';
 import OptionScroller from './OptionScroller';
-import RotationControl from './RotationControl';
 
 const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = [
   {
@@ -68,8 +67,10 @@ export default function Sources() {
 
   // BYO API keys — Phase 3 moved storage from Settings JSON to the OS
   // keyring. The hooks own their own draft state + debounced persist.
-  const [unsplashKey, setUnsplashKey, unsplashKeyLoaded] = useSecret('unsplash_key');
-  const [pexelsKey, setPexelsKey, pexelsKeyLoaded] = useSecret('pexels_key');
+  // Keys are set in the Settings tab now; here we only read them (to
+  // gate fetching + the "add a key" hint), so the setters are dropped.
+  const [unsplashKey, , unsplashKeyLoaded] = useSecret('unsplash_key');
+  const [pexelsKey, , pexelsKeyLoaded] = useSecret('pexels_key');
   const secretsLoaded = unsplashKeyLoaded && pexelsKeyLoaded;
 
   const prevSource = useRef<SourceKind | null>(null);
@@ -256,7 +257,7 @@ export default function Sources() {
 
   const emptyMessage = canFetch(settings)
     ? 'Loading preview…'
-    : 'Add an API key below to see a preview from this source.';
+    : 'Add your API key in Settings to preview this source.';
 
   return (
     <div className="sources">
@@ -324,65 +325,11 @@ export default function Sources() {
             </label>
           )}
 
-          <div className="field">
-            <span>Auto-rotate</span>
-            {settings.source === 'nasa-apod' ? (
-              <div className="rotation-control">
-                <div
-                  className="rotation-row"
-                  data-enabled={settings.rotationSource === 'sources'}
-                >
-                  <input
-                    type="checkbox"
-                    checked={settings.rotationSource === 'sources'}
-                    aria-label="Refresh from NASA APOD daily"
-                    onChange={(e) =>
-                      update({ rotationSource: e.target.checked ? 'sources' : 'off' })
-                    }
-                  />
-                  <span>daily</span>
-                </div>
-                {settings.rotationSource === 'library' && (
-                  <p className="muted small">
-                    Library shuffle is on — this will replace it.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <RotationControl
-                mode="sources"
-                ariaLabel="Pull a new image from this source"
-                otherInUseHint="Library shuffle is on — this will replace it."
-              />
-            )}
-          </div>
-
-          {settings.source === 'unsplash' && (
-            <label className="field">
-              <span>API key</span>
-              <input
-                type="password"
-                value={unsplashKey}
-                onChange={(e) => setUnsplashKey(e.target.value)}
-                placeholder="unsplash.com/developers"
-                aria-label="Unsplash API key"
-                disabled={!unsplashKeyLoaded}
-              />
-            </label>
-          )}
-
-          {settings.source === 'pexels' && (
-            <label className="field">
-              <span>API key</span>
-              <input
-                type="password"
-                value={pexelsKey}
-                onChange={(e) => setPexelsKey(e.target.value)}
-                placeholder="pexels.com/api"
-                aria-label="Pexels API key"
-                disabled={!pexelsKeyLoaded}
-              />
-            </label>
+          {settings.source !== 'nasa-apod' && !canFetch(settings) && (
+            <p className="muted small">
+              Add your {settings.source === 'unsplash' ? 'Unsplash' : 'Pexels'} API key in
+              Settings to preview this source.
+            </p>
           )}
         </div>
 

@@ -68,76 +68,13 @@ textarea,
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* Opaque surface — the panel's interior. The Tauri window is still
-     `transparent: true` so the rounded-corner + drop-shadow shape
-     reads as a floating window, but the WebView paints against this
-     solid color rather than re-blurring the desktop wallpaper every
-     frame. (Blurring the wallpaper behind a transparent window isn't
-     possible from the app on Linux/WebKitGTK — backdrop-filter only
-     blurs in-page content, and window-vibrancy has no Linux support;
-     it's a compositor-side effect.) The window background stays
-     achromatic; visual interest lives in the preview / library. */
-  /* Opaque base + a faint tint wash from the top so the window interior
-     carries the current palette's colour (the chrome's version of the
-     site's tinted field), plus a tinted edge + outer glow. */
-  background:
-    radial-gradient(
-      130% 90% at 50% 0%,
-      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.09) 0%,
-      transparent 58%
-    ),
-    var(--bg-base);
-  border-radius: var(--radius-window);
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
-  box-shadow:
-    var(--shadow-window),
-    0 0 64px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.1),
-    inset 0 1px 0 var(--highlight-edge);
+  /* Transparent: the custom titlebar + opaque grey interior were removed
+     in favour of native window decorations (the OS draws the frame). The
+     WebView itself is see-through (window `transparent: true`); the
+     full-bleed preview tabs paint their own surface, and the Settings tab
+     supplies its own backdrop. No more grey window fill. */
+  background: transparent;
   overflow: hidden;
-  transition:
-    background 600ms var(--ease-pill),
-    border-color 600ms var(--ease-pill),
-    box-shadow 600ms var(--ease-pill);
-}
-
-/* When maximized, the window touches every screen edge — rounded corners
-   leave dead-pixel gaps in the four corners, the 1px border draws inside
-   the screen, and the drop shadow is clipped at the edge. Strip all three
-   in this state so the app sits flush. */
-.app[data-maximized='true'] {
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
-}
-
-/* Earlier iterations of the .app had a cursor-following specular
-   highlight (.app::before) and a slow diagonal shimmer band
-   (.app::after). Both removed during the chrome-motion cleanup —
-   the background is now achromatic and static. */
-
-/* --- Custom titlebar — drag region + window controls only. Tab nav
-   moved to a floating bottom pill (Liquid Glass / iOS style); see the
-   .tabs rule below. --- */
-.titlebar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
-  user-select: none;
-  -webkit-user-select: none;
-  height: 42px;
-  cursor: default;
-  padding: 0 6px;
-}
-
-.titlebar-drag {
-  flex: 1;
-}
-
-.titlebar > * {
-  position: relative;
-  z-index: 1;
 }
 
 /* Save toast uses isolation so its hover spotlight stays contained within
@@ -219,15 +156,9 @@ textarea,
     width var(--t-pill) var(--ease-pill);
 }
 
-.window-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
 /* --- Glass tab-style buttons --- */
 .tab,
-.wc {
+.tab-info {
   -webkit-tap-highlight-color: transparent;
   appearance: none;
   -webkit-appearance: none;
@@ -308,34 +239,40 @@ textarea,
   }
 }
 
-.wc {
+/* Info button — sits at the right end of the bottom tab pill, separated
+   from the tabs by a hairline divider. Not a tab, so no slide indicator. */
+.tab-info {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  background: transparent;
+  width: 40px;
+  height: 36px;
+  margin-left: 4px;
+  padding-left: 8px;
   border: none;
-  outline: none;
-  color: var(--muted);
+  border-left: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.16);
+  background: transparent;
+  color: color-mix(in oklch, var(--text) 68%, transparent);
   cursor: pointer;
-  border-radius: var(--radius-inline);
-  padding: 0;
-  transition: background var(--t-fast) ease, color var(--t-fast) ease;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  transition: color var(--t-base) ease;
+  z-index: 1;
 }
 
-.wc:hover {
-  background: var(--surface-2);
+.tab-info:hover,
+.tab-info:focus-visible {
   color: var(--text);
+  outline: none;
 }
 
-.wc:active {
-  transform: none;
-}
-
-.wc.close:hover {
-  background: color-mix(in oklch, var(--danger) 88%, transparent);
-  color: white;
+@media (prefers-color-scheme: light) {
+  .tab-info {
+    color: rgba(255, 255, 255, 0.88);
+    filter: drop-shadow(0 1px 3px rgb(var(--shadow-tint) / 0.7));
+  }
+  .tab-info:hover {
+    color: #ffffff;
+  }
 }
 
 .content {
@@ -698,24 +635,6 @@ input[type='range']:active::-moz-range-thumb {
   font-weight: var(--fw-semibold);
 }
 
-/* The titlebar now carries the page title for whichever tab is
-   active. Absolute-centered so the .titlebar-drag region's flex
-   layout (1fr drag + window-controls on the right) isn't disturbed.
-   pointer-events: none so the title doesn't intercept drag clicks. */
-.titlebar-title {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  margin: 0;
-  font-size: 24px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.01em;
-  color: var(--text);
-  line-height: 1;
-  pointer-events: none;
-}
-
 /* --- Tab content wrappers --- */
 .tab-page,
 .generate,
@@ -727,6 +646,76 @@ input[type='range']:active::-moz-range-thumb {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* --- Settings tab — a centred, scrollable column of glass groups.
+   Has its own quiet backdrop since the app window is transparent. --- */
+.settings {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: radial-gradient(
+    120% 100% at 50% 0%,
+    rgba(40, 40, 55, 0.55),
+    rgba(12, 12, 18, 0.88)
+  );
+}
+
+.settings-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  /* Bottom padding clears the floating tab pill. */
+  padding: 22px 16px 92px;
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 420px;
+  height: max-content;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-container);
+  padding: 16px;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+
+.settings-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-toggle input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-os, var(--accent));
+  cursor: pointer;
 }
 
 

@@ -159,6 +159,63 @@ pub fn integrate_if_needed() {
     // Windows (the MSI installer registers Start Menu entries).
 }
 
+// --- Start-on-login (autostart) ------------------------------------
+// Implemented via an XDG autostart .desktop in ~/.config/autostart,
+// which every Linux DE (KDE, GNOME, XFCE, …) honours — no extra plugin.
+
+#[cfg(target_os = "linux")]
+fn autostart_path() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(std::path::PathBuf::from(home).join(".config/autostart/me.oezcan.ambient.desktop"))
+}
+
+#[cfg(target_os = "linux")]
+pub fn autostart_enabled() -> bool {
+    autostart_path().map(|p| p.exists()).unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+pub fn set_autostart(enabled: bool) -> Result<(), String> {
+    let path = autostart_path().ok_or("no $HOME")?;
+    if !enabled {
+        if path.exists() {
+            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
+        return Ok(());
+    }
+    let home = std::path::PathBuf::from(std::env::var("HOME").map_err(|_| "no $HOME")?);
+    // Prefer the integrated copy; fall back to the running AppImage.
+    let bin = home.join(".local/bin/Ambient.AppImage");
+    let exec = if bin.exists() {
+        bin.to_string_lossy().into_owned()
+    } else {
+        std::env::var("APPIMAGE").unwrap_or_else(|_| bin.to_string_lossy().into_owned())
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let desktop = format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=Ambient\n\
+         Exec={exec}\n\
+         Icon=me.oezcan.ambient\n\
+         Terminal=false\n\
+         X-GNOME-Autostart-enabled=true\n"
+    );
+    std::fs::write(&path, desktop).map_err(|e| e.to_string())
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn autostart_enabled() -> bool {
+    false
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn set_autostart(_enabled: bool) -> Result<(), String> {
+    Err("Start-on-login is currently only wired up for the Linux build.".to_string())
+}
+
 // Compile-time icon for the desktop file's `Icon=` reference. ~73 KB
 // at 512x512 — pulled into the binary so a freshly-downloaded
 // AppImage can integrate without needing any external assets on disk.

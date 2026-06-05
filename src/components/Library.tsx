@@ -20,7 +20,6 @@ import { deleteWallpaper, listLocalWallpapers, setWallpaper } from '../lib/wallp
 import { CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
 import { StatusInline } from './layout';
 import OptionScroller from './OptionScroller';
-import RotationControl from './RotationControl';
 
 // Whether a wallpaper's tag makes it eligible for the given theme.
 function modeMatches(mode: WallpaperMode | undefined, dark: boolean): boolean {
@@ -264,27 +263,10 @@ export default function Library() {
             onChange={onChangeThemeMode}
             ariaLabel="Theme mode"
           />
-          <div className="field">
-            <span>Shuffle</span>
-            <RotationControl
-              mode="library"
-              ariaLabel="Shuffle saved wallpapers"
-              otherInUseHint="Sources auto-rotate is on — this will replace it."
-            />
-          </div>
-          <label className="field lib-lockscreen">
-            <span>Lock screen</span>
-            <input
-              type="checkbox"
-              checked={settings.lockscreen}
-              onChange={async (e) => {
-                const next = await patchSettings({ lockscreen: e.target.checked });
-                setSettings(next);
-                dispatch('settings-changed');
-              }}
-              aria-label="Also set the lock screen wallpaper"
-            />
-          </label>
+          <p className="muted small">
+            Tag the selected wallpaper light/dark with the sun/moon buttons. Auto-rotate
+            &amp; lock screen live in Settings.
+          </p>
         </div>
 
         {selected && (

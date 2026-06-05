@@ -1,10 +1,10 @@
 import { listen as listenTauri } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import {
+  GearIcon,
   ImageIcon,
   InfoIcon,
   LayoutGridIcon,
@@ -14,6 +14,7 @@ import {
 import Library from './components/Library';
 import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
+import Settings from './components/Settings';
 import Sources from './components/Sources';
 import UpdateBanner from './components/UpdateBanner';
 import {
@@ -21,23 +22,22 @@ import {
   useTabKeybindings,
   useTrayThemeSync,
   useUpdateBanner,
-  useWindowMaximized,
 } from './lib/appHooks';
 import { dispatch } from './lib/events';
 import { usePersistedState } from './lib/hooks';
 import type { Wallpaper } from './lib/types';
 
-type Tab = 'patterns' | 'sources' | 'library' | 'generate';
+type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
 
 // Tabs display an SVG icon (rendered big) in the bottom pill. `label`
-// stays as the accessible name + the tooltip text + the page-title H1
-// above each tab's content; the icon is just the visual surface inside
-// the pill.
+// stays as the accessible name + the tooltip text; the icon is the
+// visual surface inside the pill.
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'patterns', label: 'Patterns', icon: <PaletteIcon size={24} /> },
   { id: 'sources', label: 'Sources', icon: <ImageIcon size={24} /> },
   { id: 'generate', label: 'Generate', icon: <WandIcon size={24} /> },
   { id: 'library', label: 'Library', icon: <LayoutGridIcon size={24} /> },
+  { id: 'settings', label: 'Settings', icon: <GearIcon size={24} /> },
 ];
 const TAB_IDS = TABS.map((t) => t.id) as readonly Tab[];
 
@@ -100,7 +100,6 @@ export default function App() {
 
   // Cross-cutting app concerns. Each hook owns one effect; App.tsx
   // stays declarative.
-  const isMaximized = useWindowMaximized();
   const { license, licenseLoaded, revokedMsg, onActivated } = useLicenseGate();
   const { updateInfo, dismiss: dismissUpdate } = useUpdateBanner(license);
   // OS-accent chrome tinting intentionally removed: the app is fully
@@ -110,26 +109,6 @@ export default function App() {
   // not chrome.
   useTrayThemeSync();
   useTabKeybindings<Tab>(TAB_IDS, setTab);
-
-  function onTitlebarMouseDown(e: React.MouseEvent) {
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, select, textarea')) return;
-    void getCurrentWindow().startDragging();
-  }
-
-  async function minimize() {
-    await getCurrentWindow().minimize();
-  }
-  async function closeWindow() {
-    // Close (not hide) — the CloseRequested handler in Rust destroys the
-    // webview entirely so the tray-resident process doesn't keep
-    // ~150 MB of GPU layers, backdrop-filter surfaces, and decoded
-    // image caches alive. Tray "Open Ambient" rebuilds the window
-    // lazily. Process survival on last-window-close is handled by the
-    // RunEvent::ExitRequested prevent_exit in lib.rs.
-    await getCurrentWindow().close();
-  }
 
   const activeTabIndex = TABS.findIndex((t) => t.id === tab);
 
@@ -155,62 +134,7 @@ export default function App() {
   }, [activeTabIndex]);
 
   return (
-    <div className="app" data-maximized={isMaximized || undefined}>
-      <header className="titlebar" onMouseDown={onTitlebarMouseDown}>
-        <div className="titlebar-drag" />
-        {license && (
-          <h1 className="titlebar-title" aria-live="polite">
-            {TABS[activeTabIndex]?.label ?? ''}
-          </h1>
-        )}
-        <div className="window-controls">
-          {license && (
-            <button
-              onClick={() => setAboutOpen(true)}
-              aria-label="About Ambient"
-              title="About Ambient"
-              className="wc"
-            >
-              <InfoIcon size={13} />
-            </button>
-          )}
-          <button onClick={minimize} aria-label="Minimize" className="wc">
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <line
-                x1="2"
-                y1="5"
-                x2="8"
-                y2="5"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <button onClick={closeWindow} aria-label="Close" className="wc close">
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <line
-                x1="2.5"
-                y1="2.5"
-                x2="7.5"
-                y2="7.5"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-              <line
-                x1="7.5"
-                y1="2.5"
-                x2="2.5"
-                y2="7.5"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </header>
+    <div className="app">
       <main className="content">
         {!licenseLoaded ? (
           // Briefly empty while loadLicense() finishes — usually a
@@ -238,6 +162,7 @@ export default function App() {
                     {t.id === 'sources' && <Sources />}
                     {t.id === 'generate' && <Generate />}
                     {t.id === 'library' && <Library />}
+                    {t.id === 'settings' && <Settings />}
                   </ErrorBoundary>
                 </div>
               );
@@ -269,6 +194,16 @@ export default function App() {
               <span aria-hidden="true">{icon}</span>
             </button>
           ))}
+          {/* Info (About) — rightmost in the bottom bar, not a tab so it
+              gets no sliding indicator. */}
+          <button
+            className="tab-info"
+            onClick={() => setAboutOpen(true)}
+            aria-label="About Ambient"
+            title="About Ambient"
+          >
+            <InfoIcon size={18} />
+          </button>
         </nav>
       )}
       {license && aboutOpen && <About onClose={() => setAboutOpen(false)} />}

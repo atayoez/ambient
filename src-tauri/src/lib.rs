@@ -48,6 +48,19 @@ async fn uninstall_self(purge: bool, app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether "start on login" is currently enabled (XDG autostart entry
+/// present). See integrate::autostart_*.
+#[tauri::command]
+fn get_autostart() -> bool {
+    integrate::autostart_enabled()
+}
+
+/// Enable/disable start-on-login.
+#[tauri::command]
+fn set_autostart(enabled: bool) -> Result<(), String> {
+    integrate::set_autostart(enabled)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Headless uninstall path: `Ambient.AppImage --uninstall` (also what
@@ -148,6 +161,8 @@ pub fn run() {
             rotation::rotate_now,
             tray_icon::update_tray_theme,
             uninstall_self,
+            get_autostart,
+            set_autostart,
         ])
         .setup(|app| {
             // Self-integrate when launched from an AppImage on Linux —
