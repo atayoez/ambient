@@ -128,6 +128,58 @@ pub fn run() {
                 std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
             }
         }
+
+        // Steer EGL away from a stuck NVIDIA vendor. libglvnd's EGL loader
+        // scans /usr/share/glvnd/egl_vendor.d in filename order, and
+        // `10_nvidia.json` (installed by nvidia-utils) sorts ahead of
+        // `50_mesa.json`. On a machine with no NVIDIA GPU — e.g. an
+        // AMD/Intel laptop where `nvidia-utils` was pulled in transitively
+        // (Steam depends on it) — WebKit's web process still dlopens
+        // libEGL_nvidia first. With no device to bind to it never really
+        // initializes, but it registers teardown handlers that segfault on
+        // process exit (SIGSEGV in posix_memalign during the webview's
+        // destroy), spamming 90 MB coredumps. Detect that exact case —
+        // an NVIDIA EGL vendor present while the kernel module is NOT
+        // loaded — and point our own processes at the remaining (Mesa /
+        // other) vendors only. A real NVIDIA system (module loaded) or an
+        // explicit user override is left untouched.
+        let egl_dir = std::path::Path::new("/usr/share/glvnd/egl_vendor.d");
+        let nvidia_loaded = std::path::Path::new("/sys/module/nvidia").exists();
+        if !nvidia_loaded && std::env::var_os("__EGL_VENDOR_LIBRARY_FILENAMES").is_none() {
+            if let Ok(entries) = std::fs::read_dir(egl_dir) {
+                let mut jsons: Vec<std::path::PathBuf> = entries
+                    .flatten()
+                    .map(|e| e.path())
+                    .filter(|p| p.extension().is_some_and(|x| x == "json"))
+                    .collect();
+                let is_nvidia = |p: &std::path::Path| {
+                    p.file_name()
+                        .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("nvidia"))
+                };
+                // Only intervene if there's actually an NVIDIA vendor to skip
+                // and at least one non-NVIDIA vendor left to fall back to.
+                if jsons.iter().any(|p| is_nvidia(p)) {
+                    jsons.retain(|p| !is_nvidia(p));
+                    if !jsons.is_empty() {
+                        jsons.sort();
+                        let joined = jsons
+                            .iter()
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .collect::<Vec<_>>()
+                            .join(":");
+                        // SAFETY: same as above — set before any GTK/WebKit
+                        // thread spawns and before glvnd reads the variable.
+                        unsafe {
+                            std::env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", joined);
+                        }
+                        tracing::info!(
+                            vendors = %std::env::var("__EGL_VENDOR_LIBRARY_FILENAMES").unwrap_or_default(),
+                            "steered EGL away from an inactive NVIDIA vendor"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     // "New launch wins" solo-instance handoff. Reads the previous

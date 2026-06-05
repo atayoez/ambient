@@ -18,6 +18,14 @@ is added on top. Edit this file as you go, not at release time.
 ### Changed
 
 ### Fixed
+- **No more crash on close on AMD/Intel machines that have NVIDIA
+  packages installed.** libglvnd loads the `10_nvidia` EGL vendor ahead
+  of Mesa, so on a box with no NVIDIA GPU (e.g. where Steam pulled in
+  `nvidia-utils`) WebKit's web process would segfault tearing down the
+  inactive NVIDIA driver, dumping a 90 MB core each time the window
+  closed. Ambient now points its own processes at the Mesa/other EGL
+  vendors when an NVIDIA vendor is present but its kernel module isn't
+  loaded — real NVIDIA systems and explicit overrides are untouched.
 
 ## [1.0.2] — 2026-06-05
 
