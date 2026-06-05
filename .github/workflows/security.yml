@@ -38,6 +38,12 @@ jobs:
   gitleaks:
     name: gitleaks (secrets scan)
     runs-on: ubuntu-22.04
+    # gitleaks-action posts its result as a check-run; without checks:write
+    # the default (restricted) token can't, and the run logs a non-fatal
+    # "Resource not accessible by integration" error. Grant the minimum.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v6
         with:
