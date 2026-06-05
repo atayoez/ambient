@@ -244,11 +244,6 @@ jobs:
           path: dist
           pattern: ambient-*
 
-      # `rpm` provides the rpmsign tooling ci-publish.sh uses to GPG-sign
-      # the .rpm packages (so zypper/dnf don't warn about unsigned files).
-      - name: Install rpm signing tooling
-        run: sudo apt-get update && sudo apt-get install -y rpm
-
       - name: Publish to R2 + GitHub Releases
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

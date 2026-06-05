@@ -98,30 +98,19 @@ echo "==> Signing RPMs"
 # e.g. a fork build or a manual re-run without secrets — so the release
 # still goes out rather than failing on a missing secret.
 if [[ -n "${RPM_GPG_PRIVATE_KEY:-}" ]]; then
-  GNUPGHOME="$(mktemp -d)"; export GNUPGHOME; chmod 700 "$GNUPGHOME"
-  echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
-  printf '%s' "$RPM_GPG_PRIVATE_KEY" | base64 -d | gpg --batch --quiet --import
-  GPG_FPR="$(gpg --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
-  PASS_FILE="$(mktemp)"; printf '%s' "${RPM_GPG_PASSPHRASE:-}" > "$PASS_FILE"
-  # rpm shells out to this command to produce the detached header signature.
-  cat > "$HOME/.rpmmacros" <<EOF
-%_signature gpg
-%_gpg_name $GPG_FPR
-%__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback --passphrase-file $PASS_FILE --no-secmem-warning -u "%{_gpg_name}" --digest-algo sha256 -sbo %{__signature_filename} %{__plaintext_filename}
-EOF
-  rpm --addsign "$OUT/$RPM_X64_NAME" "$OUT/$RPM_ARM_NAME"
-  # Hard-fail the release if either rpm didn't actually pick up a signature
-  # — better a failed job than silently shipping unsigned packages.
-  for r in "$OUT/$RPM_X64_NAME" "$OUT/$RPM_ARM_NAME"; do
-    sig="$(rpm -qp --qf '%{RSAHEADER:pgpsig}|%{SIGPGP:pgpsig}' "$r" 2>/dev/null || true)"
-    if echo "$sig" | grep -qi 'key id'; then
-      echo "    signed: $(basename "$r")"
-    else
-      echo "    ERROR: $(basename "$r") is unsigned after rpm --addsign" >&2
-      exit 1
-    fi
-  done
-  rm -f "$PASS_FILE"; rm -rf "$GNUPGHOME"; unset GNUPGHOME
+  # Sign inside a pinned rpm 4.x container (AlmaLinux 9). Two reasons it's
+  # containerised rather than native: the host may have no rpm tooling (the
+  # self-hosted Arch runner can't install rpm-tools — it conflicts with
+  # rpmextract/flatpak-builder), and rpm 6.0 changed the signing macros so
+  # we pin a stable rpm 4.x toolchain. The signature it produces verifies
+  # everywhere (zypper/dnf/rpm). scripts/sign-rpms.sh runs in the container;
+  # ${CONTAINER:-docker} is `docker` on GitHub runners and the podman
+  # docker-shim on the self-hosted box.
+  "${CONTAINER:-docker}" run --rm \
+    -v "$OUT":/out -v "$REPO_ROOT/scripts":/scripts:ro \
+    -e RPM_GPG_PRIVATE_KEY -e RPM_GPG_PASSPHRASE \
+    docker.io/library/almalinux:9 \
+    bash /scripts/sign-rpms.sh "/out/$RPM_X64_NAME" "/out/$RPM_ARM_NAME"
 else
   echo "    RPM_GPG_PRIVATE_KEY not set — shipping UNSIGNED rpms (zypper/dnf will warn)"
 fi
