@@ -16,6 +16,14 @@ is added on top. Edit this file as you go, not at release time.
 ### Added
 
 ### Changed
+
+### Fixed
+
+## [1.0.1] — 2026-06-05
+
+### Added
+
+### Changed
 - **Linux is native-packages-only now** — the AppImage was dropped. Its
   bundled GPU/Mesa libraries blank-screened the window on some hosts;
   `.deb`/`.rpm`/`.pkg.tar.zst` link the system WebKitGTK and don't. Linux
