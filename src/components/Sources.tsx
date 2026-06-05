@@ -284,54 +284,44 @@ export default function Sources() {
 
         {!previewPath && <p className="gen-empty-hint">{emptyMessage}</p>}
 
-        <div className="gen-panel pat-side">
-          {settings.source === 'unsplash' && (
+        {/* NASA has nothing to configure, so it gets no side panel — only
+            Unsplash/Pexels (search query + an "add your key" hint). */}
+        {settings.source !== 'nasa-apod' && (
+          <div className="gen-panel pat-side">
             <label className="field">
               <span>Search</span>
               <input
                 type="text"
-                value={unsplashQueryDraft}
-                onChange={(e) => setUnsplashQueryDraft(e.target.value)}
-                onBlur={commitUnsplashQuery}
+                value={
+                  settings.source === 'unsplash' ? unsplashQueryDraft : pexelsQueryDraft
+                }
+                onChange={(e) =>
+                  settings.source === 'unsplash'
+                    ? setUnsplashQueryDraft(e.target.value)
+                    : setPexelsQueryDraft(e.target.value)
+                }
+                onBlur={
+                  settings.source === 'unsplash' ? commitUnsplashQuery : commitPexelsQuery
+                }
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    commitUnsplashQuery();
+                    if (settings.source === 'unsplash') commitUnsplashQuery();
+                    else commitPexelsQuery();
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
-                placeholder="nature"
-                aria-label="Unsplash search query"
+                placeholder={settings.source === 'unsplash' ? 'nature' : 'mountains'}
+                aria-label="Search query"
               />
             </label>
-          )}
-
-          {settings.source === 'pexels' && (
-            <label className="field">
-              <span>Search</span>
-              <input
-                type="text"
-                value={pexelsQueryDraft}
-                onChange={(e) => setPexelsQueryDraft(e.target.value)}
-                onBlur={commitPexelsQuery}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    commitPexelsQuery();
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                placeholder="mountains"
-                aria-label="Pexels search query"
-              />
-            </label>
-          )}
-
-          {settings.source !== 'nasa-apod' && !canFetch(settings) && (
-            <p className="muted small">
-              Add your {settings.source === 'unsplash' ? 'Unsplash' : 'Pexels'} API key in
-              Settings to preview this source.
-            </p>
-          )}
-        </div>
+            {!canFetch(settings) && (
+              <p className="muted small">
+                Add your {settings.source === 'unsplash' ? 'Unsplash' : 'Pexels'} API key
+                in Settings to preview this source.
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="pat-actions">
           <StatusInline status={status} error={error} />

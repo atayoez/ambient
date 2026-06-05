@@ -1,9 +1,8 @@
-// Settings tab — consolidates everything that used to be scattered across
-// the other tabs: API keys (were in Sources/Generate), auto-rotate (was in
-// Sources + Library), lock screen (was in Library), plus start-on-login and
-// uninstall. Keys persist in the OS keyring via useSecret; the rest are
-// Settings fields written through patchSettings, and autostart/uninstall are
-// Rust commands.
+// Settings tab — consolidates what used to be scattered across tabs: API
+// keys (were in Sources/Generate), auto-rotate (was a per-tab control),
+// lock screen + start-on-login, About (version/update), and uninstall.
+// One consistent row layout: a label on the left, a fixed-width control
+// on the right.
 
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
@@ -20,13 +19,6 @@ import {
 } from '../lib/types';
 import { checkForUpdateManual } from '../lib/updater';
 import { RefreshIcon } from './Icons';
-import OptionScroller from './OptionScroller';
-
-const ROTATION_OPTIONS: { id: RotationSource; label: string }[] = [
-  { id: 'off', label: 'Off' },
-  { id: 'sources', label: 'Fetch from source' },
-  { id: 'library', label: 'Shuffle library' },
-];
 
 const HOMEPAGE = 'https://ambient.oezcan.me';
 const DOWNLOAD_URL = 'https://ambient.oezcan.me/#download';
@@ -67,30 +59,6 @@ export default function Settings() {
     void getVersion().then(setVersion);
   }, []);
 
-  async function checkUpdates() {
-    if (update.kind === 'checking' || update.kind === 'installing') return;
-    setUpdate({ kind: 'checking' });
-    const r = await checkForUpdateManual();
-    if (r.status === 'available') setUpdate({ kind: 'available', version: r.version });
-    else if (r.status === 'uptodate') setUpdate({ kind: 'uptodate' });
-    else setUpdate({ kind: 'error' });
-  }
-
-  async function installUpdate() {
-    if (update.kind === 'installing') return;
-    setUpdate({ kind: 'installing' });
-    try {
-      const u = await check();
-      if (u?.available) {
-        await u.downloadAndInstall(); // exits to relaunch on success
-        return;
-      }
-      void openUrl(DOWNLOAD_URL);
-    } catch {
-      void openUrl(DOWNLOAD_URL);
-    }
-  }
-
   async function patch(p: Partial<AppSettings>) {
     const next = await patchSettings(p);
     setSettings(next);
@@ -115,6 +83,30 @@ export default function Settings() {
     }
   }
 
+  async function checkUpdates() {
+    if (update.kind === 'checking' || update.kind === 'installing') return;
+    setUpdate({ kind: 'checking' });
+    const r = await checkForUpdateManual();
+    if (r.status === 'available') setUpdate({ kind: 'available', version: r.version });
+    else if (r.status === 'uptodate') setUpdate({ kind: 'uptodate' });
+    else setUpdate({ kind: 'error' });
+  }
+
+  async function installUpdate() {
+    if (update.kind === 'installing') return;
+    setUpdate({ kind: 'installing' });
+    try {
+      const u = await check();
+      if (u?.available) {
+        await u.downloadAndInstall();
+        return;
+      }
+      void openUrl(DOWNLOAD_URL);
+    } catch {
+      void openUrl(DOWNLOAD_URL);
+    }
+  }
+
   async function doUninstall() {
     if (uninstalling) return;
     setUninstalling(true);
@@ -129,198 +121,208 @@ export default function Settings() {
 
   return (
     <div className="settings">
-      <div className="settings-scroll">
-        <div className="settings-panel">
-          <section className="settings-group">
-            <h3 className="settings-title">API keys</h3>
-            <p className="settings-hint">
-              Stored in your OS keyring, never in plain text. Sources and AI generation
-              read them from here.
-            </p>
-            <label className="field">
-              <span>OpenAI (DALL·E 3)</span>
-              <input
-                type="password"
-                value={openaiKey}
-                disabled={!openaiLoaded}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                placeholder="sk-…"
-                aria-label="OpenAI API key"
-              />
-            </label>
-            <label className="field">
-              <span>Unsplash</span>
-              <input
-                type="password"
-                value={unsplashKey}
-                disabled={!unsplashLoaded}
-                onChange={(e) => setUnsplashKey(e.target.value)}
-                placeholder="access key"
-                aria-label="Unsplash access key"
-              />
-            </label>
-            <label className="field">
-              <span>Pexels</span>
-              <input
-                type="password"
-                value={pexelsKey}
-                disabled={!pexelsLoaded}
-                onChange={(e) => setPexelsKey(e.target.value)}
-                placeholder="api key"
-                aria-label="Pexels API key"
-              />
-            </label>
-          </section>
-
-          <section className="settings-group">
-            <h3 className="settings-title">Auto-rotate</h3>
-            <OptionScroller
-              label="Mode"
-              options={ROTATION_OPTIONS}
-              value={settings.rotationSource}
-              onChange={(v) => void patch({ rotationSource: v })}
-              ariaLabel="Auto-rotate mode"
+      <div className="settings-inner">
+        <section className="set-group">
+          <h3 className="set-title">API keys</h3>
+          <p className="set-note">
+            Stored in your OS keyring. Sources and AI generation read them from here.
+          </p>
+          <div className="set-row">
+            <span>OpenAI</span>
+            <input
+              type="password"
+              value={openaiKey}
+              disabled={!openaiLoaded}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+              placeholder="sk-…"
+              aria-label="OpenAI API key"
             />
-            {settings.rotationSource !== 'off' && (
-              <label className="field">
-                <span>Every (minutes)</span>
+          </div>
+          <div className="set-row">
+            <span>Unsplash</span>
+            <input
+              type="password"
+              value={unsplashKey}
+              disabled={!unsplashLoaded}
+              onChange={(e) => setUnsplashKey(e.target.value)}
+              placeholder="access key"
+              aria-label="Unsplash access key"
+            />
+          </div>
+          <div className="set-row">
+            <span>Pexels</span>
+            <input
+              type="password"
+              value={pexelsKey}
+              disabled={!pexelsLoaded}
+              onChange={(e) => setPexelsKey(e.target.value)}
+              placeholder="api key"
+              aria-label="Pexels API key"
+            />
+          </div>
+        </section>
+
+        <section className="set-group">
+          <h3 className="set-title">Auto-rotate</h3>
+          <div className="set-row">
+            <span>Mode</span>
+            <select
+              value={settings.rotationSource}
+              onChange={(e) =>
+                void patch({ rotationSource: e.target.value as RotationSource })
+              }
+              aria-label="Auto-rotate mode"
+            >
+              <option value="off">Off</option>
+              <option value="sources">Fetch from source</option>
+              <option value="library">Shuffle library</option>
+            </select>
+          </div>
+          {settings.rotationSource !== 'off' && (
+            <div className="set-row">
+              <span>Every (minutes)</span>
+              <input
+                type="number"
+                min={5}
+                value={intervalDraft}
+                onChange={(e) => setIntervalDraft(e.target.value)}
+                onBlur={commitInterval}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitInterval();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                aria-label="Rotation interval in minutes"
+              />
+            </div>
+          )}
+        </section>
+
+        <section className="set-group">
+          <h3 className="set-title">Desktop</h3>
+          <div className="set-row">
+            <span>Also set the lock screen</span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={settings.lockscreen}
+              onChange={(e) => void patch({ lockscreen: e.target.checked })}
+              aria-label="Also set the lock screen wallpaper"
+            />
+          </div>
+          <div className="set-row">
+            <span>Start on login</span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={autostart}
+              onChange={(e) => void toggleAutostart(e.target.checked)}
+              aria-label="Start Ambient on login"
+            />
+          </div>
+        </section>
+
+        <section className="set-group">
+          <h3 className="set-title">About</h3>
+          <div className="set-row">
+            <span>Version</span>
+            <span className="set-value">
+              {version ? `Ambient ${version}` : 'Ambient'}
+            </span>
+          </div>
+          <div className="set-row">
+            <span>Updates</span>
+            <button
+              type="button"
+              className="set-btn"
+              onClick={update.kind === 'available' ? installUpdate : checkUpdates}
+              disabled={update.kind === 'checking' || update.kind === 'installing'}
+            >
+              {update.kind === 'available' ? (
+                <span>Install {update.version}</span>
+              ) : (
+                <>
+                  <RefreshIcon size={13} />
+                  <span>
+                    {update.kind === 'checking'
+                      ? 'Checking…'
+                      : update.kind === 'installing'
+                        ? 'Updating…'
+                        : update.kind === 'uptodate'
+                          ? 'Up to date'
+                          : update.kind === 'error'
+                            ? 'Try again'
+                            : 'Check for updates'}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+          <div className="set-row">
+            <span>Website</span>
+            <button
+              type="button"
+              className="set-link"
+              onClick={() => void openUrl(HOMEPAGE)}
+            >
+              ambient.oezcan.me
+            </button>
+          </div>
+        </section>
+
+        <section className="set-group set-danger">
+          <h3 className="set-title">Uninstall</h3>
+          {confirmingUninstall ? (
+            <>
+              <label className="set-check">
                 <input
-                  type="number"
-                  min={5}
-                  value={intervalDraft}
-                  onChange={(e) => setIntervalDraft(e.target.value)}
-                  onBlur={commitInterval}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      commitInterval();
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  aria-label="Rotation interval in minutes"
+                  type="checkbox"
+                  checked={purgeData}
+                  onChange={(e) => setPurgeData(e.target.checked)}
                 />
+                <span>Also delete my settings &amp; saved wallpapers</span>
               </label>
-            )}
-          </section>
-
-          <section className="settings-group">
-            <h3 className="settings-title">Desktop</h3>
-            <label className="field settings-toggle">
-              <span>Also set the lock screen</span>
-              <input
-                type="checkbox"
-                checked={settings.lockscreen}
-                onChange={(e) => void patch({ lockscreen: e.target.checked })}
-                aria-label="Also set the lock screen wallpaper"
-              />
-            </label>
-            <label className="field settings-toggle">
-              <span>Start on login</span>
-              <input
-                type="checkbox"
-                checked={autostart}
-                onChange={(e) => void toggleAutostart(e.target.checked)}
-                aria-label="Start Ambient on login"
-              />
-            </label>
-          </section>
-
-          <section className="settings-group">
-            <h3 className="settings-title">About</h3>
-            <div className="settings-about-row">
-              <span>Ambient{version ? ` ${version}` : ''}</span>
+              <div className="set-actions">
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={doUninstall}
+                  disabled={uninstalling}
+                >
+                  {uninstalling ? 'Removing…' : 'Confirm uninstall'}
+                </button>
+                <button
+                  type="button"
+                  className="set-link"
+                  onClick={() => {
+                    setConfirmingUninstall(false);
+                    setUninstallErr(null);
+                  }}
+                  disabled={uninstalling}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="set-row">
+              <span>Remove Ambient from this computer</span>
               <button
                 type="button"
-                className="settings-update-btn"
-                onClick={update.kind === 'available' ? installUpdate : checkUpdates}
-                disabled={update.kind === 'checking' || update.kind === 'installing'}
-              >
-                {update.kind === 'available' ? (
-                  <span>Install {update.version}</span>
-                ) : (
-                  <>
-                    <RefreshIcon size={13} />
-                    <span>
-                      {update.kind === 'checking'
-                        ? 'Checking…'
-                        : update.kind === 'installing'
-                          ? 'Updating…'
-                          : 'Check for updates'}
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
-            {(update.kind === 'uptodate' ||
-              update.kind === 'available' ||
-              update.kind === 'error') && (
-              <span className="settings-hint" role="status" aria-live="polite">
-                {update.kind === 'uptodate' && "You're up to date."}
-                {update.kind === 'available' && 'A new version is available.'}
-                {update.kind === 'error' && 'Check failed — try again later.'}
-              </span>
-            )}
-            <div className="settings-about-links">
-              <button
-                type="button"
-                className="about-link"
-                onClick={() => void openUrl(HOMEPAGE)}
-              >
-                ambient.oezcan.me
-              </button>
-              <span className="settings-hint">© 2026 Atay Özcan</span>
-            </div>
-          </section>
-
-          <section className="settings-group">
-            <h3 className="settings-title">Uninstall</h3>
-            {confirmingUninstall ? (
-              <>
-                <label className="about-uninstall-purge">
-                  <input
-                    type="checkbox"
-                    checked={purgeData}
-                    onChange={(e) => setPurgeData(e.target.checked)}
-                  />
-                  <span>Also delete my settings &amp; saved wallpapers</span>
-                </label>
-                <div className="about-uninstall-actions">
-                  <button
-                    type="button"
-                    className="danger"
-                    onClick={doUninstall}
-                    disabled={uninstalling}
-                  >
-                    {uninstalling ? 'Removing…' : 'Confirm uninstall'}
-                  </button>
-                  <button
-                    type="button"
-                    className="about-link"
-                    onClick={() => {
-                      setConfirmingUninstall(false);
-                      setUninstallErr(null);
-                    }}
-                    disabled={uninstalling}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="about-uninstall-btn"
+                className="set-btn danger-ghost"
                 onClick={() => setConfirmingUninstall(true)}
               >
-                Uninstall Ambient…
+                Uninstall…
               </button>
-            )}
-            {uninstallErr && (
-              <span className="about-uninstall-err" role="alert">
-                {uninstallErr}
-              </span>
-            )}
-          </section>
-        </div>
+            </div>
+          )}
+          {uninstallErr && (
+            <span className="set-error" role="alert">
+              {uninstallErr}
+            </span>
+          )}
+        </section>
       </div>
     </div>
   );

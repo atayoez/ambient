@@ -543,11 +543,11 @@ input[type='range']:active::-moz-range-thumb {
 /* --- Library --- */
 .library {
   flex: 1;
-  overflow-y: auto;
-  padding: 14px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
 }
 
 /* Ghost-style danger — same red on hover but neutral at rest, so the
@@ -592,54 +592,45 @@ input[type='range']:active::-moz-range-thumb {
 .patterns,
 .sources {
   flex: 1;
-  overflow-y: auto;
-  padding: 14px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
 }
 
-/* --- Settings tab — a centred, scrollable column of glass groups.
-   Has its own quiet backdrop since the app window is transparent. --- */
+/* --- Settings tab — fills the window; a single scrollable column of
+   groups, each a list of consistent label-left / control-right rows. --- */
 .settings {
-  position: relative;
   flex: 1;
   min-height: 0;
-  display: flex;
-  /* Inherits the solid app base (pure black / white). */
+  overflow-y: auto;
   background: var(--bg-base);
 }
 
-.settings-scroll {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  justify-content: center;
-  /* Bottom padding clears the floating tab pill. */
-  padding: 22px 16px 92px;
-}
-
-.settings-panel {
+.settings-inner {
   width: 100%;
-  max-width: 420px;
-  height: max-content;
+  max-width: 640px;
+  margin: 0 auto;
+  /* Bottom padding clears the floating tab pill. */
+  padding: 22px 20px 100px;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
-.settings-group {
+.set-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background: var(--surface);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
   border-radius: var(--radius-container);
-  padding: 16px;
+  padding: 14px 16px;
 }
 
-.settings-title {
-  margin: 0;
+.set-title {
+  margin: 0 0 4px;
   font-size: var(--fs-eyebrow);
   font-weight: var(--fw-semibold);
   letter-spacing: var(--tracking-eyebrow);
@@ -647,63 +638,163 @@ input[type='range']:active::-moz-range-thumb {
   color: var(--muted);
 }
 
-.settings-hint {
-  margin: 0;
+.set-note {
+  margin: 0 0 2px;
   font-size: var(--fs-caption);
   color: var(--muted);
 }
 
-.settings-toggle {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.settings-toggle input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent-os, var(--accent));
-  cursor: pointer;
-}
-
-/* About section (merged from the old info modal). */
-.settings-about-row {
+/* Every setting is one row: label on the left, a fixed-width control on
+   the right, so the column edges line up across all of them. */
+.set-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  min-height: 34px;
   font-size: var(--fs-body);
   color: var(--text);
 }
 
-.settings-update-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: var(--fs-caption);
+.set-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.set-value {
+  color: var(--muted);
+  text-align: right;
+}
+
+/* All right-hand controls share the same width so nothing is "long af"
+   or stubby next to its neighbour. */
+.set-row input[type='text'],
+.set-row input[type='password'],
+.set-row input[type='number'],
+.set-row select,
+.set-row .set-btn {
+  flex: 0 0 auto;
+  width: 240px;
+  max-width: 56%;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: var(--fs-body);
   color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-inline);
+}
+
+.set-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.set-row input:focus-visible,
+.set-row select:focus-visible {
+  outline: none;
+  border-color: var(--accent-os, var(--accent));
+}
+
+.set-row input:disabled {
+  opacity: 0.5;
+}
+
+.set-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.settings-update-btn:hover:not(:disabled) {
+.set-btn:hover:not(:disabled) {
   background: var(--surface-3);
 }
 
-.settings-update-btn:disabled {
+.set-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.settings-about-links {
+.set-link {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--accent-os, var(--accent));
+  cursor: pointer;
+}
+
+.set-link:hover {
+  text-decoration: underline;
+}
+
+/* iOS-style switch (lock screen / start-on-login). */
+.switch {
+  flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  transition: background var(--t-fast) ease;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform var(--t-fast) ease;
+}
+
+.switch:checked {
+  background: var(--accent-fill);
+}
+
+.switch:checked::after {
+  transform: translateX(16px);
+  background: var(--accent-text);
+}
+
+.set-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-body);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.set-check input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--danger);
+  cursor: pointer;
+}
+
+.set-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+}
+
+.set-error {
+  font-size: var(--fs-caption);
+  color: var(--danger);
 }
 
 
@@ -1781,19 +1872,13 @@ button.primary.icon-btn {
    over it in tinted-glass panels instead of a side inspector. */
 
 .gen-stage {
+  /* The preview stage now IS the whole app view — it fills the window
+     edge-to-edge (no padding gap, no floating-panel border/shadow, no
+     grey container behind it). The floating control panels sit on top. */
   position: relative;
   flex: 1;
   min-height: 0;
-  border-radius: var(--radius-container);
   overflow: hidden;
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
-  box-shadow:
-    0 6px 18px rgb(var(--shadow-tint) / 0.12),
-    0 0 26px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12),
-    inset 0 1px 0 var(--highlight-edge);
-  transition:
-    border-color 600ms var(--ease-pill),
-    box-shadow 600ms var(--ease-pill);
 }
 
 .gen-bg {
@@ -1955,9 +2040,13 @@ button.primary.icon-btn {
 .pat-top {
   top: 12px;
   left: 12px;
+  /* Cap the width so a tab with several pickers (Generate) wraps onto a
+     second row instead of growing rightward UNDER the side panel. */
+  max-width: calc(100% - 300px);
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 10px 14px;
   padding: 8px 12px;
   border-radius: var(--radius-container);
 }
