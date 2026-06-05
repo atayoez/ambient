@@ -21,8 +21,15 @@ is added on top. Edit this file as you go, not at release time.
   Settings to lift the anonymous rate limit and drop the watermark; sent
   as a Bearer token. AI generation now reliably works for registered
   users. (An optional Wallhaven key field was added too.)
+- **Wallhaven options.** Sort (Random / Top / Latest / Most viewed),
+  Categories (General / + Anime / Everything), and Content (SFW / + Sketchy)
+  controls on the Sources tab.
 
 ### Changed
+- **Sources auto-refresh.** Switching to a source with no cached image, or
+  changing a search/Wallhaven option, now pulls a fresh preview
+  automatically (debounced, so flicking the picker doesn't spam requests).
+  Auto-rotate works across all six sources.
 - The website now reflects the current app: ten pattern generators, all
   six photo sources, AI with the free/token Pollinations path, and the
   rpm download is labelled for Fedora / RHEL / openSUSE.

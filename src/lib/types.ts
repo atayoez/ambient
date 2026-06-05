@@ -37,6 +37,12 @@ export interface Settings {
   unsplashQuery: string;
   pexelsQuery: string;
   wallhavenQuery: string;
+  /** Wallhaven search options. `sorting` is the raw API value; `categories`
+   * and `purity` are the API's 3-bit strings (general·anime·people /
+   * sfw·sketchy·nsfw). */
+  wallhavenSorting: string;
+  wallhavenCategories: string;
+  wallhavenPurity: string;
   genProvider: GenProvider;
   pollinationsModel: string;
   genResolution: GenResolution;
@@ -82,6 +88,9 @@ export const DEFAULT_SETTINGS: Settings = {
   unsplashQuery: '',
   pexelsQuery: '',
   wallhavenQuery: '',
+  wallhavenSorting: 'random',
+  wallhavenCategories: '100',
+  wallhavenPurity: '100',
   genProvider: 'pollinations',
   pollinationsModel: 'flux',
   genResolution: 'auto',

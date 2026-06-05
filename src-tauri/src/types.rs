@@ -72,6 +72,16 @@ pub struct Settings {
     pub pexels_query: String,
     #[serde(default)]
     pub wallhaven_query: String,
+    // Wallhaven search options. Empty (legacy stores) → Rust falls back to
+    // the defaults in fetch_wallhaven. `sorting` is the raw API value
+    // (random/toplist/date_added/views); `categories`/`purity` are the
+    // API's 3-bit / 3-bit strings (general·anime·people / sfw·sketchy·nsfw).
+    #[serde(default)]
+    pub wallhaven_sorting: String,
+    #[serde(default)]
+    pub wallhaven_categories: String,
+    #[serde(default)]
+    pub wallhaven_purity: String,
     pub gen_provider: GenProvider,
     // pollinations_model, gen_resolution, openai_model are kept as
     // free-form strings — the TS layer is the source of truth for which
@@ -108,6 +118,9 @@ impl Default for Settings {
             unsplash_query: String::new(),
             pexels_query: String::new(),
             wallhaven_query: String::new(),
+            wallhaven_sorting: "random".to_string(),
+            wallhaven_categories: "100".to_string(),
+            wallhaven_purity: "100".to_string(),
             gen_provider: GenProvider::Pollinations,
             pollinations_model: "flux".to_string(),
             gen_resolution: "auto".to_string(),

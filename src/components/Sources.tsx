@@ -62,6 +62,24 @@ const SOURCES: SourceMeta[] = [
 const sourceMeta = (id: SourceKind): SourceMeta =>
   SOURCES.find((s) => s.id === id) ?? SOURCES[0];
 
+// Wallhaven advanced options. Values are the raw API params; labels are
+// friendly. (categories/purity are the API's 3-bit strings.)
+const WH_SORT = [
+  { id: 'random', label: 'Random' },
+  { id: 'toplist', label: 'Top this month' },
+  { id: 'date_added', label: 'Latest' },
+  { id: 'views', label: 'Most viewed' },
+];
+const WH_CATEGORIES = [
+  { id: '100', label: 'General' },
+  { id: '110', label: 'General + Anime' },
+  { id: '111', label: 'Everything' },
+];
+const WH_PURITY = [
+  { id: '100', label: 'SFW' },
+  { id: '110', label: 'SFW + Sketchy' },
+];
+
 // Most-recent Library entry matching the current source. The Library is
 // Rust-owned (settings.lastApplied + the prepend-on-fetch pipeline) so
 // "have we already pulled an image for this source?" is just a list
@@ -161,14 +179,15 @@ export default function Sources() {
     if (prevSource.current === settings.source) return;
     prevSource.current = settings.source;
     void (async () => {
-      // Switching source is INSTANT: show that source's cached image if we
-      // have one, otherwise an empty stage. We deliberately do NOT
-      // auto-fetch here — that network round-trip on every flick of the
-      // Source scroller is what made switching feel unusably slow. The
-      // user pulls a fresh image explicitly via the fetch button.
+      // Switching source shows that source's cached image instantly if we
+      // have one; otherwise auto-fetch a fresh one (debounced, so flicking
+      // through the scroller only fetches the source you settle on). This
+      // is why landing on a fresh source like Wallhaven now loads a
+      // preview instead of sitting empty.
       const recent = await mostRecentFromSource(settings.source);
       setPreviewPath(recent?.path ?? null);
       setPreviewMeta(recent ?? null);
+      if (!recent) scheduleAutoFetch();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.source]);
@@ -205,6 +224,8 @@ export default function Sources() {
     setQueryDraft(trimmed);
     if (trimmed !== settings[field]) {
       update({ [field]: trimmed });
+      // New search → pull a matching preview (after the settings flush).
+      scheduleAutoFetch();
     }
   }
 
@@ -227,6 +248,15 @@ export default function Sources() {
     pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
     debouncedFlush();
   }
+
+  // Auto-pull a fresh preview after a source switch or a search/options
+  // change. Debounced at 600ms — longer than the 400ms settings flush, so
+  // (a) flicking through the Source scroller fires one request for the
+  // source you land on, not one per step, and (b) Rust already has the
+  // updated source/query/options by the time we fetch.
+  const scheduleAutoFetch = useDebouncedCallback(() => {
+    if (!busy && canFetch()) void fetchNew(false);
+  }, 600);
 
   async function fetchNew(apply: boolean) {
     if (busy) return;
@@ -329,6 +359,40 @@ export default function Sources() {
                 aria-label="Search query"
               />
             </Field>
+            {settings.source === 'wallhaven' && (
+              <>
+                <OptionScroller
+                  label="Sort"
+                  options={WH_SORT}
+                  value={settings.wallhavenSorting || 'random'}
+                  onChange={(v) => {
+                    update({ wallhavenSorting: v });
+                    scheduleAutoFetch();
+                  }}
+                  ariaLabel="Wallhaven sort"
+                />
+                <OptionScroller
+                  label="Categories"
+                  options={WH_CATEGORIES}
+                  value={settings.wallhavenCategories || '100'}
+                  onChange={(v) => {
+                    update({ wallhavenCategories: v });
+                    scheduleAutoFetch();
+                  }}
+                  ariaLabel="Wallhaven categories"
+                />
+                <OptionScroller
+                  label="Content"
+                  options={WH_PURITY}
+                  value={settings.wallhavenPurity || '100'}
+                  onChange={(v) => {
+                    update({ wallhavenPurity: v });
+                    scheduleAutoFetch();
+                  }}
+                  ariaLabel="Wallhaven content rating"
+                />
+              </>
+            )}
             {!canFetch(settings) && (
               <p className="muted small">
                 Add your {meta.keyLabel} API key in Settings to preview this source.

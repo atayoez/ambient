@@ -339,10 +339,23 @@ async fn fetch_wallhaven(
     settings: &Settings,
 ) -> Result<Wallpaper, String> {
     let client = http_client()?;
+    // Empty (legacy settings) falls back to safe defaults.
+    let nonempty = |s: &str, default: &'static str| {
+        let t = s.trim();
+        if t.is_empty() { default.to_string() } else { t.to_string() }
+    };
     let mut params: Vec<(&str, String)> = vec![
-        ("categories", "100".into()), // general only (no anime/people)
-        ("purity", "100".into()),     // SFW only
-        ("sorting", "random".into()),
+        ("categories", nonempty(&settings.wallhaven_categories, "100")),
+        // Cap purity at sfw+sketchy — NSFW would need the user's key and a
+        // deliberate opt-in we don't expose. "111" is clamped to "110".
+        (
+            "purity",
+            match nonempty(&settings.wallhaven_purity, "100").as_str() {
+                "111" | "011" | "001" => "110".to_string(),
+                other => other.to_string(),
+            },
+        ),
+        ("sorting", nonempty(&settings.wallhaven_sorting, "random")),
     ];
     let query = settings.wallhaven_query.trim();
     if !query.is_empty() {
