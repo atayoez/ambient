@@ -2,6 +2,16 @@
 # releases. Runs on push to main, PRs, and a weekly cron so we hear
 # about newly-disclosed CVEs even on branches that aren't actively
 # being touched.
+#
+# Both jobs run the upstream tools as plain binaries rather than via
+# their GitHub Actions. The actions (rustsec/audit-check, gitleaks-action)
+# are pinned to the deprecated Node 20 runtime (force-migrated to Node 24
+# on 2026-06-16), and audit-check additionally ignores our
+# src-tauri/.cargo/audit.toml ignore list — it always ran with an empty
+# `ignore`, resurfacing the 17 transitive gtk-rs/unic advisories we've
+# already triaged. Running the binaries directly fixes both: no Node
+# runtime to deprecate, and cargo-audit reads audit.toml as the single
+# source of truth.
 
 name: Security
 
@@ -15,35 +25,36 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   cargo-audit:
     name: cargo audit (Rust dep CVEs)
     runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: ./src-tauri
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # rustsec/audit-check is the maintained successor to
-      # actions-rs/audit-check. Reads ./src-tauri/Cargo.lock against
-      # the RustSec advisory database and fails the job on any
-      # advisory matching a dep we use.
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      # Reads src-tauri/Cargo.lock against the RustSec advisory DB and,
+      # crucially, src-tauri/.cargo/audit.toml for the ignore list of
+      # transitive informational advisories with no upstream fix.
+      # --deny warnings so any genuine new advisory (or one not on the
+      # triaged ignore list) still fails the job.
       - name: Run cargo audit
-        uses: rustsec/audit-check@v2
-        with:
-          working-directory: ./src-tauri
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit --deny warnings
 
   gitleaks:
     name: gitleaks (secrets scan)
     runs-on: ubuntu-22.04
-    # gitleaks-action posts its result as a check-run; without checks:write
-    # the default (restricted) token can't, and the run logs a non-fatal
-    # "Resource not accessible by integration" error. Grant the minimum.
-    permissions:
-      contents: read
-      checks: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -52,6 +63,22 @@ jobs:
           # historically and were never rotated.
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@v2
+      # Pull the latest gitleaks release binary (resolve the asset URL
+      # from the API so we're not pinned to a version that 404s later).
+      - name: Install gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          url=$(curl -sSfL -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
+            | jq -r '.assets[] | select(.name | test("linux_x64\\.tar\\.gz$")) | .browser_download_url')
+          test -n "$url"
+          curl -sSfL "$url" -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      # Scan the full git history; exit 1 (failing the job) if any leak
+      # is found. --redact keeps the secret value out of the log.
+      - name: Run gitleaks
+        run: gitleaks git --no-banner --redact .
