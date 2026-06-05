@@ -5,26 +5,25 @@
     "": {
       "name": "ambient",
       "dependencies": {
-        "@tauri-apps/api": "latest",
-        "@tauri-apps/plugin-opener": "latest",
-        "@tauri-apps/plugin-store": "latest",
-        "@tauri-apps/plugin-updater": "latest",
-        "react": "latest",
-        "react-dom": "latest",
+        "@tauri-apps/api": "^2.11.0",
+        "@tauri-apps/plugin-opener": "^2.5.4",
+        "@tauri-apps/plugin-store": "^2.4.3",
+        "@tauri-apps/plugin-updater": "^2.10.1",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7",
       },
       "devDependencies": {
-        "@biomejs/biome": "latest",
-        "@tauri-apps/cli": "latest",
-        "@types/jsdom": "latest",
-        "@types/react": "latest",
-        "@types/react-dom": "latest",
-        "@vitejs/plugin-react": "latest",
-        "@vitest/coverage-v8": "latest",
-        "babel-plugin-react-compiler": "latest",
-        "jsdom": "latest",
-        "typescript": "latest",
-        "vite": "latest",
-        "vitest": "latest",
+        "@biomejs/biome": "^2.4.16",
+        "@tauri-apps/cli": "^2.11.2",
+        "@types/react": "^19.2.16",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.2",
+        "@vitest/coverage-v8": "^4.1.8",
+        "babel-plugin-react-compiler": "^1.0.0",
+        "jsdom": "^29.1.1",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.16",
+        "vitest": "^4.1.8",
       },
     },
   },
@@ -171,15 +170,11 @@
 
     "@types/estree": ["@types/estree@1.0.9", "", {}, "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg=="],
 
-    "@types/jsdom": ["@types/jsdom@28.0.3", "", { "dependencies": { "@types/node": "*", "@types/tough-cookie": "*", "parse5": "^8.0.0", "undici-types": "^7.21.0" } }, "sha512-/HQ2uFoetFTXuye8vzIcHw2z6Fwi7Hi/qcgC+RoS9NCyewiqxhVGqlG+ViGB6lkax481R6dmhf1I7lIGlzJStQ=="],
-
     "@types/node": ["@types/node@25.8.0", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-TCFSk8IZh+iLX1xtksoBVtdmgL+1IX0fC9BeU4QqFSuNdN/K+HUlhqOzEmSYYpZUVsLYcPqc9KX+60iDuninSQ=="],
 
     "@types/react": ["@types/react@19.2.16", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-esJiCAnl0kfpNdE69f3So4WJUXy95dLZydX0KwK46riIHDzHM7O9Vtf9xCHW0PXIqvgqNrswl522kA/5yx+F4w=="],
 
     "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
-
-    "@types/tough-cookie": ["@types/tough-cookie@4.0.5", "", {}, "sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA=="],
 
     "@vitejs/plugin-react": ["@vitejs/plugin-react@6.0.2", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.0" }, "peerDependencies": { "@rolldown/plugin-babel": "^0.1.7 || ^0.2.0", "babel-plugin-react-compiler": "^1.0.0", "vite": "^8.0.0" }, "optionalPeers": ["@rolldown/plugin-babel", "babel-plugin-react-compiler"] }, "sha512-DlSMqo4WhThw4vB8Mpn0Woe9J+Jfq1geJ61AKW0QEgLzGMNwtIMdxbDUzLxcun8W7NbJO0e2Jg/Nxm3cCSVzzg=="],
 
