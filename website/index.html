@@ -409,6 +409,12 @@
           about an unknown app the first time. On Mac, right-click the app
           and pick Open. On Windows, click "More info" then "Run anyway".
         </p>
+
+        <p class="dl-note muted" id="dl-note-rpm" hidden data-i18n="download.noteRpm">
+          The .rpm isn't from a signed repository, so zypper/dnf flag it.
+          Trust the Ambient signing key once, then install normally:
+          sudo rpm --import https://ambient.oezcan.me/ambient.gpg
+        </p>
       </section>
 
       <section id="about" class="about">

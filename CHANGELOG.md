@@ -14,6 +14,13 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Signed RPMs.** The `.rpm` packages (Fedora/RHEL/openSUSE) are now
+  GPG-signed in CI, so `zypper`/`dnf` stop warning about an unsigned
+  package once you trust the key:
+  `sudo rpm --import https://ambient.oezcan.me/ambient.gpg`. The download
+  page shows that one-liner when you pick the rpm. (`.deb` and the Arch
+  `.pkg.tar.zst` aren't signed — apt and `pacman -U <file>` don't verify
+  a per-package signature, so there's nothing to warn about there.)
 
 ### Changed
 

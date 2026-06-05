@@ -66,6 +66,7 @@
         arch: 'Architecture',
         distro: 'Distro / format',
         note: "The macOS and Windows builds aren't signed yet, so they complain about an unknown app the first time. On Mac, right-click the app and pick Open. On Windows, click 'More info' then 'Run anyway'.",
+        noteRpm: "The .rpm isn't from a signed repository, so zypper/dnf flag it. Trust the Ambient signing key once, then install normally: sudo rpm --import https://ambient.oezcan.me/ambient.gpg",
       },
       about: {
         eyebrow: 'The maker',
@@ -221,6 +222,7 @@
         arch: 'Architektur',
         distro: 'Distro / Format',
         note: 'Die macOS- und Windows-Builds sind noch nicht signiert, deshalb meckern sie beim ersten Öffnen über eine unbekannte App. Am Mac: Rechtsklick auf die App, dann „Öffnen". Auf Windows: „Weitere Informationen" und dann „Trotzdem ausführen".',
+        noteRpm: 'Das .rpm kommt nicht aus einem signierten Repository, deshalb meckern zypper/dnf. Importiere einmalig den Ambient-Signaturschlüssel, dann läuft die Installation normal: sudo rpm --import https://ambient.oezcan.me/ambient.gpg',
       },
       about: {
         eyebrow: 'Der Macher',
@@ -376,6 +378,7 @@
         arch: 'Mimari',
         distro: 'Dağıtım / format',
         note: 'macOS ve Windows sürümleri henüz imzasız, o yüzden ilk açılışta bilinmeyen uygulama diye uyarıyorlar. Mac\'te uygulamaya sağ tık atıp „Aç" diyorsun. Windows\'ta „Daha fazla bilgi" ve sonra „Yine de çalıştır".',
+        noteRpm: '.rpm imzalı bir depodan gelmiyor, o yüzden zypper/dnf uyarıyor. Ambient imza anahtarını bir kez içe aktar, sonra normal şekilde kur: sudo rpm --import https://ambient.oezcan.me/ambient.gpg',
       },
       about: {
         eyebrow: 'Yapımcı',

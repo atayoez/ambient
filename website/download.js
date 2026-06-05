@@ -87,6 +87,7 @@
       if (armOpt) armOpt.disabled = isPacman;
       if (isPacman && arch.value === 'aarch64') arch.value = 'x86_64';
       setHref('dl-linux', linuxKey(fmt.value, arch.value));
+      updateRpmNote();
     };
     fmt.addEventListener('change', update);
     arch.addEventListener('change', update);
@@ -110,6 +111,21 @@
     // including mac+windows) is open. Hidden only when Linux is primary
     // and the disclosure is closed.
     note.hidden = primaryOS() === 'linux' && !open;
+    updateRpmNote();
+  }
+
+  // The rpm is signed but distributed outside a trusted repo, so zypper/dnf
+  // warn until the user imports our public key. Surface that note only when
+  // the .rpm is the visible choice: the Linux card is reachable (primary, or
+  // the disclosure is open) and its format selector is set to rpm.
+  function updateRpmNote() {
+    var note = $('dl-note-rpm');
+    if (!note) return;
+    var fmt = $('dl-lin-format');
+    var others = $('dl-others');
+    var open = !!(others && others.open);
+    var linuxReachable = primaryOS() === 'linux' || open;
+    note.hidden = !(linuxReachable && fmt && fmt.value === 'rpm');
   }
 
   function promote(os) {

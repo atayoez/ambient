@@ -87,6 +87,45 @@ cp "$RPM_X64" "$OUT/$RPM_X64_NAME"
 cp "$RPM_ARM" "$OUT/$RPM_ARM_NAME"
 cp "$PACMAN_X64" "$OUT/$PACMAN_X64_NAME"
 
+echo "==> Signing RPMs"
+# Only the rpm needs a GPG signature: zypper/dnf/rpm verify a per-package
+# signature and warn loudly on an unsigned package. The .deb doesn't need
+# it (apt/dpkg trust at the repo level, not per-file) and `pacman -U
+# <file>` doesn't require a signature either — so we sign rpm only.
+# Users get a clean install after importing the public key once:
+#   sudo rpm --import https://ambient.oezcan.me/ambient.gpg
+# Skip gracefully (ship unsigned) if the key secret isn't configured —
+# e.g. a fork build or a manual re-run without secrets — so the release
+# still goes out rather than failing on a missing secret.
+if [[ -n "${RPM_GPG_PRIVATE_KEY:-}" ]]; then
+  GNUPGHOME="$(mktemp -d)"; export GNUPGHOME; chmod 700 "$GNUPGHOME"
+  echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+  printf '%s' "$RPM_GPG_PRIVATE_KEY" | base64 -d | gpg --batch --quiet --import
+  GPG_FPR="$(gpg --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+  PASS_FILE="$(mktemp)"; printf '%s' "${RPM_GPG_PASSPHRASE:-}" > "$PASS_FILE"
+  # rpm shells out to this command to produce the detached header signature.
+  cat > "$HOME/.rpmmacros" <<EOF
+%_signature gpg
+%_gpg_name $GPG_FPR
+%__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback --passphrase-file $PASS_FILE --no-secmem-warning -u "%{_gpg_name}" --digest-algo sha256 -sbo %{__signature_filename} %{__plaintext_filename}
+EOF
+  rpm --addsign "$OUT/$RPM_X64_NAME" "$OUT/$RPM_ARM_NAME"
+  # Hard-fail the release if either rpm didn't actually pick up a signature
+  # — better a failed job than silently shipping unsigned packages.
+  for r in "$OUT/$RPM_X64_NAME" "$OUT/$RPM_ARM_NAME"; do
+    sig="$(rpm -qp --qf '%{RSAHEADER:pgpsig}|%{SIGPGP:pgpsig}' "$r" 2>/dev/null || true)"
+    if echo "$sig" | grep -qi 'key id'; then
+      echo "    signed: $(basename "$r")"
+    else
+      echo "    ERROR: $(basename "$r") is unsigned after rpm --addsign" >&2
+      exit 1
+    fi
+  done
+  rm -f "$PASS_FILE"; rm -rf "$GNUPGHOME"; unset GNUPGHOME
+else
+  echo "    RPM_GPG_PRIVATE_KEY not set — shipping UNSIGNED rpms (zypper/dnf will warn)"
+fi
+
 echo "==> Building latest.json"
 node scripts/build-latest-json.mjs \
   --version "$VERSION" \
