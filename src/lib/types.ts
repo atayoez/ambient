@@ -1,3 +1,4 @@
+import type { CustomPreset } from './patterns';
 import type { ThemeMode } from './theme';
 
 export type SourceKind = 'nasa-apod' | 'unsplash' | 'pexels';
@@ -44,6 +45,10 @@ export interface Settings {
    * The pools are derived from each wallpaper's `mode` tag (light/dark/
    * both), set per-entry in the Library. */
   themeMode: ThemeMode;
+  /** User-saved palettes (colours + emojis), edited on the Patterns tab.
+   * Moved here from the retired tauri-plugin-store draft KV so real data
+   * has one Rust-owned source of truth. */
+  customPresets: CustomPreset[];
   /** Also mirror the applied wallpaper onto the OS lock screen (KDE
    * Plasma; no-op on other DEs). */
   lockscreen: boolean;
@@ -76,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rotationSource: 'off',
   rotationIntervalMinutes: 60,
   themeMode: 'auto',
+  customPresets: [],
   lockscreen: false,
   lastApplied: null,
 };

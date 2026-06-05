@@ -106,8 +106,15 @@ pub(crate) fn write_atomic<T: serde::Serialize>(
 
 /// Load Settings from disk, migrating from the legacy tauri-plugin-store
 /// `ambient.json` shape if no new file exists. Falls back to defaults
-/// if neither source is parseable.
+/// if neither source is parseable. Then runs the one-time customPresets
+/// migration (saved palettes moved off the retired plugin-store).
 pub fn load_or_default(app_data_dir: &Path) -> Settings {
+    let mut settings = load_base(app_data_dir);
+    migrate_custom_presets(&mut settings, app_data_dir);
+    settings
+}
+
+fn load_base(app_data_dir: &Path) -> Settings {
     let target = app_data_dir.join("ambient-settings.json");
 
     // Already-migrated path.
@@ -139,6 +146,31 @@ pub fn load_or_default(app_data_dir: &Path) -> Settings {
     }
 
     Settings::default()
+}
+
+/// Saved palettes used to live under the tauri-plugin-store
+/// `patterns.customPresets` key in `ambient.json`. That plugin is gone;
+/// this pulls the array into `Settings.custom_presets` once (when settings
+/// doesn't already carry them) so upgrading users keep their palettes.
+fn migrate_custom_presets(settings: &mut Settings, app_data_dir: &Path) {
+    if !settings.custom_presets.is_empty() {
+        return;
+    }
+    let legacy_path = app_data_dir.join("ambient.json");
+    let Ok(bytes) = std::fs::read(&legacy_path) else {
+        return;
+    };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return;
+    };
+    let Some(arr) = value.get("patterns.customPresets").and_then(|v| v.as_array()) else {
+        return;
+    };
+    if arr.is_empty() {
+        return;
+    }
+    settings.custom_presets = arr.clone();
+    let _ = write_atomic(&app_data_dir.join("ambient-settings.json"), settings);
 }
 
 pub(crate) fn strip_keys_from_legacy(

@@ -14,7 +14,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
-tauri-plugin-store = "2"
 tauri-plugin-notification = "2"
 # Process introspection for the "new launch wins" solo-instance handoff
 # (solo_instance.rs). When a second `ambient` is launched, the new
@@ -44,7 +43,11 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # Tokio's sync primitives (RwLock, watch channel) own the in-memory
 # state for settings + library. The rest of tokio comes in transitively
 # via tauri's async_runtime; we only need the sync feature explicitly.
-tokio = { version = "1", features = ["sync"] }
+# macros (select!), time (sleep), rt (spawn_blocking) used by rotation.rs /
+# the render pipeline. These were previously satisfied transitively via
+# tauri-plugin-store's tokio features; declared explicitly now that the
+# plugin is gone, so our deps are honest about what we use.
+tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
 # OS keyring for BYO API keys (Unsplash, Pexels, OpenAI). v4 of the
 # keyring crate was rewritten — the actual API lives in keyring-core
 # now, with per-platform store crates registered as the default at

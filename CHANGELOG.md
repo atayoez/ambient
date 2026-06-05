@@ -16,6 +16,12 @@ is added on top. Edit this file as you go, not at release time.
 ### Added
 
 ### Changed
+- **Simpler storage.** Retired the `tauri-plugin-store` dependency (both the
+  JS and Rust sides). Saved palettes now live in Rust-owned settings (one
+  source of truth for real data; they migrate over automatically), and
+  ephemeral UI drafts (current pattern, prompt, active tab) moved to the
+  webview's localStorage. Upgrading keeps your palettes; an in-progress
+  unsaved pattern resets once.
 
 ### Fixed
 

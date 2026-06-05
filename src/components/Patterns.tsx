@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSystemAccentColor } from '../lib/appHooks';
+import { dispatch } from '../lib/events';
 import { useDraftState, useKeydown, usePersistedState } from '../lib/hooks';
 import {
   accentPreset,
@@ -19,6 +20,7 @@ import {
   SYSTEM_PRESET_ID,
   TYPE_DEFAULTS,
 } from '../lib/patterns';
+import { loadSettings, patchSettings } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
 import {
   ControlRow,
@@ -95,11 +97,34 @@ export default function Patterns() {
     [accentHex],
   );
 
-  // User-saved palettes (colors + emojis), persisted under their own
-  // store key so they outlive the draft config. Created via "Save
-  // palette"; each is deletable from the picker.
-  const [customPresets, setCustomPresets] = usePersistedState<CustomPreset[]>(
-    'patterns.customPresets',
+  // User-saved palettes (colors + emojis) — real data, so Rust-owned
+  // settings (not the localStorage draft KV). Loaded once on mount;
+  // edits update local state and patch settings. Patterns is the only
+  // editor, so no settings-changed subscription is needed. `setCustomPresets`
+  // keeps the functional-update signature the mutators below rely on.
+  const [customPresets, setCustomPresetsState] = useState<CustomPreset[]>([]);
+  const customPresetsRef = useRef<CustomPreset[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadSettings().then((s) => {
+      if (cancelled) return;
+      customPresetsRef.current = s.customPresets ?? [];
+      setCustomPresetsState(s.customPresets ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const setCustomPresets = useCallback(
+    (update: CustomPreset[] | ((prev: CustomPreset[]) => CustomPreset[])) => {
+      const next =
+        typeof update === 'function' ? update(customPresetsRef.current) : update;
+      customPresetsRef.current = next;
+      setCustomPresetsState(next);
+      void patchSettings({ customPresets: next }).then(() =>
+        dispatch('settings-changed'),
+      );
+    },
     [],
   );
 

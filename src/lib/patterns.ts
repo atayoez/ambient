@@ -115,8 +115,9 @@ export interface ColorPreset {
 
 // A user-saved palette: a single explicit set of colors + emojis (no
 // light/dark pair — custom palettes are chosen, not theme-derived).
-// Persisted under the `patterns.customPresets` store key; surfaced in the
-// presets row alongside the curated set and the live system-accent preset.
+// Persisted in Rust-owned settings (`Settings.customPresets`); surfaced in
+// the presets row alongside the curated set and the live system-accent
+// preset.
 export interface CustomPreset {
   id: string;
   name: string;

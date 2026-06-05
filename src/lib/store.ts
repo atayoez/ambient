@@ -7,11 +7,13 @@
 // closure chains were built to work around.
 //
 // Per-tab draft state (patterns.config, generate.prompt, app.tab,
-// generate.lastResult, patterns.themeMode) is single-writer and stays
-// on the legacy tauri-plugin-store path via loadKey / saveKey below.
+// generate.lastResult, patterns.themeMode) is single-writer, webview-only
+// UI scratch — it lives in localStorage via loadKey / saveKey below.
+// (Real data — settings, library, saved palettes — is Rust-owned; secrets
+// are in the OS keyring. The tauri-plugin-store layer that used to back
+// these drafts was retired.)
 
 import { invoke } from '@tauri-apps/api/core';
-import { load, type Store } from '@tauri-apps/plugin-store';
 import type { Settings, Wallpaper, WallpaperMode } from './types';
 
 // ---------------------------------------------------------------------
@@ -72,29 +74,33 @@ export async function setWallpaperMode(
 }
 
 // ---------------------------------------------------------------------
-// Per-tab draft KV (legacy tauri-plugin-store)
+// Per-tab draft KV (webview localStorage)
 // ---------------------------------------------------------------------
+//
+// These are UI drafts, not durable data — a current pattern mid-edit, the
+// last prompt, the active tab. WebKit persists localStorage to disk
+// (per-origin, under the app data dir) so it survives app restarts and the
+// close-to-tray webview teardown, which is all these need. Keys are
+// namespaced ("patterns.config", "generate.prompt", …) to stay clear of
+// any other localStorage use. The async signatures are kept so the hooks
+// (usePersistedState / useDraftState) are unchanged.
 
-let _store: Store | null = null;
-
-async function getStore(): Promise<Store> {
-  if (!_store) {
-    // autoSave OFF — the few callers (usePersistedState, useDraftState)
-    // explicitly call save() on user gestures. High-frequency state
-    // like Patterns slider drags lives in useDraftState and is flushed
-    // only when the user clicks Apply.
-    _store = await load('ambient.json', { defaults: {}, autoSave: false });
-  }
-  return _store;
-}
+const KEY_PREFIX = 'ambient:';
 
 export async function loadKey<T>(key: string): Promise<T | null> {
-  const store = await getStore();
-  return ((await store.get<T>(key)) as T | undefined) ?? null;
+  try {
+    const raw = localStorage.getItem(KEY_PREFIX + key);
+    return raw === null ? null : (JSON.parse(raw) as T);
+  } catch {
+    // Unparseable / storage unavailable — treat as absent.
+    return null;
+  }
 }
 
 export async function saveKey<T>(key: string, value: T): Promise<void> {
-  const store = await getStore();
-  await store.set(key, value);
-  await store.save();
+  try {
+    localStorage.setItem(KEY_PREFIX + key, JSON.stringify(value));
+  } catch {
+    // Storage quota / disabled — drafts are best-effort, so swallow.
+  }
 }

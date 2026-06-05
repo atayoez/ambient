@@ -86,6 +86,14 @@ pub struct Settings {
     // without this field deserialize cleanly to None.
     #[serde(default)]
     pub last_applied: Option<String>,
+    // User-saved palettes (colours + emojis). Pure frontend data — Rust
+    // never inspects it, just persists it — so it's stored as an opaque
+    // JSON array rather than a mirrored CustomPreset struct. Moved here
+    // from the old tauri-plugin-store `patterns.customPresets` key so the
+    // app has one source of truth for real data (drafts stay in the
+    // webview's localStorage). `#[serde(default)]` for legacy stores.
+    #[serde(default)]
+    pub custom_presets: Vec<serde_json::Value>,
 }
 
 impl Default for Settings {
@@ -103,6 +111,7 @@ impl Default for Settings {
             theme_mode: ThemeMode::Auto,
             lockscreen: false,
             last_applied: None,
+            custom_presets: Vec::new(),
         }
     }
 }

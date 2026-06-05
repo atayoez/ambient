@@ -18,7 +18,6 @@
     "core:window:allow-available-monitors",
     "core:event:allow-listen",
     "core:path:default",
-    "store:default",
     "opener:default",
     "notification:default",
     "updater:default"
