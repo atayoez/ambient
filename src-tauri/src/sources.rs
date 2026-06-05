@@ -43,8 +43,11 @@ fn http_client() -> Result<reqwest::Client, String> {
 fn source_name(kind: SourceKind) -> &'static str {
     match kind {
         SourceKind::NasaApod => "nasa-apod",
+        SourceKind::Bing => "bing",
         SourceKind::Unsplash => "unsplash",
         SourceKind::Pexels => "pexels",
+        SourceKind::Wallhaven => "wallhaven",
+        SourceKind::Picsum => "picsum",
     }
 }
 
@@ -53,8 +56,11 @@ pub async fn fetch_source_wallpaper(app: AppHandle) -> Result<Wallpaper, String>
     let settings = app.state::<SettingsState>().get().await;
     let entry = match settings.source {
         SourceKind::NasaApod => fetch_nasa_apod(&app).await?,
+        SourceKind::Bing => fetch_bing(&app).await?,
         SourceKind::Unsplash => fetch_unsplash(&app, &settings).await?,
         SourceKind::Pexels => fetch_pexels(&app, &settings).await?,
+        SourceKind::Wallhaven => fetch_wallhaven(&app, &settings).await?,
+        SourceKind::Picsum => fetch_picsum(&app).await?,
     };
     // Best-effort prepend — a failure here means the image was fetched
     // and written but the index isn't updated. The Library tab's
@@ -276,6 +282,128 @@ async fn fetch_pexels(
         added_at: ms_since_epoch(),
         prompt: None,
         title,
+        mode: crate::types::WallpaperMode::Both,
+    })
+}
+
+// Bing's Photo of the Day — a fresh curated landscape daily, no key.
+async fn fetch_bing(app: &AppHandle) -> Result<Wallpaper, String> {
+    let client = http_client()?;
+    let res = client
+        .get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US")
+        .send()
+        .await
+        .map_err(|e| format!("Bing request: {}", e))?;
+    if !res.status().is_success() {
+        return Err(format!("Bing HTTP {}", res.status()));
+    }
+    let body: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("parse Bing response: {}", e))?;
+    let img = body
+        .pointer("/images/0")
+        .ok_or_else(|| "Bing: no image in response".to_string())?;
+    // The API returns a site-relative path (already at 1920x1080); resolve
+    // it against the host.
+    let path = img
+        .get("url")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Bing: no image URL".to_string())?;
+    let img_url = format!("https://www.bing.com{}", path);
+    let date = img
+        .get("startdate")
+        .and_then(|v| v.as_str())
+        .unwrap_or("today");
+    let title = img
+        .get("copyright")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let filename = format!("bing-{}.jpg", date);
+    let local_path = download_and_save(&img_url, &filename, app).await?;
+    Ok(Wallpaper {
+        path: local_path,
+        source: source_name(SourceKind::Bing).to_string(),
+        added_at: ms_since_epoch(),
+        prompt: None,
+        title,
+        mode: crate::types::WallpaperMode::Both,
+    })
+}
+
+// Wallhaven — random SFW "general" result, optionally search-filtered.
+// The API key is optional (anonymous SFW works); a key raises rate limits
+// and ties results to the user's account.
+async fn fetch_wallhaven(
+    app: &AppHandle,
+    settings: &Settings,
+) -> Result<Wallpaper, String> {
+    let client = http_client()?;
+    let mut params: Vec<(&str, String)> = vec![
+        ("categories", "100".into()), // general only (no anime/people)
+        ("purity", "100".into()),     // SFW only
+        ("sorting", "random".into()),
+    ];
+    let query = settings.wallhaven_query.trim();
+    if !query.is_empty() {
+        params.push(("q", query.to_string()));
+    }
+    if let Ok(Some(key)) = secrets::get("wallhaven_key") {
+        let key = key.trim().to_string();
+        if !key.is_empty() {
+            params.push(("apikey", key));
+        }
+    }
+    let res = client
+        .get("https://wallhaven.cc/api/v1/search")
+        .query(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Wallhaven request: {}", e))?;
+    if !res.status().is_success() {
+        return Err(format!("Wallhaven HTTP {}", res.status()));
+    }
+    let body: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("parse Wallhaven response: {}", e))?;
+    let first = body
+        .pointer("/data/0")
+        .ok_or_else(|| "Wallhaven: no results for that search.".to_string())?;
+    let img_url = first
+        .get("path")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Wallhaven: no image path".to_string())?;
+    let id = first.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let ext = if img_url.ends_with(".png") { "png" } else { "jpg" };
+    let filename = format!("wallhaven-{}.{}", id, ext);
+    let local_path = download_and_save(img_url, &filename, app).await?;
+    Ok(Wallpaper {
+        path: local_path,
+        source: source_name(SourceKind::Wallhaven).to_string(),
+        added_at: ms_since_epoch(),
+        prompt: None,
+        title: None,
+        mode: crate::types::WallpaperMode::Both,
+    })
+}
+
+// Lorem Picsum — a random photo at the screen's native resolution. No key.
+async fn fetch_picsum(app: &AppHandle) -> Result<Wallpaper, String> {
+    let (w, h) = crate::monitor::get_primary_monitor_pixels()
+        .map(|m| (m.width, m.height))
+        .unwrap_or((1920, 1080));
+    // /<w>/<h> redirects to a random image at that size; timestamp the
+    // filename so repeated pulls stay distinct in the library.
+    let url = format!("https://picsum.photos/{}/{}", w, h);
+    let filename = format!("picsum-{}.jpg", ms_since_epoch());
+    let local_path = download_and_save(&url, &filename, app).await?;
+    Ok(Wallpaper {
+        path: local_path,
+        source: source_name(SourceKind::Picsum).to_string(),
+        added_at: ms_since_epoch(),
+        prompt: None,
+        title: None,
         mode: crate::types::WallpaperMode::Both,
     })
 }

@@ -20,16 +20,16 @@
       features: {
         eyebrow: "What's in it",
         patterns: {
-          title: 'Five pattern generators',
-          body: "Mesh gradients, dots, stripes, geometric shapes, and emoji walls using Microsoft's Fluent 3D set. Hit re-roll until you like one.",
+          title: 'Ten pattern generators',
+          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, and emoji walls — ten in all. Tweak the knobs or hit shuffle until one clicks.',
         },
         sources: {
           title: 'Curated photo sources',
-          body: "NASA's daily astronomy photo is free. Unsplash and Pexels need an API key, which is also free to get. Whatever you apply gets saved locally.",
+          body: 'A fresh photo daily from NASA and Bing, plus random shots from Lorem Picsum — all free, no key. Add a free Unsplash, Pexels, or Wallhaven key for search-driven picks. Everything you apply is saved locally.',
         },
         ai: {
           title: 'AI generation',
-          body: 'Type a prompt, hit ⌘↩. Pollinations works out of the box with no setup. For DALL·E 3 you bring your own OpenAI key.',
+          body: 'Type a prompt, hit ⌘↩. Pollinations works out of the box for free — add a token to lift the rate limit. Or bring your own OpenAI key for DALL·E 3.',
         },
         library: {
           title: 'Your own library',
@@ -175,16 +175,16 @@
       features: {
         eyebrow: 'Was drin steckt',
         patterns: {
-          title: 'Fünf Muster-Generatoren',
-          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen und Emoji-Wallpaper mit Microsofts Fluent-3D-Set. Solange neu würfeln, bis eins passt.',
+          title: 'Zehn Muster-Generatoren',
+          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter und Emoji-Wallpaper — zehn an der Zahl. An den Reglern drehen oder mischen, bis eins passt.',
         },
         sources: {
           title: 'Kuratierte Bildquellen',
-          body: 'Das tägliche Astronomiefoto der NASA ist kostenlos. Für Unsplash und Pexels brauchst du einen eigenen API-Key, der ist auch gratis. Was du anwendest, wird lokal gespeichert.',
+          body: 'Täglich ein frisches Foto von NASA und Bing, dazu zufällige Bilder von Lorem Picsum — alles kostenlos, ohne Key. Für suchbasierte Auswahl einen gratis Unsplash-, Pexels- oder Wallhaven-Key hinterlegen. Was du anwendest, wird lokal gespeichert.',
         },
         ai: {
           title: 'KI-Generierung',
-          body: 'Prompt tippen, ⌘↩ drücken. Pollinations läuft ohne Setup. Für DALL·E 3 nimmst du deinen eigenen OpenAI-Key.',
+          body: 'Prompt tippen, ⌘↩ drücken. Pollinations läuft kostenlos ohne Setup — mit einem Token hebst du das Limit. Oder du nimmst deinen eigenen OpenAI-Key für DALL·E 3.',
         },
         library: {
           title: 'Deine eigene Bibliothek',
@@ -330,16 +330,16 @@
       features: {
         eyebrow: 'İçinde neler var',
         patterns: {
-          title: 'Beş desen üreticisi',
-          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller ve Microsoft\'un Fluent 3D setiyle emoji duvar kağıtları. Beğenene kadar yeniden at.',
+          title: 'On desen üreticisi',
+          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar ve emoji duvar kağıtları — toplam on tane. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
         },
         sources: {
           title: 'Seçili fotoğraf kaynakları',
-          body: 'NASA\'nın günlük gökyüzü fotoğrafı bedava. Unsplash ve Pexels için kendi API anahtarın gerekiyor, o da ücretsiz alınıyor. Uyguladığın her şey yerele kaydediliyor.',
+          body: 'NASA ve Bing\'den her gün yeni bir fotoğraf, Lorem Picsum\'dan rastgele kareler — hepsi bedava, anahtarsız. Aramaya dayalı seçim için ücretsiz bir Unsplash, Pexels ya da Wallhaven anahtarı ekle. Uyguladığın her şey yerele kaydediliyor.',
         },
         ai: {
           title: 'Yapay zeka üretimi',
-          body: 'Bir komut yaz, ⌘↩ tuşla. Pollinations baştan ücretsiz çalışıyor. DALL·E 3 için kendi OpenAI anahtarını kullanırsın.',
+          body: 'Bir komut yaz, ⌘↩ tuşla. Pollinations baştan ücretsiz çalışıyor — bir token ile limiti kaldırırsın. Ya da DALL·E 3 için kendi OpenAI anahtarını kullanırsın.',
         },
         library: {
           title: 'Kendi kütüphanen',

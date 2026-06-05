@@ -1,7 +1,13 @@
 import type { CustomPreset } from './patterns';
 import type { ThemeMode } from './theme';
 
-export type SourceKind = 'nasa-apod' | 'unsplash' | 'pexels';
+export type SourceKind =
+  | 'nasa-apod'
+  | 'bing'
+  | 'unsplash'
+  | 'pexels'
+  | 'wallhaven'
+  | 'picsum';
 export type GenProvider = 'pollinations' | 'openai';
 // 'off' = no auto-rotation. 'sources' = fetch a new image from the
 // configured Source on each tick. 'library' = pick a random previously-
@@ -30,6 +36,7 @@ export interface Settings {
   // Phase 3 (src/lib/secrets.ts). Use useSecret('unsplash_key') etc.
   unsplashQuery: string;
   pexelsQuery: string;
+  wallhavenQuery: string;
   genProvider: GenProvider;
   pollinationsModel: string;
   genResolution: GenResolution;
@@ -74,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   source: 'nasa-apod',
   unsplashQuery: '',
   pexelsQuery: '',
+  wallhavenQuery: '',
   genProvider: 'pollinations',
   pollinationsModel: 'flux',
   genResolution: 'auto',

@@ -38,9 +38,16 @@ fn http_client() -> Result<reqwest::Client, String> {
 #[tauri::command]
 pub async fn pollinations_models() -> Result<Vec<String>, String> {
     let client = http_client()?;
-    let res = client
+    let mut req = client
         .get("https://image.pollinations.ai/models")
-        .header("Referer", POLLINATIONS_REFERRER)
+        .header("Referer", POLLINATIONS_REFERRER);
+    if let Ok(Some(token)) = secrets::get("pollinations_key") {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            req = req.bearer_auth(token);
+        }
+    }
+    let res = req
         .send()
         .await
         .map_err(|e| format!("Pollinations models: {}", e))?;
@@ -159,9 +166,17 @@ async fn generate_pollinations(
     // its rate-limit responses (HTTP 402 "Queue full for IP…") carry a
     // useful message that a bare "HTTP 402" would throw away.
     let client = http_client()?;
-    let res = client
-        .get(&url)
-        .header("Referer", POLLINATIONS_REFERRER)
+    let mut req = client.get(&url).header("Referer", POLLINATIONS_REFERRER);
+    // BYOK: a Pollinations token (free from enter.pollinations.ai) lifts
+    // the anonymous rate limit and removes the watermark. Sent server-side
+    // as a Bearer token, the documented method for backend callers.
+    if let Ok(Some(token)) = secrets::get("pollinations_key") {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            req = req.bearer_auth(token);
+        }
+    }
+    let res = req
         .send()
         .await
         .map_err(|e| format!("Pollinations request: {}", e))?;

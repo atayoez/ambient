@@ -8,7 +8,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
 
-export type SecretName = 'unsplash_key' | 'pexels_key' | 'openai_key';
+export type SecretName =
+  | 'unsplash_key'
+  | 'pexels_key'
+  | 'openai_key'
+  | 'pollinations_key'
+  | 'wallhaven_key';
 
 export async function getSecret(name: SecretName): Promise<string | null> {
   return invoke<string | null>('get_secret', { name });

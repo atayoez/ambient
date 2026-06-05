@@ -14,8 +14,18 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Three new wallpaper sources:** Bing Photo of the Day and Lorem Picsum
+  (both free, no key), and Wallhaven (search-driven; works anonymously for
+  SFW, optional key for more). Joins NASA, Unsplash, and Pexels.
+- **Pollinations API token (BYOK).** Paste a free Pollinations token in
+  Settings to lift the anonymous rate limit and drop the watermark; sent
+  as a Bearer token. AI generation now reliably works for registered
+  users. (An optional Wallhaven key field was added too.)
 
 ### Changed
+- The website now reflects the current app: ten pattern generators, all
+  six photo sources, AI with the free/token Pollinations path, and the
+  rpm download is labelled for Fedora / RHEL / openSUSE.
 
 ### Fixed
 

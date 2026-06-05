@@ -12,26 +12,55 @@ import {
   type Wallpaper,
 } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
-import { IconButton, OptionScroller, StatusInline, toast } from '../ui';
+import { Field, IconButton, OptionScroller, StatusInline, toast } from '../ui';
 import { CheckIcon, RefreshIcon } from './Icons';
 
-const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = [
-  {
-    id: 'nasa-apod',
-    name: 'NASA Picture of the Day',
-    description: 'Free · refreshes once a day',
-  },
+// One row of metadata per source drives the whole tab: the picker label,
+// whether it has a search query (and which Settings field backs it), and
+// whether it hard-requires an API key. NASA/Bing/Picsum need nothing;
+// Unsplash/Pexels require a key; Wallhaven's key is optional.
+interface SourceMeta {
+  id: SourceKind;
+  name: string;
+  /** Settings field backing the search box, if the source is searchable. */
+  queryField?: 'unsplashQuery' | 'pexelsQuery' | 'wallhavenQuery';
+  queryPlaceholder?: string;
+  /** Keyring secret that MUST be set before this source can fetch. */
+  requiresKey?: 'unsplash_key' | 'pexels_key';
+  /** Display name used in the "add your key" hint. */
+  keyLabel?: string;
+}
+
+const SOURCES: SourceMeta[] = [
+  { id: 'nasa-apod', name: 'NASA Picture of the Day' },
+  { id: 'bing', name: 'Bing Photo of the Day' },
+  { id: 'picsum', name: 'Lorem Picsum (random)' },
   {
     id: 'unsplash',
     name: 'Unsplash',
-    description: 'Free with API key · search-driven',
+    queryField: 'unsplashQuery',
+    queryPlaceholder: 'nature',
+    requiresKey: 'unsplash_key',
+    keyLabel: 'Unsplash',
   },
   {
     id: 'pexels',
     name: 'Pexels',
-    description: 'Free with API key · search-driven',
+    queryField: 'pexelsQuery',
+    queryPlaceholder: 'mountains',
+    requiresKey: 'pexels_key',
+    keyLabel: 'Pexels',
+  },
+  {
+    id: 'wallhaven',
+    name: 'Wallhaven',
+    queryField: 'wallhavenQuery',
+    queryPlaceholder: 'landscape',
   },
 ];
+
+const sourceMeta = (id: SourceKind): SourceMeta =>
+  SOURCES.find((s) => s.id === id) ?? SOURCES[0];
 
 // Most-recent Library entry matching the current source. The Library is
 // Rust-owned (settings.lastApplied + the prepend-on-fetch pipeline) so
@@ -78,18 +107,14 @@ export default function Sources() {
   // blur), not commit-on-keystroke — a half-typed "mounta" shouldn't
   // race ahead and persist to disk. Mirrors the rotation interval input
   // pattern.
-  const [unsplashQueryDraft, setUnsplashQueryDraft] = useState('');
-  const [pexelsQueryDraft, setPexelsQueryDraft] = useState('');
+  // One search draft for whichever source is active (commit-on-Enter/blur).
+  const [queryDraft, setQueryDraft] = useState('');
 
   function canFetch(s: Settings = settings): boolean {
-    switch (s.source) {
-      case 'nasa-apod':
-        return true;
-      case 'unsplash':
-        return unsplashKey.trim().length > 0;
-      case 'pexels':
-        return pexelsKey.trim().length > 0;
-    }
+    const meta = sourceMeta(s.source);
+    if (meta.requiresKey === 'unsplash_key') return unsplashKey.trim().length > 0;
+    if (meta.requiresKey === 'pexels_key') return pexelsKey.trim().length > 0;
+    return true; // NASA, Bing, Picsum, Wallhaven (key optional)
   }
 
   useEffect(() => {
@@ -161,27 +186,25 @@ export default function Sources() {
     });
   }, []);
 
+  // Mirror the active source's stored query into the draft whenever the
+  // source (or any stored query) changes.
   useEffect(() => {
-    setUnsplashQueryDraft(settings.unsplashQuery);
-  }, [settings.unsplashQuery]);
+    const field = sourceMeta(settings.source).queryField;
+    setQueryDraft(field ? settings[field] : '');
+  }, [
+    settings.source,
+    settings.unsplashQuery,
+    settings.pexelsQuery,
+    settings.wallhavenQuery,
+  ]);
 
-  useEffect(() => {
-    setPexelsQueryDraft(settings.pexelsQuery);
-  }, [settings.pexelsQuery]);
-
-  function commitUnsplashQuery() {
-    const trimmed = unsplashQueryDraft.trim();
-    setUnsplashQueryDraft(trimmed);
-    if (trimmed !== settings.unsplashQuery) {
-      update({ unsplashQuery: trimmed });
-    }
-  }
-
-  function commitPexelsQuery() {
-    const trimmed = pexelsQueryDraft.trim();
-    setPexelsQueryDraft(trimmed);
-    if (trimmed !== settings.pexelsQuery) {
-      update({ pexelsQuery: trimmed });
+  function commitQuery() {
+    const field = sourceMeta(settings.source).queryField;
+    if (!field) return;
+    const trimmed = queryDraft.trim();
+    setQueryDraft(trimmed);
+    if (trimmed !== settings[field]) {
+      update({ [field]: trimmed });
     }
   }
 
@@ -256,9 +279,10 @@ export default function Sources() {
   useKeydown('Enter', () => void applyPreview(), { cmdOrCtrl: true });
   useKeydown('r', () => void fetchNew(false), { cmdOrCtrl: true, shift: true });
 
+  const meta = sourceMeta(settings.source);
   const emptyMessage = canFetch(settings)
     ? 'Loading preview…'
-    : 'Add your API key in Settings to preview this source.';
+    : `Add your ${meta.keyLabel ?? 'API'} key in Settings to preview this source.`;
 
   return (
     <div className="sources">
@@ -276,7 +300,7 @@ export default function Sources() {
         <div className="gen-panel pat-top">
           <OptionScroller
             label="Source"
-            options={SOURCE_OPTIONS.map((s) => ({ id: s.id, label: s.name }))}
+            options={SOURCES.map((s) => ({ id: s.id, label: s.name }))}
             value={settings.source}
             onChange={(v) => update({ source: v })}
             ariaLabel="Source"
@@ -285,40 +309,29 @@ export default function Sources() {
 
         {!previewPath && <p className="gen-empty-hint">{emptyMessage}</p>}
 
-        {/* NASA has nothing to configure, so it gets no side panel — only
-            Unsplash/Pexels (search query + an "add your key" hint). */}
-        {settings.source !== 'nasa-apod' && (
+        {/* Side panel only for searchable sources (Unsplash/Pexels/
+            Wallhaven). NASA / Bing / Picsum have nothing to configure. */}
+        {meta.queryField && (
           <div className="gen-panel pat-side">
-            <label className="field">
-              <span>Search</span>
+            <Field label="Search">
               <input
                 type="text"
-                value={
-                  settings.source === 'unsplash' ? unsplashQueryDraft : pexelsQueryDraft
-                }
-                onChange={(e) =>
-                  settings.source === 'unsplash'
-                    ? setUnsplashQueryDraft(e.target.value)
-                    : setPexelsQueryDraft(e.target.value)
-                }
-                onBlur={
-                  settings.source === 'unsplash' ? commitUnsplashQuery : commitPexelsQuery
-                }
+                value={queryDraft}
+                onChange={(e) => setQueryDraft(e.target.value)}
+                onBlur={commitQuery}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    if (settings.source === 'unsplash') commitUnsplashQuery();
-                    else commitPexelsQuery();
+                    commitQuery();
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
-                placeholder={settings.source === 'unsplash' ? 'nature' : 'mountains'}
+                placeholder={meta.queryPlaceholder}
                 aria-label="Search query"
               />
-            </label>
+            </Field>
             {!canFetch(settings) && (
               <p className="muted small">
-                Add your {settings.source === 'unsplash' ? 'Unsplash' : 'Pexels'} API key
-                in Settings to preview this source.
+                Add your {meta.keyLabel} API key in Settings to preview this source.
               </p>
             )}
           </div>

@@ -43,8 +43,11 @@ type UpdateState =
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [openaiKey, setOpenaiKey, openaiLoaded] = useSecret('openai_key');
+  const [pollinationsKey, setPollinationsKey, pollinationsLoaded] =
+    useSecret('pollinations_key');
   const [unsplashKey, setUnsplashKey, unsplashLoaded] = useSecret('unsplash_key');
   const [pexelsKey, setPexelsKey, pexelsLoaded] = useSecret('pexels_key');
+  const [wallhavenKey, setWallhavenKey, wallhavenLoaded] = useSecret('wallhaven_key');
   const [autostart, setAutostart] = useState(false);
   const [intervalDraft, setIntervalDraft] = useState(
     String(DEFAULT_SETTINGS.rotationIntervalMinutes),
@@ -159,6 +162,17 @@ export default function Settings() {
             Stored in your OS keyring. Sources and AI generation read them from here.
           </p>
           <div className="set-row">
+            <span>Pollinations</span>
+            <input
+              type="password"
+              value={pollinationsKey}
+              disabled={!pollinationsLoaded}
+              onChange={(e) => setPollinationsKey(e.target.value)}
+              placeholder="token — optional, lifts limits"
+              aria-label="Pollinations API token"
+            />
+          </div>
+          <div className="set-row">
             <span>OpenAI</span>
             <input
               type="password"
@@ -189,6 +203,17 @@ export default function Settings() {
               onChange={(e) => setPexelsKey(e.target.value)}
               placeholder="api key"
               aria-label="Pexels API key"
+            />
+          </div>
+          <div className="set-row">
+            <span>Wallhaven</span>
+            <input
+              type="password"
+              value={wallhavenKey}
+              disabled={!wallhavenLoaded}
+              onChange={(e) => setWallhavenKey(e.target.value)}
+              placeholder="api key — optional"
+              aria-label="Wallhaven API key"
             />
           </div>
         </section>

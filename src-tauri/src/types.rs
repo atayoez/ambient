@@ -9,8 +9,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub enum SourceKind {
     NasaApod,
+    Bing,
     Unsplash,
     Pexels,
+    Wallhaven,
+    Picsum,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,6 +70,8 @@ pub struct Settings {
     pub source: SourceKind,
     pub unsplash_query: String,
     pub pexels_query: String,
+    #[serde(default)]
+    pub wallhaven_query: String,
     pub gen_provider: GenProvider,
     // pollinations_model, gen_resolution, openai_model are kept as
     // free-form strings — the TS layer is the source of truth for which
@@ -102,6 +107,7 @@ impl Default for Settings {
             source: SourceKind::NasaApod,
             unsplash_query: String::new(),
             pexels_query: String::new(),
+            wallhaven_query: String::new(),
             gen_provider: GenProvider::Pollinations,
             pollinations_model: "flux".to_string(),
             gen_resolution: "auto".to_string(),

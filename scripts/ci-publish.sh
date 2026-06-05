@@ -138,8 +138,8 @@ if gh release view "v$VERSION" >/dev/null 2>&1; then
     "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)" \
     "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)" \
     "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)" \
-    "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL x86_64)" \
-    "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL aarch64)" \
+    "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE x86_64)" \
+    "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE aarch64)" \
     "$OUT/$PACMAN_X64_NAME#Ambient $VERSION (Arch x86_64)"
 else
   gh release create "v$VERSION" \
@@ -150,8 +150,8 @@ else
     "$OUT/$MSI_ARM_NAME#Ambient $VERSION (Windows arm64 MSI)" \
     "$OUT/$DEB_X64_NAME#Ambient $VERSION (Debian/Ubuntu x86_64)" \
     "$OUT/$DEB_ARM_NAME#Ambient $VERSION (Debian/Ubuntu aarch64)" \
-    "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL x86_64)" \
-    "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL aarch64)" \
+    "$OUT/$RPM_X64_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE x86_64)" \
+    "$OUT/$RPM_ARM_NAME#Ambient $VERSION (Fedora/RHEL/openSUSE aarch64)" \
     "$OUT/$PACMAN_X64_NAME#Ambient $VERSION (Arch x86_64)"
 fi
 
