@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [1.0.0] — 2026-06-05
+
+### Added
 - **Native Linux packages.** Ambient now ships `.deb` (Debian/Ubuntu),
   `.rpm` (Fedora/RHEL) — both x86_64 and ARM64 — and a native Arch
   `.pkg.tar.zst` (x86_64). These link the system WebKitGTK, so they avoid
