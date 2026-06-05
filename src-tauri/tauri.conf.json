@@ -29,7 +29,7 @@
         "maximizable": false,
         "fullscreen": false,
         "decorations": true,
-        "transparent": true,
+        "transparent": false,
         "visible": true,
         "center": true
       }

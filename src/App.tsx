@@ -1,12 +1,10 @@
 import { listen as listenTauri } from '@tauri-apps/api/event';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import {
   GearIcon,
   ImageIcon,
-  InfoIcon,
   LayoutGridIcon,
   PaletteIcon,
   WandIcon,
@@ -48,10 +46,6 @@ export default function App() {
   // rebuilt on tray-click, so without persistence every reopen would
   // snap back to Patterns).
   const [tab, setTab] = usePersistedState<Tab>('app.tab', 'patterns');
-
-  // About modal — opened from the titlebar info button. Not persisted;
-  // a fresh launch always starts closed.
-  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Tabs are mounted lazily on first visit and stay mounted thereafter
   // (toggling display:contents → none on switch). This preserves
@@ -194,19 +188,8 @@ export default function App() {
               <span aria-hidden="true">{icon}</span>
             </button>
           ))}
-          {/* Info (About) — rightmost in the bottom bar, not a tab so it
-              gets no sliding indicator. */}
-          <button
-            className="tab-info"
-            onClick={() => setAboutOpen(true)}
-            aria-label="About Ambient"
-            title="About Ambient"
-          >
-            <InfoIcon size={18} />
-          </button>
         </nav>
       )}
-      {license && aboutOpen && <About onClose={() => setAboutOpen(false)} />}
     </div>
   );
 }

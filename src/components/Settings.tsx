@@ -5,7 +5,10 @@
 // Settings fields written through patchSettings, and autostart/uninstall are
 // Rust commands.
 
+import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { check } from '@tauri-apps/plugin-updater';
 import { useEffect, useState } from 'react';
 import { dispatch } from '../lib/events';
 import { useSecret } from '../lib/secrets';
@@ -15,6 +18,8 @@ import {
   DEFAULT_SETTINGS,
   type RotationSource,
 } from '../lib/types';
+import { checkForUpdateManual } from '../lib/updater';
+import { RefreshIcon } from './Icons';
 import OptionScroller from './OptionScroller';
 
 const ROTATION_OPTIONS: { id: RotationSource; label: string }[] = [
@@ -22,6 +27,17 @@ const ROTATION_OPTIONS: { id: RotationSource; label: string }[] = [
   { id: 'sources', label: 'Fetch from source' },
   { id: 'library', label: 'Shuffle library' },
 ];
+
+const HOMEPAGE = 'https://ambient.oezcan.me';
+const DOWNLOAD_URL = 'https://ambient.oezcan.me/#download';
+
+type UpdateState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'uptodate' }
+  | { kind: 'available'; version: string }
+  | { kind: 'installing' }
+  | { kind: 'error' };
 
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -32,6 +48,8 @@ export default function Settings() {
   const [intervalDraft, setIntervalDraft] = useState(
     String(DEFAULT_SETTINGS.rotationIntervalMinutes),
   );
+  const [version, setVersion] = useState('');
+  const [update, setUpdate] = useState<UpdateState>({ kind: 'idle' });
 
   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
   const [purgeData, setPurgeData] = useState(false);
@@ -46,7 +64,32 @@ export default function Settings() {
     void invoke<boolean>('get_autostart')
       .then(setAutostart)
       .catch(() => {});
+    void getVersion().then(setVersion);
   }, []);
+
+  async function checkUpdates() {
+    if (update.kind === 'checking' || update.kind === 'installing') return;
+    setUpdate({ kind: 'checking' });
+    const r = await checkForUpdateManual();
+    if (r.status === 'available') setUpdate({ kind: 'available', version: r.version });
+    else if (r.status === 'uptodate') setUpdate({ kind: 'uptodate' });
+    else setUpdate({ kind: 'error' });
+  }
+
+  async function installUpdate() {
+    if (update.kind === 'installing') return;
+    setUpdate({ kind: 'installing' });
+    try {
+      const u = await check();
+      if (u?.available) {
+        await u.downloadAndInstall(); // exits to relaunch on success
+        return;
+      }
+      void openUrl(DOWNLOAD_URL);
+    } catch {
+      void openUrl(DOWNLOAD_URL);
+    }
+  }
 
   async function patch(p: Partial<AppSettings>) {
     const next = await patchSettings(p);
@@ -179,6 +222,53 @@ export default function Settings() {
                 aria-label="Start Ambient on login"
               />
             </label>
+          </section>
+
+          <section className="settings-group">
+            <h3 className="settings-title">About</h3>
+            <div className="settings-about-row">
+              <span>Ambient{version ? ` ${version}` : ''}</span>
+              <button
+                type="button"
+                className="settings-update-btn"
+                onClick={update.kind === 'available' ? installUpdate : checkUpdates}
+                disabled={update.kind === 'checking' || update.kind === 'installing'}
+              >
+                {update.kind === 'available' ? (
+                  <span>Install {update.version}</span>
+                ) : (
+                  <>
+                    <RefreshIcon size={13} />
+                    <span>
+                      {update.kind === 'checking'
+                        ? 'Checking…'
+                        : update.kind === 'installing'
+                          ? 'Updating…'
+                          : 'Check for updates'}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+            {(update.kind === 'uptodate' ||
+              update.kind === 'available' ||
+              update.kind === 'error') && (
+              <span className="settings-hint" role="status" aria-live="polite">
+                {update.kind === 'uptodate' && "You're up to date."}
+                {update.kind === 'available' && 'A new version is available.'}
+                {update.kind === 'error' && 'Check failed — try again later.'}
+              </span>
+            )}
+            <div className="settings-about-links">
+              <button
+                type="button"
+                className="about-link"
+                onClick={() => void openUrl(HOMEPAGE)}
+              >
+                ambient.oezcan.me
+              </button>
+              <span className="settings-hint">© 2026 Atay Özcan</span>
+            </div>
           </section>
 
           <section className="settings-group">
