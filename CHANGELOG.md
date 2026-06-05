@@ -14,6 +14,14 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [1.0.3] — 2026-06-05
+
+### Added
 - **Signed RPMs.** The `.rpm` packages (Fedora/RHEL/openSUSE) are now
   GPG-signed in CI, so `zypper`/`dnf` stop warning about an unsigned
   package once you trust the key:

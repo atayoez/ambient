@@ -1,6 +1,6 @@
 [package]
 name = "ambient"
-version = "1.0.2"
+version = "1.0.3"
 description = "Cross-platform wallpaper app with dynamic pattern generation."
 edition = "2024"
 
