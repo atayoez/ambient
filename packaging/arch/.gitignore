@@ -1,0 +1,4 @@
+/*.pkg.tar.*
+/ambient_*_amd64.deb
+/src/
+/pkg/

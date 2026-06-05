@@ -10,13 +10,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // /downloads/latest/{platform} → 302 to whatever the manifest currently
+    // /downloads/latest/{key} → 302 to whatever the manifest currently
     // points at. Lets the homepage hardcode platform-keyed URLs once and
-    // never touch them again across releases. Bare "windows"/"linux"
-    // alias the x86_64 (majority) builds; "-arm64" suffix picks up the
-    // aarch64 variants from the 0.4-and-later release matrix.
+    // never touch them again across releases. The key is matched loosely
+    // (any lowercase/digit/dash token) and looked up in the manifest's
+    // `downloads` map — an unknown key just 404s. Keys in use:
+    //   macos · windows · windows-arm64 · linux · linux-arm64 ·
+    //   linux-deb · linux-deb-arm64 · linux-rpm · linux-rpm-arm64 ·
+    //   linux-pacman
     const latestMatch = url.pathname.match(
-      /^\/downloads\/latest\/(macos|windows|windows-arm64|linux|linux-arm64)\/?$/,
+      /^\/downloads\/latest\/([a-z0-9-]+)\/?$/,
     );
     if (latestMatch) {
       return redirectToLatest(env.DOWNLOADS, latestMatch[1]);
@@ -117,6 +120,8 @@ function contentTypeFor(name) {
   if (name.endsWith('.msi')) return 'application/x-msi';
   if (name.endsWith('.AppImage')) return 'application/x-executable';
   if (name.endsWith('.deb')) return 'application/vnd.debian.binary-package';
+  if (name.endsWith('.rpm')) return 'application/x-rpm';
+  if (name.endsWith('.pkg.tar.zst')) return 'application/zstd';
   if (name.endsWith('.flatpak')) return 'application/vnd.flatpak';
   if (name.endsWith('.json')) return 'application/json';
   return 'application/octet-stream';

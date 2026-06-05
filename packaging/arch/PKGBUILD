@@ -1,0 +1,40 @@
+# Maintainer: Atay Özcan <atay@oezcan.me>
+#
+# Native Arch package for Ambient. Tauri v2 has no pacman bundler, so we
+# repackage the Tauri-built .deb (which already lays files out under the
+# /usr/bin + /usr/share hierarchy pacman wants) into a .pkg.tar.zst.
+# This is NOT an AUR package — it's produced by makepkg in CI (and
+# locally) and shipped as a direct download.
+#
+# Local build:  cp the built deb here as ambient_<ver>_amd64.deb, then
+#               `makepkg -f`. CI passes the version via the env override.
+pkgname=ambient
+# Version is injected by scripts/build-arch-pkg.sh via $AMBIENT_VERSION
+# (no sed templating — keeps it shell-agnostic). Defaults to the current
+# release for a bare local `makepkg`.
+pkgver=${AMBIENT_VERSION:-0.9.0}
+pkgrel=1
+pkgdesc="Wallpaper studio with patterns, emoji, sources, and AI"
+arch=('x86_64')
+url="https://ambient.oezcan.me"
+license=('LicenseRef-proprietary')
+# Hard deps are what the binary actually links (ldd): webkit2gtk-4.1 + gtk3.
+# The appindicator lib is dlopen'd at runtime only for the tray icon, so
+# it's optional — the app runs fine without it (tray just won't show).
+depends=('webkit2gtk-4.1' 'gtk3')
+optdepends=('libayatana-appindicator: system tray icon support')
+options=('!strip' '!debug')
+# The prebuilt .deb is the source. makepkg shouldn't try to auto-extract
+# it (it's an `ar` archive); we unpack it by hand in package().
+source=("ambient_${pkgver}_amd64.deb")
+noextract=("ambient_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+
+package() {
+  cd "${srcdir}"
+  # .deb is an ar archive of {debian-binary, control.tar.*, data.tar.*}.
+  bsdtar -xf "ambient_${pkgver}_amd64.deb"
+  # data.tar.* carries the real payload under ./usr/... — drop it straight
+  # into $pkgdir.
+  bsdtar -xf data.tar.* -C "${pkgdir}"
+}

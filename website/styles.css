@@ -830,132 +830,101 @@ code {
   line-height: 1.55;
 }
 
-/* Single primary download — detected platform gets the prominent slot,
-   the rest live under the <details> disclosure below. download.js
-   populates the glyph, OS label, arch meta + href on load; the values
-   in the markup are the non-JS fallback (macOS). */
-.dl-primary {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  max-width: 520px;
+/* Three per-OS download cards (macOS / Windows / Linux). macOS is a
+   single button; Windows picks an arch; Linux picks a format + arch.
+   download.js highlights the visitor's detected card and floats it first
+   (order:-1). Default hrefs in the markup are the no-JS x86_64 fallback. */
+.dl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 18px 22px;
-  border-radius: var(--radius-container);
   text-align: left;
-  cursor: pointer;
-  text-decoration: none;
-  color: inherit;
+}
+
+.dl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 20px;
+  border-radius: var(--radius-container);
   transition: transform var(--t-base) ease, border-color var(--t-base) ease;
 }
 
-.dl-primary:hover {
-  transform: translateY(-1px);
-  border-color: var(--accent);
-}
-
-.dl-primary-glyph {
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
+.dl-card-glyph {
+  width: 32px;
+  height: 32px;
   color: var(--text);
   opacity: 0.85;
 }
 
-.dl-primary-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.dl-primary-os {
-  font-size: 18px;
+.dl-card-os {
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  line-height: 1.2;
 }
 
-.dl-primary-meta {
+.dl-card-meta {
   font-size: 13px;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: -6px;
 }
 
-.dl-primary-cta {
-  flex: 0 0 auto;
-  padding: 9px 18px;
+.dl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dl-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inline);
+  cursor: pointer;
+}
+
+.dl-field select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dl-card-btn {
+  margin-top: auto;
+  text-align: center;
+  padding: 10px 16px;
   font-size: 14px;
   font-weight: var(--fw-semibold);
   border-radius: var(--radius-inline);
   background: linear-gradient(180deg, var(--accent-fill-hover), var(--accent-fill));
   color: var(--accent-text);
   box-shadow: var(--shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  text-decoration: none;
 }
 
-/* "Other platforms" — native <details> disclosure. Small + muted so
-   it reads as secondary; opens to a plain list of every shipped
-   artifact. */
-.dl-alternatives {
-  max-width: 520px;
-  margin: 14px auto 0;
+.dl-card-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* The auto-detected card gets an accent ring + a check after the OS name. */
+.dl-card-detected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.dl-card-detected .dl-card-os::after {
+  content: ' ✓';
+  color: var(--accent);
   font-size: 13px;
-  color: var(--muted);
-}
-
-.dl-alternatives summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 6px 0;
-  text-align: center;
-  transition: color var(--t-base) ease;
-}
-
-.dl-alternatives summary::-webkit-details-marker {
-  display: none;
-}
-
-.dl-alternatives summary::after {
-  content: ' ▾';
-  font-size: 10px;
-  opacity: 0.6;
-}
-
-.dl-alternatives[open] summary::after {
-  content: ' ▴';
-}
-
-.dl-alternatives summary:hover {
-  color: var(--text);
-}
-
-.dl-alt-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.dl-alt-list li {
-  margin: 0;
-}
-
-.dl-alt-list a {
-  display: flex;
-  justify-content: space-between;
-  padding: 7px 14px;
-  border-radius: var(--radius-inline);
-  color: var(--text);
-  transition: background var(--t-fast) ease;
-}
-
-.dl-alt-list a:hover {
-  background: var(--surface);
-}
-
-.dl-alt-list span {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .dl-note {
@@ -1236,6 +1205,12 @@ footer {
 
   .cta-row {
     justify-content: center;
+  }
+
+  /* Stack the three download cards on narrow screens. */
+  .dl-grid {
+    grid-template-columns: 1fr;
+    max-width: 420px;
   }
 
 }

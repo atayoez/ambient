@@ -111,11 +111,15 @@ jobs:
             artifact-glob: |
               src-tauri/target/release/bundle/appimage/*.AppImage
               src-tauri/target/release/bundle/appimage/*.AppImage.sig
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/rpm/*.rpm
           - platform: ubuntu-22.04
             arch: x86_64
             artifact-glob: |
               src-tauri/target/release/bundle/appimage/*.AppImage
               src-tauri/target/release/bundle/appimage/*.AppImage.sig
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/rpm/*.rpm
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v6
@@ -197,9 +201,46 @@ jobs:
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
 
+  # Native Arch package. Tauri v2 has no pacman bundler, so we repackage
+  # the x86_64 .deb (built by build-tauri) into a .pkg.tar.zst via makepkg.
+  # makepkg only runs on Arch and refuses to run as root, so we do the
+  # packaging inside an `archlinux` container via `docker run` — the job
+  # itself stays on ubuntu so the JS actions (checkout/download/upload)
+  # have the node the runner provides (an archlinux *container* wouldn't).
+  build-arch:
+    name: Build Arch package (x86_64)
+    needs: build-tauri
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download x86_64 Linux artifacts (.deb)
+        uses: actions/download-artifact@v8
+        with:
+          name: ambient-ubuntu-22.04-x86_64
+          path: linux-x64
+      - name: Repackage .deb → .pkg.tar.zst (makepkg in archlinux)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD":/work -w /work archlinux:latest bash -c '
+            set -euo pipefail
+            pacman -Sy --noconfirm --needed base-devel >/dev/null
+            useradd -m builder
+            chown -R builder:builder /work
+            DEB=$(find linux-x64 -name "*.deb" | head -1)
+            base=$(basename "$DEB"); tmp=${base#Ambient_}; VERSION=${tmp%_amd64.deb}
+            echo "Building Arch package for version $VERSION from $DEB"
+            runuser -u builder -- ./scripts/build-arch-pkg.sh "$VERSION" "$DEB" /work/arch-out
+          '
+      - name: Upload arch artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ambient-arch-x86_64
+          path: arch-out/*.pkg.tar.*
+
   release:
     name: Publish release
-    needs: build-tauri
+    needs: [build-tauri, build-arch]
     # Tag push only. Manual dispatch builds without publishing — useful
     # for testing the matrix on a feature branch without cutting a
     # release.

@@ -14,6 +14,15 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Native Linux packages.** Ambient now ships `.deb` (Debian/Ubuntu),
+  `.rpm` (Fedora/RHEL) — both x86_64 and ARM64 — and a native Arch
+  `.pkg.tar.zst` (x86_64). These link the system WebKitGTK, so they avoid
+  the AppImage's bundled-library blank-window issue on some GPUs and are
+  the recommended way to install on Linux.
+- **Redesigned download page.** The site now offers a per-OS picker:
+  macOS one button, Windows an architecture dropdown, and Linux a
+  distro/format + architecture dropdown — auto-selecting your detected
+  platform.
 
 ### Changed
 - **Simpler storage.** Retired the `tauri-plugin-store` dependency (both the
@@ -22,6 +31,8 @@ is added on top. Edit this file as you go, not at release time.
   ephemeral UI drafts (current pattern, prompt, active tab) moved to the
   webview's localStorage. Upgrading keeps your palettes; an in-progress
   unsaved pattern resets once.
+- The Linux AppImage no longer bundles the GStreamer media framework
+  (Ambient has no audio/video), slimming the download.
 
 ### Fixed
 

@@ -66,6 +66,11 @@ const names = {
   msi_arm: `Ambient-${v}-Windows-aarch64.msi`,
   app_x64: `Ambient-${v}-Linux-x86_64.AppImage`,
   app_arm: `Ambient-${v}-Linux-aarch64.AppImage`,
+  deb_x64: `Ambient-${v}-Linux-x86_64.deb`,
+  deb_arm: `Ambient-${v}-Linux-aarch64.deb`,
+  rpm_x64: `Ambient-${v}-Linux-x86_64.rpm`,
+  rpm_arm: `Ambient-${v}-Linux-aarch64.rpm`,
+  pacman_x64: `Ambient-${v}-Linux-x86_64.pkg.tar.zst`,
 };
 const read = (p) => fs.readFileSync(p, 'utf8').trim();
 
@@ -80,6 +85,13 @@ const manifest = {
     'windows-arm64': `${base}/${names.msi_arm}`,
     linux: `${base}/${names.app_x64}`,
     'linux-arm64': `${base}/${names.app_arm}`,
+    // Native Linux packages (website distro/arch dropdown). Keys match
+    // download.js's composed `linux-<format>[-arm64]` aliases.
+    'linux-deb': `${base}/${names.deb_x64}`,
+    'linux-deb-arm64': `${base}/${names.deb_arm}`,
+    'linux-rpm': `${base}/${names.rpm_x64}`,
+    'linux-rpm-arm64': `${base}/${names.rpm_arm}`,
+    'linux-pacman': `${base}/${names.pacman_x64}`,
   },
   platforms: {
     'darwin-aarch64': {
