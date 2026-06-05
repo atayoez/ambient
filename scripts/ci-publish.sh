@@ -106,8 +106,10 @@ if [[ -n "${RPM_GPG_PRIVATE_KEY:-}" ]]; then
   # everywhere (zypper/dnf/rpm). scripts/sign-rpms.sh runs in the container;
   # ${CONTAINER:-docker} is `docker` on GitHub runners and the podman
   # docker-shim on the self-hosted box.
+  # -v source must be absolute — a relative path (OUT="dist/renamed") is
+  # parsed as a named volume by docker/podman, not a bind mount.
   "${CONTAINER:-docker}" run --rm \
-    -v "$OUT":/out -v "$REPO_ROOT/scripts":/scripts:ro \
+    -v "$REPO_ROOT/$OUT":/out -v "$REPO_ROOT/scripts":/scripts:ro \
     -e RPM_GPG_PRIVATE_KEY -e RPM_GPG_PASSPHRASE \
     docker.io/library/almalinux:9 \
     bash /scripts/sign-rpms.sh "/out/$RPM_X64_NAME" "/out/$RPM_ARM_NAME"
