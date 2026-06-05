@@ -1,16 +1,17 @@
 // Update checker.
 //
-// Wraps tauri-plugin-updater's check() so we keep the existing 6h
-// throttle + per-version dismiss UX, but otherwise hand off to the
-// plugin: it reads endpoints + pubkey from tauri.conf.json, fetches
-// latest.json, verifies the minisign signature on the platform-matching
-// artifact, and exposes a download_and_install() path on the returned
-// handle when the user opts in.
+// Wraps tauri-plugin-updater's check() for version DETECTION only — it
+// reads endpoints + pubkey from tauri.conf.json, fetches latest.json, and
+// reports whether a newer version exists for this platform. We keep the 6h
+// throttle + per-version dismiss UX on top.
 //
-// What this does NOT do (yet): trigger the actual install. The
-// UpdateBanner UI still links to the website download. Flipping that to
-// a one-click in-app update is a small wiring change once we trust the
-// signed-artifact pipeline end-to-end.
+// We deliberately do NOT install in-app: the UpdateBanner + Settings both
+// link to the website download page instead (builds aren't code-signed,
+// and Linux installs are native packages that update via the package
+// manager). Note check() only reports on platforms present in
+// latest.json's `platforms` block — macOS + Windows. On Linux there's no
+// platform entry, so no banner shows and "Check for updates" reports
+// up-to-date; that's intended, the package manager owns Linux updates.
 
 import { check } from '@tauri-apps/plugin-updater';
 
@@ -24,11 +25,6 @@ export interface UpdateInfo {
   version: string;
   current?: string;
   notes?: string;
-  downloads?: {
-    macos?: string;
-    windows?: string;
-    linux?: string;
-  };
 }
 
 /** Returns the new UpdateInfo if a newer version is available AND the
@@ -53,16 +49,6 @@ export async function checkForUpdate(
       version: update.version,
       current: update.currentVersion,
       notes: update.body ?? '',
-      // Fallback download URLs — the alias resolves to whatever's in
-      // latest.json's `downloads` block. The plugin's own
-      // download_and_install() reads the signed `platforms` block
-      // instead, so these are only used by the "open the website to
-      // download manually" path in UpdateBanner.
-      downloads: {
-        macos: 'https://ambient.oezcan.me/downloads/latest/macos',
-        windows: 'https://ambient.oezcan.me/downloads/latest/windows',
-        linux: 'https://ambient.oezcan.me/downloads/latest/linux',
-      },
     };
   } catch {
     // Network down / endpoint unreachable / signature mismatch /

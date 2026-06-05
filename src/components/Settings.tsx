@@ -7,7 +7,6 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { check } from '@tauri-apps/plugin-updater';
 import { useEffect, useState } from 'react';
 import { dispatch } from '../lib/events';
 import { useSecret } from '../lib/secrets';
@@ -39,7 +38,6 @@ type UpdateState =
   | { kind: 'checking' }
   | { kind: 'uptodate' }
   | { kind: 'available'; version: string }
-  | { kind: 'installing' }
   | { kind: 'error' };
 
 export default function Settings() {
@@ -99,7 +97,7 @@ export default function Settings() {
   }
 
   async function checkUpdates() {
-    if (update.kind === 'checking' || update.kind === 'installing') return;
+    if (update.kind === 'checking') return;
     setUpdate({ kind: 'checking' });
     const r = await checkForUpdateManual();
     if (r.status === 'available') setUpdate({ kind: 'available', version: r.version });
@@ -107,19 +105,10 @@ export default function Settings() {
     else setUpdate({ kind: 'error' });
   }
 
-  async function installUpdate() {
-    if (update.kind === 'installing') return;
-    setUpdate({ kind: 'installing' });
-    try {
-      const u = await check();
-      if (u?.available) {
-        await u.downloadAndInstall();
-        return;
-      }
-      void openUrl(DOWNLOAD_URL);
-    } catch {
-      void openUrl(DOWNLOAD_URL);
-    }
+  // We don't install in-app — open the download page so the user grabs
+  // the new build / native package themselves (see UpdateBanner for why).
+  function openDownload() {
+    void openUrl(DOWNLOAD_URL);
   }
 
   async function doUninstall() {
@@ -273,24 +262,22 @@ export default function Settings() {
             <button
               type="button"
               className="set-btn"
-              onClick={update.kind === 'available' ? installUpdate : checkUpdates}
-              disabled={update.kind === 'checking' || update.kind === 'installing'}
+              onClick={update.kind === 'available' ? openDownload : checkUpdates}
+              disabled={update.kind === 'checking'}
             >
               {update.kind === 'available' ? (
-                <span>Install {update.version}</span>
+                <span>Download {update.version}</span>
               ) : (
                 <>
                   <RefreshIcon size={13} />
                   <span>
                     {update.kind === 'checking'
                       ? 'Checking…'
-                      : update.kind === 'installing'
-                        ? 'Updating…'
-                        : update.kind === 'uptodate'
-                          ? 'Up to date'
-                          : update.kind === 'error'
-                            ? 'Try again'
-                            : 'Check for updates'}
+                      : update.kind === 'uptodate'
+                        ? 'Up to date'
+                        : update.kind === 'error'
+                          ? 'Try again'
+                          : 'Check for updates'}
                   </span>
                 </>
               )}

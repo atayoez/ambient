@@ -24,6 +24,9 @@ is added on top. Edit this file as you go, not at release time.
 - **Download page** shows just your detected platform up front; the others
   tuck into an "Other platforms" disclosure, and the unsigned-app note only
   appears when it's actually about the platform on offer.
+- **Update notifications now link to the download page** instead of
+  installing in-app — the banner and the Settings "Updates" action both
+  open the website so you grab the new build / package yourself.
 
 ### Fixed
 
