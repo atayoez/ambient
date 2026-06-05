@@ -35,9 +35,8 @@ impl SettingsState {
 
     /// Subscribe to settings changes. Each subscriber gets the latest
     /// value on first borrow + every subsequent change. Used by the
-    /// Phase 4 rotation task to reconfigure on interval / source flips
-    /// without polling.
-    #[allow(dead_code)] // wired in Phase 4
+    /// rotation task to reconfigure on interval / source flips without
+    /// polling.
     pub fn subscribe(&self) -> watch::Receiver<Settings> {
         self.tx.subscribe()
     }

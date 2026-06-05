@@ -55,8 +55,20 @@ pub(crate) async fn download_and_save(
         .await
         .map_err(|e| format!("read response bytes from {}: {}", url, e))?;
 
+    save_image_bytes(&bytes, filename, app)
+}
+
+/// Write already-downloaded image bytes into the wallpaper dir, returning
+/// the resolved absolute path. Shared by `download_and_save` and callers
+/// that fetch the bytes themselves (aigen.rs does so to attach a Referer
+/// header and parse provider-specific error bodies).
+pub(crate) fn save_image_bytes(
+    bytes: &[u8],
+    filename: &str,
+    app: &tauri::AppHandle,
+) -> Result<String, String> {
     let target = wallpaper_target(app, filename)?;
-    std::fs::write(&target, &bytes)
+    std::fs::write(&target, bytes)
         .map_err(|e| format!("write wallpaper to {:?}: {}", target, e))?;
 
     target
@@ -103,6 +115,77 @@ pub async fn delete_wallpaper(path: String, app: tauri::AppHandle) -> Result<(),
     // want a missing thumb to block the user's delete intent.
     let _ = remove_thumbnail_for(&app, &path);
     Ok(())
+}
+
+/// All directories Ambient may have written wallpapers to (current OS dir
+/// + legacy app-data location), for the bulk delete / scan paths.
+fn all_wallpaper_dirs(app: &tauri::AppHandle) -> Vec<PathBuf> {
+    let mut dirs = match wallpaper_dir(app) {
+        Ok(d) => vec![d],
+        Err(_) => Vec::new(),
+    };
+    if let Ok(data_dir) = app.path().app_data_dir() {
+        let legacy = data_dir.join("wallpapers");
+        if !dirs.contains(&legacy) {
+            dirs.push(legacy);
+        }
+    }
+    dirs
+}
+
+/// Remove the whole WebP thumbnail cache (<app_data>/thumbs). Cheap,
+/// regenerable on demand — backs the Settings "Clear cache" action.
+fn clear_thumbs(app: &tauri::AppHandle) -> Result<(), String> {
+    let thumbs = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("thumbs");
+    if thumbs.exists() {
+        std::fs::remove_dir_all(&thumbs).map_err(|e| format!("clear thumbs: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Settings → "Clear cache": drop the regenerable thumbnail cache. The
+/// grid re-creates thumbnails lazily on next view, so this is safe and
+/// non-destructive to actual wallpapers.
+#[tauri::command]
+pub async fn clear_thumbnail_cache(app: tauri::AppHandle) -> Result<(), String> {
+    clear_thumbs(&app)
+}
+
+/// Settings → "Delete saved wallpapers": remove every wallpaper file
+/// Ambient has saved (both the current OS dir and the legacy location),
+/// wipe the thumbnail cache, and empty the library index. Returns how
+/// many image files were deleted. The currently-applied desktop wallpaper
+/// is the DE's own copy/reference, so the live desktop is unaffected.
+#[tauri::command]
+pub async fn delete_local_wallpapers(app: tauri::AppHandle) -> Result<u32, String> {
+    let mut removed = 0u32;
+    for dir in all_wallpaper_dirs(&app) {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                continue; // skip any nested dir (e.g. a stray thumbs/)
+            }
+            if std::fs::remove_file(&p).is_ok() {
+                removed += 1;
+            }
+        }
+    }
+    // Thumbnails point at now-deleted files — clear them too.
+    let _ = clear_thumbs(&app);
+    // Empty the index so the Library tab reflects the deletion immediately
+    // (patch emits `library-changed`).
+    let state = app.state::<crate::library_store::LibraryState>();
+    let _ = state
+        .patch(crate::library_store::LibraryOp::Clear, &app)
+        .await;
+    Ok(removed)
 }
 
 #[tauri::command]

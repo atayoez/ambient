@@ -11,13 +11,10 @@ export type RotationSource = 'off' | 'sources' | 'library';
 // theme; 'light'/'dark' restrict it. The rotation / "Next" pools are
 // derived from these tags.
 export type WallpaperMode = 'both' | 'light' | 'dark';
-export type PollinationsModel =
-  | 'flux'
-  | 'flux-realism'
-  | 'flux-anime'
-  | 'flux-3d'
-  | 'turbo'
-  | 'sdxl';
+// Pollinations' model set is fetched live from its /models endpoint
+// (see pollinations_models in aigen.rs) rather than hardcoded — the
+// service trims the list over time, so a frozen union would lie. A
+// plain string id, defaulting to 'flux'.
 export type GenResolution =
   | 'auto'
   | '1920x1080'
@@ -33,7 +30,7 @@ export interface Settings {
   unsplashQuery: string;
   pexelsQuery: string;
   genProvider: GenProvider;
-  pollinationsModel: PollinationsModel;
+  pollinationsModel: string;
   genResolution: GenResolution;
   openaiModel: string;
   rotationSource: RotationSource;

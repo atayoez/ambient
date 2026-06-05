@@ -32,6 +32,9 @@ pub enum LibraryOp {
     /// `existing`. Used by Library.tsx's mount-time orphan sweep
     /// (list files on disk, drop index rows pointing at deleted files).
     RemoveOrphans { existing: Vec<String> },
+    /// Empty the library index entirely. Backs the Settings "delete all
+    /// saved wallpapers" action (after the files themselves are removed).
+    Clear,
 }
 
 pub struct LibraryState {
@@ -111,6 +114,7 @@ pub(crate) fn apply_op(current: &[Wallpaper], op: LibraryOp) -> Vec<Wallpaper> {
                 .cloned()
                 .collect()
         }
+        LibraryOp::Clear => Vec::new(),
     };
     dedup_by_path(next)
 }

@@ -14,10 +14,38 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
+- **Unified notifications.** Every success and error across the app now
+  appears in one consistent toast stack (bottom-right) instead of inline
+  text that showed up in a different spot on each tab.
+- **Danger zone in Settings.** New **Clear cache** (drops the regenerable
+  thumbnail cache) and **Delete all saved wallpapers** (removes every
+  wallpaper Ambient saved and empties the Library) actions.
+- **Live AI models.** The Pollinations model list is fetched from the
+  service instead of a hardcoded list that had drifted out of date.
 
 ### Changed
+- **Consistency pass across the whole app.** Icon-only buttons are now
+  round, the theme switch is a sun/moon/auto icon toggle used identically
+  on Patterns and Library, the palette picker moved to the top tray,
+  labels are sentence-case (no more all-caps grey titles), and status
+  text is terser.
+- **One control for one job.** Single-select everywhere uses the same
+  arrow picker — the last native dropdown (auto-rotate Mode in Settings)
+  is gone.
+- **Shared UI component library** (`src/ui/`) now backs the buttons,
+  fields, pickers, and toasts so the app stays visually consistent.
 
 ### Fixed
+- **Blur is back** in `tauri dev` and native (non-AppImage) builds — the
+  EGL crash workaround that disabled it is now scoped to the AppImage,
+  where the crash actually happens.
+- **AI generation errors are clear.** Pollinations rate-limit responses
+  now surface a readable message (with the upgrade link) instead of
+  failing silently.
+- The AI prompt box no longer overflows its panel; the empty Generate
+  tab no longer shows two stray white spots.
+- Fixed a race when rapidly tagging a wallpaper light/dark, a redundant
+  network fetch on the Sources tab at launch, and an event-listener leak.
 
 ## [0.8.2] — 2026-06-04
 

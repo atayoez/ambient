@@ -20,10 +20,16 @@ import {
   TYPE_DEFAULTS,
 } from '../lib/patterns';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
+import {
+  ControlRow,
+  IconButton,
+  OptionScroller,
+  SegmentedIcons,
+  StatusInline,
+} from '../ui';
 import { CheckIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
-import { ControlRow, StatusInline } from './layout';
-import OptionScroller from './OptionScroller';
 import PaletteEditor from './PaletteEditor';
+import { THEME_MODE_OPTIONS } from './themeOptions';
 import { useApplyPattern } from './useApplyPattern';
 
 function randomSeed(): number {
@@ -45,12 +51,6 @@ function pickInitialConfig(dark: boolean): PatternConfig {
     colorPresetId: preset.id,
   };
 }
-
-const THEME_OPTIONS: { id: ThemeMode; label: string }[] = [
-  { id: 'auto', label: 'Auto' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
-];
 
 const SHAPE_OPTIONS = [
   { id: 'mix', label: 'Mix' },
@@ -132,8 +132,9 @@ export default function Patterns() {
     [systemPreset, customPresets],
   );
 
-  // Apply pipeline (busy/status/error + the render-save-set flow).
-  const { busy, status, error, apply } = useApplyPattern(config, saveConfig);
+  // Apply pipeline (busy/status + the render-save-set flow). Terminal
+  // outcomes surface as toasts; `status` is just in-progress text.
+  const { busy, status, apply } = useApplyPattern(config, saveConfig);
 
   // Preview wrapper element + measured pixel size. We pass the live
   // CSS size × devicePixelRatio to the Rust renderer so the image
@@ -350,7 +351,6 @@ export default function Patterns() {
   const paletteOptions = displayPresets.map(({ preset }) => ({
     id: preset.id,
     label: preset.name,
-    emoji: preset.emojis[0],
   }));
   const activeRemovable = displayPresets.some(
     (d) => d.removable && d.preset.id === config.colorPresetId,
@@ -374,25 +374,13 @@ export default function Patterns() {
         <div className="gen-panel pat-top">
           <OptionScroller
             label="Pattern"
-            options={PATTERN_TYPES.map((t) => ({
-              id: t.id,
-              label: t.name,
-              emoji: t.emoji,
-            }))}
+            options={PATTERN_TYPES.map((t) => ({ id: t.id, label: t.name }))}
             value={config.type}
             onChange={setType}
             ariaLabel="Pattern type"
           />
-          <OptionScroller
-            label="Theme"
-            options={THEME_OPTIONS}
-            value={themeMode}
-            onChange={setThemeMode}
-            ariaLabel="Theme mode"
-          />
-        </div>
-
-        <div className="gen-panel pat-side" inert={busy || undefined}>
+          {/* Palette selector lives in the top tray (left), with the
+              fine palette editing in the side panel. */}
           <div className="pat-palette-row">
             <OptionScroller
               label="Palette"
@@ -413,7 +401,20 @@ export default function Patterns() {
               </button>
             )}
           </div>
+          {/* Wrapped in the scroller column so its eyebrow + control line
+              up with the Pattern / Palette pickers beside it. */}
+          <div className="opt-scroller">
+            <span className="opt-scroller-eyebrow">Theme</span>
+            <SegmentedIcons
+              options={THEME_MODE_OPTIONS}
+              value={themeMode}
+              onChange={setThemeMode}
+              ariaLabel="Theme mode"
+            />
+          </div>
+        </div>
 
+        <div className="gen-panel pat-side" inert={busy || undefined}>
           {activeCustom && (
             <input
               className="palette-rename"
@@ -730,17 +731,16 @@ export default function Patterns() {
         </div>
 
         <div className="pat-actions">
-          <StatusInline status={status} error={error} />
-          <button
-            type="button"
+          <StatusInline status={status} />
+          <IconButton
+            variant="primary"
             onClick={apply}
             disabled={busy}
-            className="primary icon-btn"
-            aria-label="Apply as wallpaper"
+            label="Apply as wallpaper"
             title="Apply as wallpaper (⌘⏎)"
           >
             <CheckIcon />
-          </button>
+          </IconButton>
         </div>
       </div>
     </div>

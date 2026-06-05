@@ -12,16 +12,27 @@ import { useEffect, useState } from 'react';
 import { dispatch } from '../lib/events';
 import { useSecret } from '../lib/secrets';
 import { loadSettings, patchSettings } from '../lib/store';
+import { toast } from '../lib/toast';
 import {
   type Settings as AppSettings,
   DEFAULT_SETTINGS,
   type RotationSource,
 } from '../lib/types';
 import { checkForUpdateManual } from '../lib/updater';
+import { clearThumbnailCache, deleteLocalWallpapers } from '../lib/wallpaper';
+import { OptionScroller } from '../ui';
 import { RefreshIcon } from './Icons';
 
 const HOMEPAGE = 'https://ambient.oezcan.me';
 const DOWNLOAD_URL = 'https://ambient.oezcan.me/#download';
+
+// Single-select uses the same OptionScroller as every other picker in the
+// app — no native <select> island here.
+const ROTATION_OPTIONS: { id: RotationSource; label: string }[] = [
+  { id: 'off', label: 'Off' },
+  { id: 'sources', label: 'Fetch from source' },
+  { id: 'library', label: 'Shuffle library' },
+];
 
 type UpdateState =
   | { kind: 'idle' }
@@ -47,6 +58,10 @@ export default function Settings() {
   const [purgeData, setPurgeData] = useState(false);
   const [uninstalling, setUninstalling] = useState(false);
   const [uninstallErr, setUninstallErr] = useState<string | null>(null);
+
+  const [clearingCache, setClearingCache] = useState(false);
+  const [confirmingWipe, setConfirmingWipe] = useState(false);
+  const [wiping, setWiping] = useState(false);
 
   useEffect(() => {
     void loadSettings().then((s) => {
@@ -119,6 +134,33 @@ export default function Settings() {
     }
   }
 
+  async function clearCache() {
+    if (clearingCache) return;
+    setClearingCache(true);
+    try {
+      await clearThumbnailCache();
+      toast.success('Cache cleared');
+    } catch (e) {
+      toast.fromError(e);
+    } finally {
+      setClearingCache(false);
+    }
+  }
+
+  async function wipeWallpapers() {
+    if (wiping) return;
+    setWiping(true);
+    try {
+      const n = await deleteLocalWallpapers();
+      toast.success(n === 1 ? 'Deleted 1 wallpaper' : `Deleted ${n} wallpapers`);
+      setConfirmingWipe(false);
+    } catch (e) {
+      toast.fromError(e);
+    } finally {
+      setWiping(false);
+    }
+  }
+
   return (
     <div className="settings">
       <div className="settings-inner">
@@ -166,17 +208,12 @@ export default function Settings() {
           <h3 className="set-title">Auto-rotate</h3>
           <div className="set-row">
             <span>Mode</span>
-            <select
+            <OptionScroller
+              options={ROTATION_OPTIONS}
               value={settings.rotationSource}
-              onChange={(e) =>
-                void patch({ rotationSource: e.target.value as RotationSource })
-              }
-              aria-label="Auto-rotate mode"
-            >
-              <option value="off">Off</option>
-              <option value="sources">Fetch from source</option>
-              <option value="library">Shuffle library</option>
-            </select>
+              onChange={(v) => void patch({ rotationSource: v })}
+              ariaLabel="Auto-rotate mode"
+            />
           </div>
           {settings.rotationSource !== 'off' && (
             <div className="set-row">
@@ -272,7 +309,52 @@ export default function Settings() {
         </section>
 
         <section className="set-group set-danger">
-          <h3 className="set-title">Uninstall</h3>
+          <h3 className="set-title">Danger zone</h3>
+
+          <div className="set-row">
+            <span>Clear thumbnail cache</span>
+            <button
+              type="button"
+              className="set-btn"
+              onClick={clearCache}
+              disabled={clearingCache}
+            >
+              {clearingCache ? 'Clearing…' : 'Clear cache'}
+            </button>
+          </div>
+
+          {confirmingWipe ? (
+            <div className="set-actions">
+              <button
+                type="button"
+                className="danger"
+                onClick={wipeWallpapers}
+                disabled={wiping}
+              >
+                {wiping ? 'Deleting…' : 'Delete all saved wallpapers'}
+              </button>
+              <button
+                type="button"
+                className="set-link"
+                onClick={() => setConfirmingWipe(false)}
+                disabled={wiping}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="set-row">
+              <span>Delete all saved wallpapers</span>
+              <button
+                type="button"
+                className="set-btn danger-ghost"
+                onClick={() => setConfirmingWipe(true)}
+              >
+                Delete…
+              </button>
+            </div>
+          )}
+
           {confirmingUninstall ? (
             <>
               <label className="set-check">

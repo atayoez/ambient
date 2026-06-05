@@ -24,6 +24,7 @@ import {
 import { dispatch } from './lib/events';
 import { usePersistedState } from './lib/hooks';
 import type { Wallpaper } from './lib/types';
+import { Toaster } from './ui';
 
 type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
 
@@ -64,30 +65,40 @@ export default function App() {
   // RotationControl, Sources, etc.) stays uniform regardless of where
   // the originating mutation came from (JS invoke vs background task).
   useEffect(() => {
+    let cancelled = false;
     const unlistens: Array<() => void> = [];
+    // Register each listener, but if the effect was already cleaned up
+    // before the (async) registration resolved, immediately tear it down
+    // instead of pushing it onto an array nobody will drain — otherwise
+    // the Tauri listener leaks on a fast unmount.
+    const track = (u: () => void) => {
+      if (cancelled) u();
+      else unlistens.push(u);
+    };
     void (async () => {
-      unlistens.push(
+      track(
         await listenTauri('settings-changed', () => {
           dispatch('settings-changed');
         }),
       );
-      unlistens.push(
+      track(
         await listenTauri<Wallpaper[]>('library-changed', (event) => {
           dispatch('library-changed', event.payload);
         }),
       );
-      unlistens.push(
+      track(
         await listenTauri<Wallpaper>('wallpaper-rotated', (event) => {
           dispatch('wallpaper-rotated', event.payload);
         }),
       );
-      unlistens.push(
+      track(
         await listenTauri<string>('wallpaper-applied', (event) => {
           dispatch('wallpaper-applied', event.payload);
         }),
       );
     })();
     return () => {
+      cancelled = true;
       for (const u of unlistens) u();
     };
   }, []);
@@ -170,6 +181,9 @@ export default function App() {
           ))}
         </nav>
       )}
+      {/* One notification surface for the whole app — success/error/info
+          from every tab land in the same bottom-right stack. */}
+      <Toaster />
     </div>
   );
 }

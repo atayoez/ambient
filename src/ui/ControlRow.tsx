@@ -1,8 +1,6 @@
-// Shared layout primitives. After the full-bleed redesign every tab
-// builds its own stage (preview backdrop + floating glass panels), so
-// the old TabLayout / Inspector / PreviewFrame / Select / Segmented
-// document-inspector scaffolding is gone — only the two genuinely shared
-// bits remain: the labelled slider row and the inline status line.
+// Labelled slider row — eyebrow label, intrinsic-width range, live value.
+// One of the two genuinely shared form bits across the full-bleed tabs.
+
 import type { CSSProperties } from 'react';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -16,7 +14,6 @@ interface ControlRowProps {
   suffix?: string;
 }
 
-// Labelled slider — eyebrow label, intrinsic-width range, live value.
 export function ControlRow({
   label,
   value,
@@ -43,19 +40,5 @@ export function ControlRow({
         {suffix}
       </span>
     </div>
-  );
-}
-
-interface StatusInlineProps {
-  status?: string | null;
-  error?: string | null;
-}
-
-export function StatusInline({ status, error }: StatusInlineProps) {
-  return (
-    <>
-      {status && <span className="status">{status}</span>}
-      {error && <span className="error">{error}</span>}
-    </>
   );
 }

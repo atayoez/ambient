@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dispatch, listen } from '../lib/events';
 import {
   loadLibrary,
@@ -10,6 +10,7 @@ import {
   setWallpaperMode,
 } from '../lib/store';
 import type { ThemeMode } from '../lib/theme';
+import { toast } from '../lib/toast';
 import {
   DEFAULT_SETTINGS,
   type Settings,
@@ -17,9 +18,9 @@ import {
   type WallpaperMode,
 } from '../lib/types';
 import { deleteWallpaper, listLocalWallpapers, setWallpaper } from '../lib/wallpaper';
+import { Button, IconButton, OptionScroller, SegmentedIcons } from '../ui';
 import { CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
-import { StatusInline } from './layout';
-import OptionScroller from './OptionScroller';
+import { THEME_MODE_OPTIONS } from './themeOptions';
 
 // Whether a wallpaper's tag makes it eligible for the given theme.
 function modeMatches(mode: WallpaperMode | undefined, dark: boolean): boolean {
@@ -27,17 +28,14 @@ function modeMatches(mode: WallpaperMode | undefined, dark: boolean): boolean {
   return m === 'both' || (dark ? m === 'dark' : m === 'light');
 }
 
-const THEME_MODE_OPTIONS: { id: ThemeMode; label: string }[] = [
-  { id: 'auto', label: 'Auto' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
-];
-
 export default function Library() {
   const [library, setLibrary] = useState<Wallpaper[]>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  // Mirror `busy` synchronously so the apply/delete/tag handlers can guard
+  // re-entry without relying on a setState updater running before the next
+  // line (React batches updaters; reading them synchronously is unsafe —
+  // useApplyPattern uses this same ref pattern).
+  const busyRef = useRef(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const currentPath = settings.lastApplied ?? null;
@@ -121,46 +119,43 @@ export default function Library() {
   // mutually exclusive.
   const tagMode = useCallback(
     async (mode: WallpaperMode) => {
-      if (!selected) return;
+      if (!selected || busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
       const next = selectedMode === mode ? 'both' : mode;
       try {
         const updated = await setWallpaperMode(selected.path, next);
         setLibrary(updated);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        toast.fromError(e);
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
       }
     },
     [selected, selectedMode],
   );
 
   const applyExisting = useCallback(async (path: string) => {
-    let alreadyBusy = false;
-    setBusy((b) => {
-      if (b) alreadyBusy = true;
-      return true;
-    });
-    if (alreadyBusy) return;
-    setError(null);
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     try {
       await setWallpaper(path);
-      setStatus('Applied');
-      setTimeout(() => setStatus(null), 1500);
+      toast.success('Applied');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast.fromError(e);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, []);
 
   const deleteEntry = useCallback(async (path: string) => {
-    let alreadyBusy = false;
-    setBusy((b) => {
-      if (b) alreadyBusy = true;
-      return true;
-    });
-    if (alreadyBusy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     setConfirmingDelete(false);
-    setError(null);
     try {
       try {
         await deleteWallpaper(path);
@@ -170,11 +165,11 @@ export default function Library() {
       }
       const updated = await removeFromLibrary(path);
       setLibrary(updated);
-      setStatus('Deleted');
-      setTimeout(() => setStatus(null), 1500);
+      toast.success('Deleted');
     } catch (e) {
-      setError(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, []);
@@ -256,13 +251,15 @@ export default function Library() {
         )}
 
         <div className="gen-panel pat-side">
-          <OptionScroller
-            label="System theme"
-            options={THEME_MODE_OPTIONS}
-            value={settings.themeMode}
-            onChange={onChangeThemeMode}
-            ariaLabel="Theme mode"
-          />
+          <div className="opt-scroller">
+            <span className="opt-scroller-eyebrow">Theme</span>
+            <SegmentedIcons
+              options={THEME_MODE_OPTIONS}
+              value={settings.themeMode}
+              onChange={onChangeThemeMode}
+              ariaLabel="Theme mode"
+            />
+          </div>
           <p className="muted small">
             Tag the selected wallpaper light/dark with the sun/moon buttons. Auto-rotate
             &amp; lock screen live in Settings.
@@ -271,13 +268,11 @@ export default function Library() {
 
         {selected && (
           <div className="pat-actions">
-            <StatusInline status={status} error={error} />
-            <button
-              type="button"
+            <IconButton
+              variant={selectedIsLight ? 'primary' : 'default'}
               onClick={() => tagMode('light')}
-              className={selectedIsLight ? 'icon-btn primary' : 'icon-btn'}
               aria-pressed={selectedIsLight}
-              aria-label="Show in Light mode only"
+              label="Show in Light mode only"
               title={
                 selectedIsLight
                   ? 'Light-mode only — tap to clear'
@@ -286,13 +281,12 @@ export default function Library() {
               disabled={busy}
             >
               <SunIcon />
-            </button>
-            <button
-              type="button"
+            </IconButton>
+            <IconButton
+              variant={selectedIsDark ? 'primary' : 'default'}
               onClick={() => tagMode('dark')}
-              className={selectedIsDark ? 'icon-btn primary' : 'icon-btn'}
               aria-pressed={selectedIsDark}
-              aria-label="Show in Dark mode only"
+              label="Show in Dark mode only"
               title={
                 selectedIsDark
                   ? 'Dark-mode only — tap to clear'
@@ -301,34 +295,25 @@ export default function Library() {
               disabled={busy}
             >
               <MoonIcon />
-            </button>
+            </IconButton>
             {confirmingDelete ? (
               <>
-                <button
-                  type="button"
+                <Button
+                  variant="danger"
                   onClick={() => deleteEntry(selected.path)}
-                  className="danger"
-                  // biome-ignore lint/a11y/noAutofocus: confirm flow benefits from immediate focus
                   autoFocus
                 >
                   Confirm delete
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(false)}
-                  className="icon-btn"
-                  aria-label="Cancel"
-                  title="Cancel"
-                >
+                </Button>
+                <IconButton onClick={() => setConfirmingDelete(false)} label="Cancel">
                   <XIcon />
-                </button>
+                </IconButton>
               </>
             ) : (
-              <button
-                type="button"
+              <IconButton
+                variant="danger-ghost"
                 onClick={() => setConfirmingDelete(true)}
-                className="danger-ghost icon-btn"
-                aria-label="Delete"
+                label="Delete"
                 title={
                   selectedIsCurrent
                     ? 'Currently applied — switch wallpaper first'
@@ -337,18 +322,17 @@ export default function Library() {
                 disabled={selectedIsCurrent || busy}
               >
                 <TrashIcon />
-              </button>
+              </IconButton>
             )}
-            <button
-              type="button"
+            <IconButton
+              variant="primary"
               onClick={() => applyExisting(selected.path)}
               disabled={busy || selectedIsCurrent}
-              className="primary icon-btn"
-              aria-label="Apply as wallpaper"
+              label="Apply as wallpaper"
               title={selectedIsCurrent ? 'Already applied' : 'Apply as wallpaper'}
             >
               <CheckIcon />
-            </button>
+            </IconButton>
           </div>
         )}
       </div>

@@ -17,11 +17,57 @@ use crate::util::{ms_since_epoch, pseudo_seed};
 const POLLINATIONS_MAX: u32 = 2048;
 const HTTP_TIMEOUT_SECS: u64 = 60;
 
+// Pollinations asks apps to identify themselves with a referrer; doing so
+// gives the app a more generous rate-limit bucket than raw anonymous
+// access and is the documented "register your app" hook.
+const POLLINATIONS_REFERRER: &str = "ambient.oezcan.me";
+
 fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
         .build()
         .map_err(|e| format!("build HTTP client: {}", e))
+}
+
+/// Live list of image models Pollinations currently serves. The set is
+/// NOT static — the service has trimmed it over time (the old hardcoded
+/// flux-realism / flux-anime / sdxl names no longer exist), so the UI
+/// asks the server instead of shipping a made-up list. Returns the raw
+/// model ids; the frontend renders them and picks a sensible default if
+/// the stored choice is no longer offered.
+#[tauri::command]
+pub async fn pollinations_models() -> Result<Vec<String>, String> {
+    let client = http_client()?;
+    let res = client
+        .get("https://image.pollinations.ai/models")
+        .header("Referer", POLLINATIONS_REFERRER)
+        .send()
+        .await
+        .map_err(|e| format!("Pollinations models: {}", e))?;
+    if !res.status().is_success() {
+        return Err(format!("Pollinations models: HTTP {}", res.status()));
+    }
+    // Tolerant parse: the endpoint currently returns a bare `["flux", …]`,
+    // but it has changed shape before. Accept either plain strings or
+    // objects carrying an `id`/`name`, so a schema tweak degrades to a
+    // shorter list rather than an error that collapses the picker.
+    let raw: Vec<serde_json::Value> = res
+        .json()
+        .await
+        .map_err(|e| format!("Pollinations models: parse {}", e))?;
+    let models: Vec<String> = raw
+        .into_iter()
+        .filter_map(|v| match v {
+            serde_json::Value::String(s) => Some(s),
+            serde_json::Value::Object(o) => o
+                .get("id")
+                .or_else(|| o.get("name"))
+                .and_then(|x| x.as_str())
+                .map(String::from),
+            _ => None,
+        })
+        .collect();
+    Ok(models)
 }
 
 fn resolve_dimensions(settings: &Settings) -> (u32, u32) {
@@ -52,6 +98,19 @@ fn clamp_to(w: u32, h: u32, max: u32) -> (u32, u32) {
         (w as f32 * scale).round() as u32,
         (h as f32 * scale).round() as u32,
     )
+}
+
+/// Turn a failed Pollinations response into a human message. Its rate-limit
+/// body is JSON like `{"error":"Queue full for IP: … Get unlimited access
+/// at https://…"}`; surface that text so the user understands it's a quota,
+/// not a bug. Falls back to the bare status for anything unparseable.
+fn pollinations_error(body: &[u8], status: reqwest::StatusCode) -> String {
+    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) {
+        if let Some(msg) = v.get("error").and_then(|e| e.as_str()) {
+            return format!("Pollinations: {}", msg);
+        }
+    }
+    format!("Pollinations: HTTP {}", status)
 }
 
 #[tauri::command]
@@ -88,13 +147,34 @@ async fn generate_pollinations(
     // Path-segment encoding: spaces and punctuation in the prompt must
     // be percent-encoded since they're embedded in the URL path, not
     // the query string. reqwest's .query() only handles the latter.
+    // `referrer` identifies the app to Pollinations (better rate-limit
+    // bucket than raw anonymous, and the documented app-registration hook).
     let encoded_prompt = urlencoding::encode(prompt);
     let url = format!(
-        "https://image.pollinations.ai/prompt/{}?width={}&height={}&model={}&nologo=true&seed={}&enhance=true",
-        encoded_prompt, w, h, model, seed
+        "https://image.pollinations.ai/prompt/{}?width={}&height={}&model={}&nologo=true&seed={}&enhance=true&referrer={}",
+        encoded_prompt, w, h, model, seed, POLLINATIONS_REFERRER
     );
+    // Fetch directly (rather than via download_and_save) so we can attach
+    // the Referer header and surface Pollinations' own JSON error body —
+    // its rate-limit responses (HTTP 402 "Queue full for IP…") carry a
+    // useful message that a bare "HTTP 402" would throw away.
+    let client = http_client()?;
+    let res = client
+        .get(&url)
+        .header("Referer", POLLINATIONS_REFERRER)
+        .send()
+        .await
+        .map_err(|e| format!("Pollinations request: {}", e))?;
+    let status = res.status();
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|e| format!("Pollinations: read response: {}", e))?;
+    if !status.is_success() {
+        return Err(pollinations_error(&bytes, status));
+    }
     let filename = format!("ai-pollinations-{}.jpg", seed);
-    let local_path = download_and_save(&url, &filename, app).await?;
+    let local_path = crate::library::save_image_bytes(&bytes, &filename, app)?;
     Ok(Wallpaper {
         path: local_path,
         source: "generated".to_string(),

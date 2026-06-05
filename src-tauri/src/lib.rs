@@ -108,16 +108,22 @@ pub fn run() {
             }
         }
 
-        // Disable WebKitGTK's DMABUF renderer. The bundled AppImage
-        // WebKit + the host Mesa frequently disagree on EGL, producing
-        // "Could not create surfaceless EGL display: EGL_BAD_ALLOC.
-        // Aborting..." — WebKit's GPU process then abort()s and the whole
-        // app SIGABRTs on launch. Forcing the non-DMABUF fallback path
-        // makes the webview initialize reliably across driver/Mesa combos
-        // (a well-worn WebKitGTK-on-Linux workaround). Negligible cost for
-        // a mostly-static UI. Only set if the user hasn't overridden it.
-        // SAFETY: same as above — set before any GTK/WebKit thread spawns.
-        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+        // Disable WebKitGTK's DMABUF renderer — but ONLY inside the bundled
+        // AppImage. There, the bundled WebKit + the host Mesa frequently
+        // disagree on EGL ("Could not create surfaceless EGL display:
+        // EGL_BAD_ALLOC. Aborting...") and WebKit's GPU process abort()s,
+        // SIGABRTing the whole app on launch; forcing the non-DMABUF
+        // fallback fixes that. BUT the fallback also disables GPU
+        // compositing, which kills every backdrop-filter blur in the UI —
+        // so applying it unconditionally (the previous behaviour) made the
+        // glass go flat in `tauri dev` and in native packages that run
+        // against the host's own WebKit, where the EGL crash never happens.
+        // Gate on $APPIMAGE (set by the AppImage runtime) so the crash
+        // workaround stays where it's needed and the blur comes back
+        // everywhere else. Still honour an explicit user override.
+        let in_appimage = std::env::var_os("APPIMAGE").is_some();
+        if in_appimage && std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            // SAFETY: same as above — set before any GTK/WebKit thread spawns.
             unsafe {
                 std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
             }
@@ -142,6 +148,8 @@ pub fn run() {
             library::list_wallpapers,
             library::delete_wallpaper,
             library::get_or_create_thumbnail,
+            library::clear_thumbnail_cache,
+            library::delete_local_wallpapers,
             library_store::get_library,
             library_store::patch_library,
             license::get_startup_license,
@@ -156,6 +164,7 @@ pub fn run() {
             settings::patch_settings,
             sources::fetch_source_wallpaper,
             aigen::generate_wallpaper,
+            aigen::pollinations_models,
             renderer::apply_pattern,
             renderer::render_preview,
             rotation::rotate_now,

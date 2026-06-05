@@ -4,7 +4,6 @@
 //   1. Read the gate decision (Valid / Invalid / None) at app launch
 //      — already resolved in Rust setup() so first render doesn't flash.
 //   2. Activate a newly-pasted key.
-//   3. Clear the stored license (no UI bound today; used in dev/debug).
 //
 // Background revalidation runs in Rust as a tokio task spawned from
 // setup(); if Polar explicitly rejects, Rust emits a `license-revoked`
@@ -30,8 +29,4 @@ export async function getStartupLicense(): Promise<StartupLicense> {
 
 export async function activateLicense(key: string): Promise<LicenseInfo> {
   return invoke<LicenseInfo>('activate_license', { key });
-}
-
-export async function clearLicense(): Promise<void> {
-  return invoke('clear_license');
 }

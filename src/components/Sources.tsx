@@ -12,9 +12,8 @@ import {
   type Wallpaper,
 } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
+import { IconButton, OptionScroller, StatusInline, toast } from '../ui';
 import { CheckIcon, RefreshIcon } from './Icons';
-import { StatusInline } from './layout';
-import OptionScroller from './OptionScroller';
 
 const SOURCE_OPTIONS: { id: SourceKind; name: string; description: string }[] = [
   {
@@ -59,11 +58,12 @@ async function mostRecentFromSource(source: SourceKind): Promise<Wallpaper | nul
 export default function Sources() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<Wallpaper | null>(null);
+  // Flips true once the on-mount cache lookup resolves; auto-fetch waits
+  // on it so a cache hit can't be raced by a redundant network fetch.
+  const [cacheChecked, setCacheChecked] = useState(false);
 
   // BYO API keys — Phase 3 moved storage from Settings JSON to the OS
   // keyring. The hooks own their own draft state + debounced persist.
@@ -106,6 +106,11 @@ export default function Sources() {
         setPreviewPath(recent.path);
         setPreviewMeta(recent);
       }
+      // Signal that the cache lookup has definitively resolved (hit or
+      // miss). Auto-fetch waits on this so it can't race ahead of a cache
+      // hit and fire a redundant network request over an image that was
+      // about to populate.
+      setCacheChecked(true);
     })();
     return () => {
       cancelled = true;
@@ -113,20 +118,18 @@ export default function Sources() {
   }, []);
 
   // Auto-fetch on first mount once secrets have loaded (Unsplash/Pexels
-  // need the key in local state to satisfy canFetch). For NASA the
-  // secrets load is irrelevant; we still gate on it so the effect runs
-  // exactly once across all three sources. If a cache hit already
-  // populated the preview, skip — the user didn't ask for a fresh fetch.
+  // need the key in local state to satisfy canFetch). Also gated on the
+  // cache lookup having completed, so a cache hit wins over a fresh fetch.
   const autoFetchedRef = useRef(false);
   useEffect(() => {
     if (autoFetchedRef.current) return;
-    if (!secretsLoaded) return;
+    if (!secretsLoaded || !cacheChecked) return;
     if (previewPath) return;
     if (!canFetch(settings)) return;
     autoFetchedRef.current = true;
     void fetchNew(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secretsLoaded, previewPath, settings.source]);
+  }, [secretsLoaded, cacheChecked, previewPath, settings.source]);
 
   useEffect(() => {
     if (prevSource.current === null) return;
@@ -191,8 +194,7 @@ export default function Sources() {
     const patch = pendingPatchRef.current;
     pendingPatchRef.current = {};
     void patchSettings(patch).then(() => {
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1200);
+      toast.success('Saved');
       dispatch('settings-changed');
     });
   }, 400);
@@ -206,8 +208,7 @@ export default function Sources() {
   async function fetchNew(apply: boolean) {
     if (busy) return;
     setBusy(true);
-    setError(null);
-    setStatus('Fetching from source…');
+    setStatus('Fetching…');
     try {
       // Rust does the source-API call, download, and library prepend
       // in a single command — no JS-side two-step anymore, and no
@@ -218,15 +219,16 @@ export default function Sources() {
       setPreviewMeta(entry);
 
       if (apply) {
-        setStatus('Setting wallpaper…');
+        setStatus('Applying…');
         await setWallpaper(entry.path);
-        setStatus('Applied — added to Library');
+        setStatus(null);
+        toast.success('Applied');
       } else {
-        setStatus('Preview ready');
+        setStatus(null);
+        toast.success('Preview ready');
       }
-      setTimeout(() => setStatus(null), 1500);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast.fromError(e);
       setStatus(null);
     } finally {
       setBusy(false);
@@ -236,14 +238,13 @@ export default function Sources() {
   async function applyPreview() {
     if (!previewPath || busy) return;
     setBusy(true);
-    setError(null);
-    setStatus('Setting wallpaper…');
+    setStatus('Applying…');
     try {
       await setWallpaper(previewPath);
-      setStatus('Applied');
-      setTimeout(() => setStatus(null), 1500);
+      setStatus(null);
+      toast.success('Applied');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast.fromError(e);
       setStatus(null);
     } finally {
       setBusy(false);
@@ -324,31 +325,26 @@ export default function Sources() {
         )}
 
         <div className="pat-actions">
-          <StatusInline status={status} error={error} />
-          <button
-            type="button"
+          <StatusInline status={status} />
+          <IconButton
             onClick={() => fetchNew(false)}
             disabled={busy || !canFetch(settings)}
-            className="icon-btn"
-            aria-label="Re-fetch"
+            label="Re-fetch"
             title="Fetch a new image (⌘⇧R)"
           >
             <RefreshIcon />
-          </button>
-          <button
-            type="button"
+          </IconButton>
+          <IconButton
+            variant="primary"
             onClick={applyPreview}
             disabled={busy || !previewPath}
-            className="primary icon-btn"
-            aria-label="Apply as wallpaper"
+            label="Apply as wallpaper"
             title="Apply as wallpaper (⌘⏎)"
           >
             <CheckIcon />
-          </button>
+          </IconButton>
         </div>
       </div>
-
-      {savedFlash && <div className="save-toast">Saved</div>}
     </div>
   );
 }

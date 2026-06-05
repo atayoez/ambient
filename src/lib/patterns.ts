@@ -388,17 +388,17 @@ export const DEFAULT_CONFIG: PatternConfig = {
 
 // User-facing metadata for each pattern type — single source of truth used
 // by the type picker UI and by library entries.
-export const PATTERN_TYPES: { id: PatternType; emoji: string; name: string }[] = [
-  { id: 'mesh', emoji: '🎨', name: 'Mesh' },
-  { id: 'geometric', emoji: '🔺', name: 'Geometric' },
-  { id: 'dots', emoji: '🔘', name: 'Dots' },
-  { id: 'stripes', emoji: '🦓', name: 'Stripes' },
-  { id: 'emoji', emoji: '😀', name: 'Emoji' },
-  { id: 'flower', emoji: '🌸', name: 'Flower' },
-  { id: 'flow', emoji: '🌊', name: 'Flow' },
-  { id: 'waves', emoji: '🏔️', name: 'Waves' },
-  { id: 'aurora', emoji: '🌌', name: 'Aurora' },
-  { id: 'bokeh', emoji: '🫧', name: 'Bokeh' },
+export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
+  { id: 'mesh', name: 'Mesh' },
+  { id: 'geometric', name: 'Geometric' },
+  { id: 'dots', name: 'Dots' },
+  { id: 'stripes', name: 'Stripes' },
+  { id: 'emoji', name: 'Emoji' },
+  { id: 'flower', name: 'Flower' },
+  { id: 'flow', name: 'Flow' },
+  { id: 'waves', name: 'Waves' },
+  { id: 'aurora', name: 'Aurora' },
+  { id: 'bokeh', name: 'Bokeh' },
 ];
 
 // When the user switches pattern types we re-seed density/size + the

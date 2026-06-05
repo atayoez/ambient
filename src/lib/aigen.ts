@@ -9,3 +9,10 @@ import type { Wallpaper } from './types';
 export async function generateWallpaper(prompt: string): Promise<Wallpaper> {
   return invoke<Wallpaper>('generate_wallpaper', { prompt });
 }
+
+// Live model list from Pollinations' /models endpoint (via Rust). The
+// service trims its catalogue over time, so the UI asks the server
+// rather than shipping a hardcoded list that drifts out of date.
+export async function pollinationsModels(): Promise<string[]> {
+  return invoke<string[]>('pollinations_models');
+}

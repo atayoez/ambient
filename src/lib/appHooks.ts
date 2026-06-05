@@ -107,23 +107,13 @@ export function useUpdateBanner(license: LicenseInfo | null): UseUpdateBanner {
 // System accent color
 // ---------------------------------------------------------------------
 
-// Parses #rrggbb into a space-separated RGB triplet ("200 136 0"),
-// which is the format the CSS `rgb(var(--shadow-tint) / α)` syntax
-// expects. Returns null on malformed input so the caller knows to
-// leave the default black triplet in place rather than half-apply.
-function parseHexTriplet(hex: string): string | null {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return null;
-  const v = parseInt(m[1], 16);
-  return `${(v >> 16) & 0xff} ${(v >> 8) & 0xff} ${v & 0xff}`;
-}
-
-// One IPC round-trip per session, shared by every accent consumer
-// (useSystemAccent writes CSS vars; useSystemAccentColor hands the hex
-// to feature code). The OS accent can only change between launches, so
-// memoizing the in-flight promise is safe and makes good on accent.rs's
-// "cached in the frontend for the session" — previously each hook
-// invoked the command independently.
+// One IPC round-trip per session for the OS accent, memoized so the
+// in-flight promise is shared. The accent can only change between
+// launches, so caching for the session is safe (makes good on accent.rs's
+// "cached in the frontend for the session"). The chrome no longer tints
+// itself from the accent (the app is fully achromatic glass); the only
+// consumer is useSystemAccentColor below, which hands the hex to the
+// Patterns "System" palette — wallpaper content, not chrome.
 let systemAccentPromise: Promise<string | null> | null = null;
 function fetchSystemAccent(): Promise<string | null> {
   if (!systemAccentPromise) {
@@ -132,64 +122,11 @@ function fetchSystemAccent(): Promise<string | null> {
   return systemAccentPromise;
 }
 
-// Pulls the OS accent (macOS AppleAccentColor / Windows DWM AccentColor /
-// GNOME accent-color) once at app launch and writes it into TWO CSS
-// custom properties on <html>:
-//
-//   --accent-os    — full color string ("#c88800"), used at sites that
-//                    want the accent as a standalone color (focus
-//                    border, slider track, selection ring).
-//   --shadow-tint  — RGB triplet ("200 136 0"), composed via
-//                    `rgb(var(--shadow-tint) / α)` everywhere a shadow,
-//                    border, or fill used to be `rgba(0,0,0,α)`. This
-//                    is the channel that flips the whole app's
-//                    chromaticity from achromatic-black to accent-tinted
-//                    when the OS exposes an accent. Defaults to `0 0 0`
-//                    (black) in colors_and_type.css so the cascade stays
-//                    visually unchanged for users without an accent.
-//
-// Also stamps the resolved value (or "none") into
-// `<html data-system-accent="…">` so it's inspectable without the
-// devtools console — handy for debugging "is the accent actually
-// being applied" without enabling the full inspector.
-export function useSystemAccent(): void {
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const color = await fetchSystemAccent();
-        if (cancelled) return;
-        document.documentElement.dataset.systemAccent = color ?? 'none';
-        if (color) {
-          document.documentElement.style.setProperty('--accent-os', color);
-          const triplet = parseHexTriplet(color);
-          if (triplet) {
-            document.documentElement.style.setProperty('--shadow-tint', triplet);
-          }
-        }
-        console.info(
-          '[Ambient] system accent:',
-          color ?? 'none (using achromatic --accent)',
-        );
-      } catch (e) {
-        if (!cancelled) {
-          document.documentElement.dataset.systemAccent = 'error';
-          console.warn('[Ambient] get_system_accent failed:', e);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-}
-
 // Returns the OS accent as a hex string ("#8ed96c"), or null when the
-// platform/DE exposes none. Unlike useSystemAccent (which writes CSS
-// custom properties for the chrome), this hands the raw value back to
-// React so feature code — e.g. the accent-derived "System" palette in
-// Patterns — can compute from it. Resolves once on mount; the accent is
-// read fresh from the OS each launch, which is when it can change.
+// platform/DE exposes none. Hands the raw value back to React so feature
+// code — e.g. the accent-derived "System" palette in Patterns — can
+// compute from it. Resolves once on mount; the accent is read fresh from
+// the OS each launch, which is when it can change.
 export function useSystemAccentColor(): string | null {
   const [accent, setAccent] = useState<string | null>(null);
   useEffect(() => {

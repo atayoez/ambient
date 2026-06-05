@@ -74,13 +74,6 @@ textarea,
   overflow: hidden;
 }
 
-/* Save toast uses isolation so its hover spotlight stays contained within
-   its own stacking context, instead of poking through the toast's
-   semi-transparent background. */
-.save-toast {
-  isolation: isolate;
-}
-
 /* Floating bottom tab pill — sits over the content area, blurred-glass
    material, anchored to the bottom-center of the window. Liquid Glass
    on iOS / iPadOS uses this same pattern for primary navigation; the
@@ -144,8 +137,7 @@ textarea,
 }
 
 /* --- Glass tab-style buttons --- */
-.tab,
-.tab-info {
+.tab {
   -webkit-tap-highlight-color: transparent;
   appearance: none;
   -webkit-appearance: none;
@@ -265,24 +257,23 @@ button {
   transition:
     background var(--t-fast) ease,
     border-color var(--t-fast) ease,
-    transform 80ms ease;
+    transform var(--t-press) ease;
 }
 
 /* The generic button-hover wash. Its specificity (one element + several
    pseudo/negation classes) is high enough to override a plain
    `.foo:hover` rule, so every button that paints its OWN hover must be
    excluded here or this wash repaints it grey on direct hover:
-     - danger badges (.chip-remove, .preset-del) — lose their red
+     - danger badges (.chip-remove) — lose their red
      - dashed accent ghosts (.add-color, .add-emoji, .save-palette) —
        lose their accent border
-     - the borderless text link (.about-link) — gains an unwanted box
    Everything not listed (the default buttons) still gets the wash. */
-button:not(.tab):not(.segment):not(.wc):not(.chip-remove):not(.preset-del):not(.add-color):not(.add-emoji):not(.save-palette):not(.about-link):not(.icon-btn):not(.pat-del):not(.randomize-btn):hover:not(:disabled) {
+button:not(.tab):not(.seg-icon):not(.chip-remove):not(.add-color):not(.add-emoji):not(.save-palette):not(.icon-btn):not(.pat-del):not(.randomize-btn):not(.toast):hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--border-strong);
 }
 
-button:not(.tab):not(.segment):not(.wc):focus-visible {
+button:not(.tab):not(.seg-icon):focus-visible {
   outline: none;
   /* No accent glow ring — selection outlines are reserved for the
      bottom .tabs pill (via .tab-indicator). Border-color hover/active
@@ -321,29 +312,27 @@ button.danger:hover:not(:disabled) {
 }
 
 /* --- Form elements ---
-   All form inputs share the glass-pill style introduced on the bottom
-   .tabs nav: low-alpha white tint for the backdrop-filter to land on,
-   subtle white border, full pill border-radius, drop-shadow + inset
-   top-sheen. Horizontal padding stays at 20px so text isn't clipped by
-   the rounded ends. The selection-style focus ring (accent-colored
-   3px glow) was deliberately removed from these — only the .tabs pill
-   shows an explicit selection indicator (its inner .tab-indicator).
-   Focus is still indicated via the border-color shift to var(--accent),
-   so keyboard navigation remains visible without the loud glow. */
+   Every rectangular control — text inputs, number, search, textarea,
+   select, and (below) buttons — shares ONE radius (--radius-inline) and
+   one glass fill, so the app speaks a single shape language instead of
+   mixing fully-round pills with 8px boxes. Genuinely pill-shaped
+   surfaces (the tab nav, toasts, sliders, the option-scroller, round
+   color/emoji swatches) keep --radius-pill; flat rectangles do not.
+   The selection-style focus ring (accent 3px glow) was removed — focus
+   is shown via the border-color shift to var(--accent). */
 input[type='text'],
 input[type='password'],
 input[type='number'],
 input[type='search'],
-textarea,
-select {
+textarea {
   appearance: none;
   -webkit-appearance: none;
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: var(--blur-tabs);
   -webkit-backdrop-filter: var(--blur-tabs);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-pill);
-  padding: 8px 20px;
+  border-radius: var(--radius-inline);
+  padding: 8px 12px;
   color: var(--text);
   font: inherit;
   outline: none;
@@ -359,36 +348,12 @@ input[type='text']:focus,
 input[type='password']:focus,
 input[type='number']:focus,
 input[type='search']:focus,
-textarea:focus,
-select:focus {
+textarea:focus {
   /* Focus border is a "functional" accent — falls through to the
-     achromatic --accent when no OS accent is exposed, otherwise picks
-     up the system tint set by useSystemAccent() at launch. Same
-     fallback pattern is used everywhere else --accent-os appears. */
+     achromatic --accent (--accent-os is no longer set by the chrome, so
+     this resolves to --accent in practice). Same fallback pattern is
+     used everywhere else --accent-os appears. */
   border-color: var(--accent-os, var(--accent));
-}
-
-/* Textareas are tall and growable, so the full pill radius clipped
-   their text at the rounded ends — especially once a user dragged to
-   expand them. Step down to the container radius (12px) so the corners
-   stay rounded but don't crowd the writing area. */
-textarea {
-  border-radius: var(--radius-container);
-}
-
-select {
-  /* No chevron — the user can tell it's a dropdown from cursor: pointer
-     + the hover state. Pill geometry + glass material come from the
-     shared rule above; only the select-specific bits live here. */
-  text-align: center;
-  text-align-last: center;
-  cursor: pointer;
-}
-
-/* Options inside the dropdown popup are OS-rendered — center where the
-   browser respects this, fall through to native left otherwise. */
-select option {
-  text-align: center;
 }
 
 input[type='checkbox'] {
@@ -504,7 +469,7 @@ input[type='range']::-webkit-slider-thumb {
     0 1px 2px rgb(var(--shadow-tint) / 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   margin-top: -6px; /* center on 6px track */
-  transition: transform 80ms ease;
+  transition: transform var(--t-press) ease;
 }
 
 input[type='range']::-moz-range-thumb {
@@ -516,7 +481,7 @@ input[type='range']::-moz-range-thumb {
   box-shadow:
     0 1px 2px rgb(var(--shadow-tint) / 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition: transform 80ms ease;
+  transition: transform var(--t-press) ease;
 }
 
 input[type='range']:hover::-webkit-slider-thumb,
@@ -563,31 +528,7 @@ input[type='range']:active::-moz-range-thumb {
   background: color-mix(in oklch, var(--danger) 12%, transparent);
 }
 
-.empty {
-  grid-column: 1 / -1;
-  padding: 50px 20px;
-  text-align: center;
-  color: var(--muted);
-  border: 1px dashed rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.22);
-  border-radius: var(--radius-container);
-  line-height: var(--lh-loose);
-  background:
-    linear-gradient(
-      180deg,
-      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.05),
-      transparent 70%
-    ),
-    var(--surface);
-}
-
-.empty em {
-  color: var(--accent-os, var(--accent));
-  font-style: normal;
-  font-weight: var(--fw-semibold);
-}
-
 /* --- Tab content wrappers --- */
-.tab-page,
 .generate,
 .patterns,
 .sources {
@@ -629,13 +570,23 @@ input[type='range']:active::-moz-range-thumb {
   padding: 14px 16px;
 }
 
+/* The uninstall ("danger zone") group — a red hairline + title so it
+   reads as destructive at a glance, instead of looking like any other
+   settings card. (Previously `.set-danger` was in the markup with no
+   matching rule.) */
+.set-danger {
+  border-color: color-mix(in oklch, var(--danger) 38%, var(--border));
+}
+
+.set-danger .set-title {
+  color: var(--danger);
+}
+
 .set-title {
   margin: 0 0 4px;
-  font-size: var(--fs-eyebrow);
+  font-size: var(--fs-body);
   font-weight: var(--fw-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text);
 }
 
 .set-note {
@@ -671,7 +622,6 @@ input[type='range']:active::-moz-range-thumb {
 .set-row input[type='text'],
 .set-row input[type='password'],
 .set-row input[type='number'],
-.set-row select,
 .set-row .set-btn {
   flex: 0 0 auto;
   width: 240px;
@@ -685,14 +635,15 @@ input[type='range']:active::-moz-range-thumb {
   border-radius: var(--radius-inline);
 }
 
-.set-row select {
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
+/* Single-select control (the auto-rotate Mode picker) shares the same
+   right-column width as the other set-row controls. */
+.set-row .opt-scroller {
+  flex: 0 0 auto;
+  width: 240px;
+  max-width: 56%;
 }
 
-.set-row input:focus-visible,
-.set-row select:focus-visible {
+.set-row input:focus-visible {
   outline: none;
   border-color: var(--accent-os, var(--accent));
 }
@@ -818,51 +769,30 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 .field > span {
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-eyebrow);
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-medium);
+  color: var(--text);
   text-align: center;
 }
 
-/* Override .segmented's default `align-self: flex-start` so the
-   Patterns Shape / Fill pickers center inside their .field column.
-   `flex-wrap` lets the Shape picker (7 options after Phase 5b) break
-   onto a second row when the inspector is narrow. */
-.field > .segmented {
-  align-self: center;
-  flex-wrap: wrap;
-  justify-content: center;
+/* The control inside a .field fills the column. Without this the
+   textarea/input kept its intrinsic (cols-based) width and spilled past
+   the right edge of the .pat-side glass panel — the "noclip in the
+   prompt section". box-sizing:border-box (set globally) keeps the
+   padding inside the 100%. Textareas also can't be user-resized: a
+   drag-handle let them grow outside the panel too. */
+.field > input,
+.field > textarea {
+  width: 100%;
+}
+
+.field > textarea {
+  resize: none;
 }
 
 /* At wide window widths give the inspector column more room — 280px feels
    cramped at 1400+ px viewport, where there's no good reason to keep
    inputs narrow. Cap at 360 so the inspector doesn't dominate. */
-@media (min-width: 1200px) {
-  .tab-grid {
-    grid-template-columns: minmax(0, 1fr) 320px;
-  }
-}
-
-@media (min-width: 1500px) {
-  .tab-grid {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
-}
-
-@media (max-width: 760px) {
-  .tab-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* In single-column (narrow window) mode the preview stacks above the
-   inspector, so sticky would let inspector text scroll behind it.
-   Drop back to static positioning there. */
-@media (max-width: 760px) {
-  .preview-col {
-    position: static;
-  }
-}
-
 /* Inline horizontal slider rows — label on the left, slider centered,
    value on the right. Apple Settings.app pattern. */
 .control-row {
@@ -943,7 +873,7 @@ input[type='range']:active::-moz-range-thumb {
   padding: 0;
   cursor: pointer;
   color: inherit;
-  transition: background 0.12s ease;
+  transition: background var(--t-fast) ease;
 }
 
 .emoji-chip-glyph:hover,
@@ -1016,8 +946,8 @@ input[type='range']:active::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+    background var(--t-fast) ease,
+    color var(--t-fast) ease;
 }
 
 /* Light up danger-red when the user is about to act on it — hovering
@@ -1102,9 +1032,7 @@ input[type='range']:active::-moz-range-thumb {
   margin: 0 0 4px;
   font-size: var(--fs-eyebrow);
   font-weight: var(--fw-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text);
 }
 
 .emoji-picker-grid {
@@ -1208,20 +1136,6 @@ input[type='range']:active::-moz-range-thumb {
   cursor: default;
 }
 
-/* Lock-screen toggle row in the Library side panel. */
-.lib-lockscreen {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.lib-lockscreen input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent-os, var(--accent));
-  cursor: pointer;
-}
-
 /* Icon-only action button. Replaces text labels on most action affordances
    throughout the app — destructive confirmations stay textual (see
    Library "Confirm delete"). Primary variant gets a small bump so it
@@ -1231,69 +1145,28 @@ input[type='range']:active::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   padding: 7px;
+  width: 32px;
   min-width: 32px;
   height: 32px;
   line-height: 0;
+  /* Icon-only buttons are circular — one rule so apply/refresh/tag/delete
+     all read as the same round control instead of a mix of rounded
+     squares and circles. */
+  border-radius: var(--radius-pill);
 }
 
 button.primary.icon-btn {
   padding: 9px;
+  width: 36px;
   min-width: 36px;
   height: 36px;
 }
 
-/* Rotation toggle + interval, collapsed to a single row: the checkbox
-   IS the on/off, the inline "every [60] min" IS the interval. The
-   redundant "Auto-rotate from this source" label that used to live
-   above this row was dropped — the section title (Auto-rotate /
-   Shuffle / System theme) already says what the toggle does, and
-   stacking another sentence underneath was visual noise. */
-.rotation-control {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-}
-
-.rotation-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-caption);
-  color: var(--muted);
-}
-
-/* When the checkbox is off, the surrounding "every"/"min" copy and the
-   number field fade out — same visual grammar as macOS sub-settings
-   that gray themselves when their parent toggle is disabled. The
-   checkbox itself stays at full opacity so the user can still flick
-   it back on. */
-.rotation-row[data-enabled='false'] > :not(input[type='checkbox']) {
-  opacity: 0.4;
-}
-
-/* width / padding use !important because the broad `.inspector-section
-   input { width: 100% }` rule has specificity (0,4,1) — chaining classes
-   on this selector can't beat that without going to ID-level. The narrow
-   override is genuinely an exception, not a competing pattern. flex: 0 0
-   auto locks the input as a non-growing, non-shrinking flex item so it
-   keeps its 64px even when the row container has slack space. */
-.rotation-row input[type='number'] {
-  width: 64px !important;
-  padding: 6px 8px !important;
-  flex: 0 0 auto;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- Status, errors, save toast --- */
+/* --- Inline progress status (StatusInline) ---
+   Only ephemeral in-progress text lands here now ("Generating…"). All
+   terminal success/error notifications go to the toaster instead. */
 .status {
   color: var(--muted);
-  font-size: var(--fs-caption);
-}
-
-.error {
-  color: var(--danger);
   font-size: var(--fs-caption);
 }
 
@@ -1304,8 +1177,6 @@ button.primary.icon-btn {
    .tab-indicator). For these other surfaces, keyboard users have to
    rely on the underlying element's hover/border-color state. Worth
    revisiting if accessibility becomes a concern. */
-.segment:focus-visible,
-.preset-btn:focus-visible,
 .color-chip input[type='color']:focus-visible,
 .add-color:focus-visible,
 .chip-remove:focus-visible {
@@ -1552,6 +1423,12 @@ button.primary.icon-btn {
   line-height: var(--lh-body);
 }
 
+/* Size modifier — one step down for secondary helper captions
+   (e.g. `.muted.small`). Previously referenced in markup with no rule. */
+.small {
+  font-size: var(--fs-eyebrow);
+}
+
 .muted code {
   background: var(--code-bg);
   padding: 1px 5px;
@@ -1559,32 +1436,90 @@ button.primary.icon-btn {
   font-family: var(--code-font);
 }
 
-.save-toast {
+/* --- Toaster: the one notification surface (lib/toast.ts) ---
+   A bottom-right stack. Every success/error/info from any tab renders
+   here with the same glass-pill geometry, so a fetch failure on Sources
+   reads identically to an apply success on Patterns. Replaces the old
+   one-off `.save-toast` div + the inline `.error` spans. */
+.toaster {
   position: fixed;
   bottom: 18px;
   right: 18px;
   z-index: 100;
-  background: color-mix(in oklch, var(--success) 18%, transparent);
-  color: var(--success);
-  padding: 5px 12px;
-  border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in oklch, var(--success) 32%, transparent);
-  font-size: var(--fs-eyebrow);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
   pointer-events: none;
-  box-shadow: var(--shadow-toast);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 200ms ease, transform 200ms ease;
 }
 
-/* Entrance via @starting-style — fires once when the toast is inserted
-   into the DOM, transitioning from these values to the resting state above.
-   Cleaner than a @keyframes animation: the transition is reversible and
-   participates in the rest of the element's transitions naturally. */
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* The whole pill is the dismiss button, but reset the generic button
+     chrome — this is a glass surface, not a default surface box. */
+  padding: 7px 14px;
+  max-width: 340px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-eyebrow);
+  text-align: left;
+  pointer-events: auto;
+  cursor: pointer;
+  /* Achromatic glass base; the kind only colours the icon + a hairline,
+     so the family reads as one material. */
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.1);
+  color: var(--text);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18);
+  box-shadow: var(--shadow-toast);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  transition: transform var(--t-fast) ease;
+}
+
+.toast:hover {
+  transform: translateY(-1px);
+}
+
+.toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: var(--radius-pill);
+}
+
+.toast-msg {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+/* Per-kind accent — coloured icon chip + matching border tint. */
+.toast-success {
+  border-color: color-mix(in oklch, var(--success) 38%, transparent);
+}
+.toast-success .toast-icon {
+  background: color-mix(in oklch, var(--success) 22%, transparent);
+  color: var(--success);
+}
+.toast-error {
+  border-color: color-mix(in oklch, var(--danger) 38%, transparent);
+}
+.toast-error .toast-icon {
+  background: color-mix(in oklch, var(--danger) 22%, transparent);
+  color: var(--danger);
+}
+.toast-info .toast-icon {
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18);
+  color: var(--text);
+}
+
+/* Entrance via @starting-style — fires once when a toast is inserted,
+   sliding up + fading in from these values to the resting state. */
 @starting-style {
-  .save-toast {
+  .toast {
     opacity: 0;
     transform: translateY(8px);
   }
@@ -1614,7 +1549,7 @@ button.primary.icon-btn {
   }
   /* Snap state transitions for the sliding pills instead of easing. */
   .tab-indicator,
-  .save-toast {
+  .toast {
     transition: none;
     animation: none;
   }
@@ -1636,11 +1571,11 @@ button.primary.icon-btn {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .save-toast {
+  .toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(110, 231, 163, 0.95);
-    color: #000000;
+    background: rgba(20, 20, 20, 0.96);
+    color: #ffffff;
   }
 }
 
@@ -1671,199 +1606,6 @@ button.primary.icon-btn {
   }
 }
 
-/* --- About modal — app identity + manual update check --- */
-.about-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  /* Dim + blur the app behind the card so it reads as a true modal. */
-  background: rgb(var(--shadow-tint) / 0.45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.about-card {
-  position: relative;
-  width: min(360px, 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 28px 24px 20px;
-  /* Tinted glass, matching the rest of the chrome. */
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-    rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
-  backdrop-filter: var(--blur-overlay);
-  -webkit-backdrop-filter: var(--blur-overlay);
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.28);
-  border-radius: var(--radius-container);
-  box-shadow:
-    0 18px 48px rgb(var(--shadow-tint) / 0.45),
-    0 8px 30px rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18),
-    inset 0 1px 0 var(--highlight-edge);
-}
-
-.about-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-}
-
-.about-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--radius-inline);
-  margin-bottom: 2px;
-}
-
-.about-name {
-  margin: 0;
-  font-size: 18px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.01em;
-}
-
-.about-version {
-  margin: 0;
-  min-height: 1em;
-  font-size: var(--fs-eyebrow);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.about-desc {
-  margin: 6px 0 4px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-soft, var(--muted));
-  max-width: 30ch;
-}
-
-.about-update {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.about-update-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
-  font-size: 12.5px;
-  font-weight: var(--fw-medium);
-  cursor: pointer;
-}
-
-.about-update-status {
-  min-height: 1em;
-  font-size: var(--fs-eyebrow);
-  color: var(--muted);
-}
-
-.about-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-  width: 100%;
-}
-
-.about-link {
-  background: transparent;
-  border: none;
-  padding: 0;
-  font-size: 12px;
-  color: var(--accent-os, var(--accent));
-  cursor: pointer;
-}
-
-.about-link:hover {
-  text-decoration: underline;
-}
-
-.about-legal {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.about-uninstall {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-  width: 100%;
-}
-
-.about-uninstall-btn {
-  background: transparent;
-  border: none;
-  padding: 0;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.about-uninstall-btn:hover {
-  color: var(--danger, #f87171);
-  text-decoration: underline;
-}
-
-.about-uninstall-purge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.about-uninstall-purge input[type='checkbox'] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--danger, #f87171);
-  cursor: pointer;
-}
-
-.about-uninstall-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.about-uninstall-err {
-  font-size: 11px;
-  color: var(--danger, #f87171);
-  text-align: center;
-  max-width: 280px;
-}
-
 /* ============================================================ */
 /* Generate tab — full-bleed stage + floating glass controls     */
 /* ============================================================ */
@@ -1890,12 +1632,17 @@ button.primary.icon-btn {
   object-fit: cover;
 }
 
-/* Empty state — a soft tinted mesh so the pane never reads as a blank
-   grey box before the first generation. */
+/* Empty state — just the solid app base. The old two-radial "mesh"
+   painted two bright white blobs (the "two white spots" the user saw)
+   against the black pane; a single faint top-down glow gives the pane a
+   hair of depth without any spotlight. */
 .gen-bg-empty {
   background:
-    radial-gradient(60% 60% at 24% 26%, rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.55) 0%, transparent 70%),
-    radial-gradient(58% 58% at 80% 82%, rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.38) 0%, transparent 70%),
+    linear-gradient(
+      180deg,
+      rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.05),
+      transparent 42%
+    ),
     var(--bg-base);
 }
 
@@ -1921,45 +1668,6 @@ button.primary.icon-btn {
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
-.gen-controls {
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: var(--radius-container);
-}
-
-/* Controls sit flat on the tray — translucent tint chips rather than the
-   inspector's opaque surface, so they read as part of the glass panel. */
-.gen-controls select,
-.gen-inline-input {
-  appearance: none;
-  -webkit-appearance: none;
-  color: var(--text);
-  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.24);
-  border-radius: var(--radius-inline);
-  padding: 6px 10px;
-  font: inherit;
-  font-size: var(--fs-body);
-  cursor: pointer;
-}
-
-.gen-inline-input {
-  min-width: 150px;
-  cursor: text;
-}
-
-.gen-controls select:focus-visible,
-.gen-inline-input:focus-visible {
-  outline: none;
-  border-color: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.55);
-}
-
 .gen-empty-hint {
   position: absolute;
   z-index: 1;
@@ -1974,59 +1682,6 @@ button.primary.icon-btn {
   line-height: var(--lh-body);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
   pointer-events: none;
-}
-
-.gen-status {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  bottom: 150px;
-  transform: translateX(-50%);
-  padding: 6px 14px;
-  border-radius: var(--radius-pill);
-  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18);
-  backdrop-filter: var(--blur-tabs);
-  -webkit-backdrop-filter: var(--blur-tabs);
-  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.3);
-  font-size: var(--fs-caption);
-  white-space: nowrap;
-}
-
-.gen-composer {
-  /* Sits well above the floating tab pill (bottom: 24px, ~42px tall, z
-     50) so the nav never overlaps the composer's controls. */
-  bottom: 84px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(94%, 600px);
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 18px;
-}
-
-.gen-composer textarea {
-  flex: 1;
-  min-width: 0;
-  max-height: 120px;
-  background: transparent;
-  border: none;
-  outline: none;
-  resize: none;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--fs-body-lg);
-  line-height: 1.4;
-  padding: 7px 8px;
-}
-
-.gen-composer textarea::placeholder {
-  color: var(--muted);
-}
-
-.gen-go {
-  flex: none;
 }
 
 /* ============================================================ */
@@ -2075,6 +1730,7 @@ button.primary.icon-btn {
   min-width: 0;
 }
 
+/* Delete-palette badge — faint chip at rest → danger on hover. */
 .pat-del {
   flex: none;
   width: 28px;
@@ -2083,8 +1739,8 @@ button.primary.icon-btn {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
   border-radius: var(--radius-inline);
   cursor: pointer;
 }
@@ -2131,9 +1787,8 @@ button.primary.icon-btn {
 
 .opt-scroller-eyebrow {
   font-size: var(--fs-eyebrow);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--muted);
+  font-weight: var(--fw-medium);
+  color: var(--text);
   padding-left: 2px;
 }
 
@@ -2189,14 +1844,69 @@ button.primary.icon-btn {
   overflow: hidden;
 }
 
-.opt-value-emoji {
-  font-size: 15px;
+.opt-value-icon {
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
 }
 
 .opt-value-label {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* --- SegmentedIcons (theme switch) ---
+   A row of icon buttons with one sliding highlight behind the active
+   one. Same glass well as the option-scroller row so the two controls
+   sit together in the top tray as one family. The thumb position is
+   pure CSS from --seg-active (index) × button width. */
+.seg-icons {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+}
+
+.seg-icons-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 32px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transform: translateX(calc(var(--seg-active, 0) * 32px));
+  transition: transform var(--t-pill) var(--ease-pill);
+  pointer-events: none;
+}
+
+.seg-icon {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: color-mix(in oklch, var(--text) 60%, transparent);
+  cursor: pointer;
+  transition: color var(--t-fast) ease;
+}
+
+.seg-icon:hover:not(.active),
+.seg-icon.active {
+  color: var(--text);
+  background: transparent;
 }
 
 /* Library carousel — applied/light/dark badges next to the browse scroller. */
@@ -2227,9 +1937,8 @@ button.primary.icon-btn {
 
 .role-label {
   font-size: var(--fs-eyebrow);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--muted);
+  font-weight: var(--fw-medium);
+  color: var(--text);
 }
 
 .role-bg-chip {
@@ -2272,12 +1981,6 @@ button.primary.icon-btn {
 }
 .pat-actions button.danger:hover:not(:disabled) {
   background: color-mix(in oklch, var(--danger) 26%, transparent);
-}
-/* Delete-palette badge — faint chip → danger on hover (its own rule
-   below provides the danger hover). */
-.pat-del {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid transparent;
 }
 
 /* Inline rename for the active custom palette. */

@@ -49,9 +49,7 @@
   --lh-loose: 1.6; /* .empty */
 
   --tracking-eyebrow: 0.05em; /* uppercase eyebrows: H2, .card-meta */
-  --tracking-normal: 0;
 
-  --fw-regular: 400;
   --fw-medium: 500; /* tabs */
   --fw-semibold: 600; /* H2, .empty em */
 
@@ -110,7 +108,6 @@
   --accent-fill: rgba(255, 255, 255, 0.88);
   --accent-fill-hover: rgba(255, 255, 255, 0.96);
   --accent-text: #000000;
-  --accent-glow: rgb(var(--shadow-tint) / 0.28);
 
   /* --accent-os: the user's OS accent color (macOS AppleAccentColor,
    * Windows DWM AccentColor, GNOME accent-color). NOT set at the token
@@ -153,18 +150,20 @@
   /* Only three radii across the whole app, by design. */
   --radius-inline: 8px; /* buttons, inputs, chips, sliding pill */
   --radius-container: 12px; /* cards, sections, tab tray */
-  --radius-window: 14px; /* the app window itself */
-  --radius-pill: 999px; /* toasts */
+  --radius-pill: 999px; /* toasts, icon buttons, segmented controls */
 
   /* ============================================================ */
   /* SHADOW + BLUR                                                  */
   /* ============================================================ */
+  /* --blur-window / --inset-sheen / --inset-edge are part of the
+     design-system token API consumed by the static previews
+     (design-system/preview/*, which @import this file); the shipping
+     app doesn't use them but they are NOT dead — keep them in sync. */
   --blur-window: blur(40px) saturate(180%);
   --blur-tabs: blur(20px) saturate(180%);
   --blur-overlay: blur(24px) saturate(180%);
 
   --shadow-window: 0 32px 80px rgb(var(--shadow-tint) / 0.35);
-  --shadow-overlay: 0 12px 32px rgb(var(--shadow-tint) / 0.35);
   --shadow-toast: 0 8px 24px rgb(var(--shadow-tint) / 0.2);
   --shadow-primary: 0 6px 16px rgb(var(--shadow-tint) / 0.28);
   --inset-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.18);
@@ -176,9 +175,9 @@
   /* The signature curve — sliding pill indicator, emoji pop. */
   --ease-pill: cubic-bezier(0.32, 0.72, 0, 1);
   --t-pill: 380ms;
+  --t-press: 80ms; /* button/thumb press + scale micro-interactions */
   --t-fast: 120ms; /* button background fade */
   --t-base: 220ms; /* tab color fade, overlay fade */
-  --t-tooltip: 140ms;
 
   /* ============================================================ */
   /* SEMANTIC TYPE ROLES                                            */

@@ -7,13 +7,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useRef, useState } from 'react';
 import type { PatternConfig } from '../lib/patterns';
+import { toast } from '../lib/toast';
 import type { Wallpaper } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
 
 export interface UseApplyPattern {
   busy: boolean;
   status: string | null;
-  error: string | null;
   apply: () => Promise<void>;
 }
 
@@ -23,7 +23,6 @@ export function useApplyPattern(
 ): UseApplyPattern {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   // Mirror busy in a ref so the callback can guard re-entry without
   // needing busy in its dep list (which would re-bind on every click,
   // defeating any downstream memoization).
@@ -33,7 +32,6 @@ export function useApplyPattern(
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
-    setError(null);
     // Apply is the commit gesture for draft config — persist before
     // any I/O so the user's tweaks survive even if the render or
     // wallpaper step downstream fails.
@@ -45,10 +43,10 @@ export function useApplyPattern(
       const entry = await invoke<Wallpaper>('apply_pattern', { config });
       setStatus('Applying wallpaper…');
       await setWallpaper(entry.path);
-      setStatus('Applied');
-      setTimeout(() => setStatus(null), 1500);
+      setStatus(null);
+      toast.success('Applied');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast.fromError(e);
       setStatus(null);
     } finally {
       busyRef.current = false;
@@ -56,5 +54,5 @@ export function useApplyPattern(
     }
   }, [config, saveConfig]);
 
-  return { busy, status, error, apply };
+  return { busy, status, apply };
 }
