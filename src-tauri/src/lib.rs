@@ -108,21 +108,36 @@ pub fn run() {
             }
         }
 
-        // Disable WebKitGTK's DMABUF renderer — but ONLY inside the bundled
-        // AppImage. There, the bundled WebKit + the host Mesa frequently
-        // disagree on EGL ("Could not create surfaceless EGL display:
-        // EGL_BAD_ALLOC. Aborting...") and WebKit's GPU process abort()s,
-        // SIGABRTing the whole app on launch; forcing the non-DMABUF
-        // fallback fixes that. BUT the fallback also disables GPU
-        // compositing, which kills every backdrop-filter blur in the UI —
-        // so applying it unconditionally (the previous behaviour) made the
-        // glass go flat in `tauri dev` and in native packages that run
-        // against the host's own WebKit, where the EGL crash never happens.
-        // Gate on $APPIMAGE (set by the AppImage runtime) so the crash
-        // workaround stays where it's needed and the blur comes back
-        // everywhere else. Still honour an explicit user override.
+        // The proprietary NVIDIA driver is detected once here and reused for
+        // the EGL-vendor steering further down. `/sys/module/nvidia` exists
+        // iff the kernel module is loaded — i.e. NVIDIA's EGL/GBM stack is the
+        // one actually in play.
+        let nvidia_loaded = std::path::Path::new("/sys/module/nvidia").exists();
+
+        // Disable WebKitGTK's DMABUF renderer where it is known to break:
+        //
+        //   1. Inside the bundled AppImage: the bundled WebKit + the host Mesa
+        //      disagree on EGL ("Could not create surfaceless EGL display:
+        //      EGL_BAD_ALLOC. Aborting...") and WebKit's GPU process abort()s,
+        //      SIGABRTing the whole app on launch.
+        //
+        //   2. On the proprietary NVIDIA driver: WebKit's DMABUF buffers and
+        //      NVIDIA's EGL/GBM stack hit a Wayland protocol error — GTK
+        //      aborts with "Error 71 (Protocol error) dispatching to Wayland
+        //      display" ~1s after the webview loads. Reproduced on aarch64 +
+        //      NVIDIA + Wayland; forcing Mesa EGL or disabling the DMABUF
+        //      renderer both fix it, and disabling DMABUF keeps us on the real
+        //      GPU rather than dropping to llvmpipe.
+        //
+        // The fallback also disables GPU compositing, which kills every
+        // backdrop-filter blur in the UI — so we only force it where the
+        // alternative is a hard crash, and leave the glass intact everywhere
+        // else (Mesa/Intel/AMD native packages + `tauri dev`). An explicit
+        // user override always wins.
         let in_appimage = std::env::var_os("APPIMAGE").is_some();
-        if in_appimage && std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+        if (in_appimage || nvidia_loaded)
+            && std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err()
+        {
             // SAFETY: same as above — set before any GTK/WebKit thread spawns.
             unsafe {
                 std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
@@ -144,7 +159,6 @@ pub fn run() {
         // other) vendors only. A real NVIDIA system (module loaded) or an
         // explicit user override is left untouched.
         let egl_dir = std::path::Path::new("/usr/share/glvnd/egl_vendor.d");
-        let nvidia_loaded = std::path::Path::new("/sys/module/nvidia").exists();
         if !nvidia_loaded && std::env::var_os("__EGL_VENDOR_LIBRARY_FILENAMES").is_none() {
             if let Ok(entries) = std::fs::read_dir(egl_dir) {
                 let mut jsons: Vec<std::path::PathBuf> = entries
