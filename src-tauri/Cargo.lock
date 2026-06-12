@@ -48,6 +48,8 @@ name = "ambient"
 version = "1.0.3"
 dependencies = [
  "ambient-core",
+ "jni",
+ "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sysinfo",
@@ -56,6 +58,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-updater",
+ "tauri-plugin-wallpaper",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -4409,6 +4412,17 @@ dependencies = [
  "url",
  "windows-sys 0.60.2",
  "zip",
+]
+
+[[package]]
+name = "tauri-plugin-wallpaper"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

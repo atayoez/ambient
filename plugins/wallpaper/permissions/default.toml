@@ -1,0 +1,5 @@
+# No JS-invokable commands — the plugin is Rust-API only (see lib.rs),
+# so the default permission set is intentionally empty.
+[default]
+description = "Default permissions for the wallpaper plugin (none — Rust-API only)"
+permissions = []

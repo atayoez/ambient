@@ -46,8 +46,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # the default backend at startup (secrets.rs::init); platforms without
 # one (headless Linux, mobile) fall back to a mode-0600 JSON file.
 keyring-core = "1"
-# Cross-platform OS wallpaper-set (desktop OSes only).
-wallpaper = "3"
 # XDG/known-folder Pictures-dir lookup for the wallpaper output dir —
 # replaces Tauri's app.path().picture_dir(). The app-data dir itself is
 # NOT resolved here: the shell injects it via state::init so core can
@@ -56,9 +54,18 @@ directories = "6"
 # secrets.rs fallback warn!.
 tracing = "0.1"
 
+# Cross-platform OS wallpaper-set — desktop OSes only. Mobile targets
+# route through the shell-registered setter instead
+# (desktop.rs::set_os_setter; the Tauri shell wires its wallpaper
+# plugin in there), so the crate must not even build for them.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+wallpaper = "3"
+
 # Per-platform keyring backends, registered as the keyring-core default
 # in secrets.rs::init. See src-tauri's pre-extraction Cargo.toml history
 # for the feature rationale (`keychain` vs `protected` on macOS, etc.).
+# (No Android/iOS entries: keyring-core finds no store there and
+# secrets.rs falls back to the mode-0600 JSON file.)
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1", features = ["keychain"] }
 

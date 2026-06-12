@@ -38,11 +38,6 @@ tauri-plugin-notification = "2"
 # startup. Cheaper + simpler than rolling our own /proc reader +
 # Windows OpenProcess paths.
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
-# Updater plugin handles signed delta installs. We add it now even though
-# signing isn't wired yet — the check() path works without sigs and gives
-# us a single place to wire auto-install once a code-signing + Tauri
-# update-signing keypair are in place.
-tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # sync/macros/time for the rotation scheduler's select! + sleep loops.
@@ -54,6 +49,27 @@ tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
 # default features are intentionally trimmed.
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+
+# Updater plugin handles signed delta installs — desktop only: mobile
+# updates ship through the store / APK installs and the plugin has no
+# mobile support, so it must not even build there.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
+# Mobile wallpaper-set bridge (Android WallpaperManager). Registered in
+# lib.rs setup and routed into ambient_core::desktop::set_os_setter.
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-wallpaper = { path = "../plugins/wallpaper" }
+
+# reqwest's rustls stack (ambient-core) verifies TLS through
+# rustls-platform-verifier, which on Android needs a one-time JNI init
+# with the JVM + app Context BEFORE any HTTPS request — otherwise every
+# request panics ("Expect rustls-platform-verifier to be initialized").
+# jni must stay in lockstep with the version rustls-platform-verifier
+# itself uses (0.21) so the JNIEnv types are identical.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+rustls-platform-verifier = "0.6"
 
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting

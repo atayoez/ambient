@@ -27,7 +27,15 @@ export default function LicenseGate({ revokedMessage, onActivated }: Props) {
       const info = await activateLicense(key);
       onActivated(info);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Activation failed');
+      // Tauri commands returning Result<_, String> reject with a plain
+      // string — surface it instead of swallowing the actual reason.
+      setError(
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'Activation failed',
+      );
     } finally {
       setBusy(false);
     }

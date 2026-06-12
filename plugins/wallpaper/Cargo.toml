@@ -1,0 +1,23 @@
+# Tauri mobile plugin bridging ambient-core's wallpaper-apply to the
+# OS wallpaper services (Android WallpaperManager today; iOS has no
+# public set-wallpaper API, so iOS would surface a share/save flow
+# instead — unimplemented). Rust-API only: the shell registers it and
+# wires it into ambient_core::desktop::set_os_setter; nothing here is
+# invokable from JS, so the plugin declares zero commands/permissions.
+[package]
+name = "tauri-plugin-wallpaper"
+version = "0.1.0"
+authors = ["Atay Özcan"]
+description = "Ambient's mobile wallpaper-set bridge (WallpaperManager on Android)"
+edition = "2021"
+rust-version = "1.77.2"
+links = "tauri-plugin-wallpaper"
+
+[dependencies]
+tauri = { version = "2" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

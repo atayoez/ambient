@@ -24,6 +24,26 @@ use std::path::PathBuf;
 
 use crate::library_store::LibraryOp;
 
+// ---------------------------------------------------------------------
+// Mobile OS-setter hook. Android/iOS can only reach their wallpaper
+// service from platform code, so the mobile shell registers a setter at
+// startup (the Tauri shell wires its wallpaper plugin in here) and
+// apply_os routes through it on those targets. Mirrors events::set_sink.
+// ---------------------------------------------------------------------
+#[cfg(any(target_os = "android", target_os = "ios"))]
+static OS_SETTER: std::sync::OnceLock<Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>> =
+    std::sync::OnceLock::new();
+
+/// Register the platform wallpaper setter (mobile shells only). Later
+/// calls are ignored — one shell per process.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+pub fn set_os_setter<F>(f: F)
+where
+    F: Fn(&str) -> Result<(), String> + Send + Sync + 'static,
+{
+    let _ = OS_SETTER.set(Box::new(f));
+}
+
 /// Full apply pipeline. Called by both the shell's set_wallpaper
 /// command wrapper (frontend invokes) and the rotation task
 /// (background tick).
@@ -103,6 +123,14 @@ fn set_lockscreen(_abs_path: &str) -> Result<(), String> {
 }
 
 fn apply_os(abs_str: &str) -> Result<(), String> {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        return match OS_SETTER.get() {
+            Some(set) => set(abs_str),
+            None => Err("no platform wallpaper setter registered".to_string()),
+        };
+    }
+
     #[cfg(target_os = "linux")]
     {
         let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
@@ -132,7 +160,7 @@ fn apply_os(abs_str: &str) -> Result<(), String> {
         }
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "ios")))]
     {
         wallpaper::set_from_path(abs_str).map_err(|e| format!("OS wallpaper-set failed: {}", e))
     }

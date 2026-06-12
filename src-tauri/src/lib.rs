@@ -4,11 +4,31 @@ mod rotation;
 mod solo_instance;
 mod tray_icon;
 
+#[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, RunEvent,
 };
+use tauri::{AppHandle, Emitter, Manager, RunEvent};
+
+/// Android: the JVM pointer, captured in JNI_OnLoad — the one callback
+/// Android guarantees us when System.loadLibrary brings this cdylib in,
+/// and the only public route to the VM: JNI_GetCreatedJavaVMs is
+/// linker-namespace-restricted for apps, and tauri 2.11's tao/wry no
+/// longer feed the ndk-context bridge. Consumed by the TLS-verifier
+/// init in setup().
+#[cfg(target_os = "android")]
+static ANDROID_JVM: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "system" fn JNI_OnLoad(
+    vm: *mut jni::sys::JavaVM,
+    _reserved: *mut std::ffi::c_void,
+) -> jni::sys::jint {
+    let _ = ANDROID_JVM.set(vm as usize);
+    jni::sys::JNI_VERSION_1_6
+}
 
 /// Uninstall from inside the app (About panel "Uninstall" button).
 /// Removes the desktop integration (binary copy, launcher entry, icon),
@@ -188,13 +208,22 @@ pub fn run() {
     // really an `ambient` process, waits up to 1.5s for it to exit,
     // then writes our own PID. Runs BEFORE the tauri::Builder so we
     // never have two webviews / two trays competing for the shared
-    // settings/library/license files.
+    // settings/library/license files. Desktop-only — Android's activity
+    // model already guarantees a single instance.
+    #[cfg(desktop)]
     solo_instance::ensure_solo();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init());
+
+    // Updater is desktop-only: mobile updates ship through the store /
+    // APK installs, and tauri-plugin-updater has no mobile support (the
+    // crate is a desktop-gated target dep in Cargo.toml).
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+    builder
         .invoke_handler(tauri::generate_handler![
             commands::set_wallpaper,
             commands::list_wallpapers,
@@ -229,8 +258,58 @@ pub fn run() {
             // Self-integrate when launched from an AppImage on Linux —
             // copies the running .AppImage into ~/.local/bin and writes
             // a .desktop entry so the launcher picks it up. No-op on
-            // macOS / Windows.
+            // macOS / Windows / mobile.
             integrate::integrate_if_needed();
+
+            // Android: hand the JVM + app Context to reqwest's TLS
+            // certificate verifier (rustls-platform-verifier) before any
+            // HTTPS request fires — Polar validation, source fetches and
+            // AI downloads all panic without it. The VM comes from our
+            // JNI_OnLoad capture (see ANDROID_JVM above); the Context via
+            // ActivityThread.currentApplication(), the long-standing NDK
+            // convention.
+            #[cfg(target_os = "android")]
+            {
+                let vm_ptr = *ANDROID_JVM
+                    .get()
+                    .expect("JNI_OnLoad ran before setup")
+                    as *mut jni::sys::JavaVM;
+                // SAFETY: pointer was handed to JNI_OnLoad by the runtime
+                // and the VM lives as long as the process.
+                let vm = unsafe { jni::JavaVM::from_raw(vm_ptr) }
+                    .expect("JavaVM::from_raw");
+                let mut env = vm
+                    .attach_current_thread()
+                    .expect("attach JNI env for TLS verifier init");
+                let app_context = env
+                    .call_static_method(
+                        "android/app/ActivityThread",
+                        "currentApplication",
+                        "()Landroid/app/Application;",
+                        &[],
+                    )
+                    .and_then(|v| v.l())
+                    .expect("ActivityThread.currentApplication");
+                rustls_platform_verifier::android::init_with_env(&mut env, app_context)
+                    .expect("initialize rustls-platform-verifier");
+            }
+
+            // Mobile: wallpaper-setting goes through the Kotlin plugin
+            // (WallpaperManager) — register it and route ambient-core's
+            // apply pipeline through it. Desktop keeps core's own
+            // wallpaper paths and never touches this plugin.
+            #[cfg(mobile)]
+            {
+                use tauri_plugin_wallpaper::{WallpaperExt, WallpaperTarget};
+                app.handle().plugin(tauri_plugin_wallpaper::init())?;
+                let wallpaper_handle = app.handle().clone();
+                ambient_core::desktop::set_os_setter(move |path| {
+                    wallpaper_handle
+                        .wallpaper()
+                        .set_wallpaper(path.to_string(), WallpaperTarget::Both)
+                        .map_err(|e| e.to_string())
+                });
+            }
 
             // Bridge ambient-core's app events onto the Tauri event bus.
             // Registered BEFORE core init so nothing fires into the void.
@@ -374,7 +453,9 @@ pub fn run() {
 }
 
 /// Show the main window, creating it on demand if a prior close destroyed it.
-/// Called from the tray "Open Ambient" menu item.
+/// Called from the tray "Open Ambient" menu item — desktop-only, like the
+/// tray itself (and `unminimize` doesn't exist on mobile).
+#[cfg(desktop)]
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();

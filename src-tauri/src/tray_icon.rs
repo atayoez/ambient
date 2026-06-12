@@ -213,12 +213,19 @@ pub fn linux_panel_wants_light_glyph() -> bool {
 /// trigger an unnecessary tray redraw.
 #[tauri::command]
 pub fn update_tray_theme(app: AppHandle, is_dark: bool) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
+    // No tray on mobile — accept and ignore so a shared frontend hook
+    // can keep calling unconditionally.
+    #[cfg(mobile)]
     {
         let _ = (app, is_dark);
         return Ok(());
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(desktop, target_os = "macos"))]
+    {
+        let _ = (app, is_dark);
+        return Ok(());
+    }
+    #[cfg(all(desktop, not(target_os = "macos")))]
     {
         // On Linux the passed `is_dark` reflects the webview's
         // prefers-color-scheme, which is the wrong signal for the panel
