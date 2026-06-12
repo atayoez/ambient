@@ -8,13 +8,11 @@
 
 use std::sync::LazyLock;
 
-use tauri::{AppHandle, Manager};
 use tokio::sync::RwLock;
 
 use crate::library::download_and_save;
-use crate::library_store::{prepend_entry, LibraryState};
+use crate::library_store::prepend_entry;
 use crate::secrets;
-use crate::settings::SettingsState;
 use crate::types::{Settings, SourceKind, Wallpaper};
 use crate::util::{local_today_key, ms_since_epoch};
 
@@ -51,25 +49,24 @@ fn source_name(kind: SourceKind) -> &'static str {
     }
 }
 
-#[tauri::command]
-pub async fn fetch_source_wallpaper(app: AppHandle) -> Result<Wallpaper, String> {
-    let settings = app.state::<SettingsState>().get().await;
+pub async fn fetch_source_wallpaper() -> Result<Wallpaper, String> {
+    let settings = crate::state::settings().get().await;
     let entry = match settings.source {
-        SourceKind::NasaApod => fetch_nasa_apod(&app).await?,
-        SourceKind::Bing => fetch_bing(&app).await?,
-        SourceKind::Unsplash => fetch_unsplash(&app, &settings).await?,
-        SourceKind::Pexels => fetch_pexels(&app, &settings).await?,
-        SourceKind::Wallhaven => fetch_wallhaven(&app, &settings).await?,
-        SourceKind::Picsum => fetch_picsum(&app).await?,
+        SourceKind::NasaApod => fetch_nasa_apod().await?,
+        SourceKind::Bing => fetch_bing().await?,
+        SourceKind::Unsplash => fetch_unsplash(&settings).await?,
+        SourceKind::Pexels => fetch_pexels(&settings).await?,
+        SourceKind::Wallhaven => fetch_wallhaven(&settings).await?,
+        SourceKind::Picsum => fetch_picsum().await?,
     };
     // Best-effort prepend — a failure here means the image was fetched
     // and written but the index isn't updated. The Library tab's
     // mount-time orphan sweep handles eventual consistency.
-    let _ = prepend_entry(&app, entry.clone()).await;
+    let _ = prepend_entry(entry.clone()).await;
     Ok(entry)
 }
 
-async fn fetch_nasa_apod(app: &AppHandle) -> Result<Wallpaper, String> {
+async fn fetch_nasa_apod() -> Result<Wallpaper, String> {
     let today = local_today_key();
 
     // Cache hit?
@@ -79,7 +76,7 @@ async fn fetch_nasa_apod(app: &AppHandle) -> Result<Wallpaper, String> {
             if c.date == today && std::path::PathBuf::from(&c.path).exists() {
                 // If the entry is already in the library, preserve its
                 // original added_at — re-use carries no new event.
-                let lib = app.state::<LibraryState>().get().await;
+                let lib = crate::state::library().get().await;
                 if let Some(existing) = lib.iter().find(|w| w.path == c.path) {
                     return Ok(existing.clone());
                 }
@@ -133,7 +130,7 @@ async fn fetch_nasa_apod(app: &AppHandle) -> Result<Wallpaper, String> {
         .map(String::from);
     let filename = format!("nasa-{}.jpg", date);
 
-    let local_path = download_and_save(url, &filename, app).await?;
+    let local_path = download_and_save(url, &filename).await?;
 
     *APOD_CACHE.write().await = Some(ApodCache {
         date: today,
@@ -151,10 +148,7 @@ async fn fetch_nasa_apod(app: &AppHandle) -> Result<Wallpaper, String> {
     })
 }
 
-async fn fetch_unsplash(
-    app: &AppHandle,
-    settings: &Settings,
-) -> Result<Wallpaper, String> {
+async fn fetch_unsplash(settings: &Settings) -> Result<Wallpaper, String> {
     let key = secrets::get("unsplash_key")?
         .ok_or_else(|| "Set your Unsplash API key in Sources first.".to_string())?;
 
@@ -202,7 +196,7 @@ async fn fetch_unsplash(
         .map(String::from);
     let filename = format!("unsplash-{}.jpg", id);
 
-    let local_path = download_and_save(img_url, &filename, app).await?;
+    let local_path = download_and_save(img_url, &filename).await?;
 
     Ok(Wallpaper {
         path: local_path,
@@ -214,10 +208,7 @@ async fn fetch_unsplash(
     })
 }
 
-async fn fetch_pexels(
-    app: &AppHandle,
-    settings: &Settings,
-) -> Result<Wallpaper, String> {
+async fn fetch_pexels(settings: &Settings) -> Result<Wallpaper, String> {
     let key = secrets::get("pexels_key")?
         .ok_or_else(|| "Set your Pexels API key in Sources first.".to_string())?;
 
@@ -274,7 +265,7 @@ async fn fetch_pexels(
         .map(String::from);
     let filename = format!("pexels-{}.jpg", id);
 
-    let local_path = download_and_save(img_url, &filename, app).await?;
+    let local_path = download_and_save(img_url, &filename).await?;
 
     Ok(Wallpaper {
         path: local_path,
@@ -287,7 +278,7 @@ async fn fetch_pexels(
 }
 
 // Bing's Photo of the Day — a fresh curated landscape daily, no key.
-async fn fetch_bing(app: &AppHandle) -> Result<Wallpaper, String> {
+async fn fetch_bing() -> Result<Wallpaper, String> {
     let client = http_client()?;
     let res = client
         .get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US")
@@ -320,7 +311,7 @@ async fn fetch_bing(app: &AppHandle) -> Result<Wallpaper, String> {
         .and_then(|v| v.as_str())
         .map(String::from);
     let filename = format!("bing-{}.jpg", date);
-    let local_path = download_and_save(&img_url, &filename, app).await?;
+    let local_path = download_and_save(&img_url, &filename).await?;
     Ok(Wallpaper {
         path: local_path,
         source: source_name(SourceKind::Bing).to_string(),
@@ -334,10 +325,7 @@ async fn fetch_bing(app: &AppHandle) -> Result<Wallpaper, String> {
 // Wallhaven — random SFW "general" result, optionally search-filtered.
 // The API key is optional (anonymous SFW works); a key raises rate limits
 // and ties results to the user's account.
-async fn fetch_wallhaven(
-    app: &AppHandle,
-    settings: &Settings,
-) -> Result<Wallpaper, String> {
+async fn fetch_wallhaven(settings: &Settings) -> Result<Wallpaper, String> {
     let client = http_client()?;
     // Empty (legacy settings) falls back to safe defaults.
     let nonempty = |s: &str, default: &'static str| {
@@ -390,7 +378,7 @@ async fn fetch_wallhaven(
     let id = first.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
     let ext = if img_url.ends_with(".png") { "png" } else { "jpg" };
     let filename = format!("wallhaven-{}.{}", id, ext);
-    let local_path = download_and_save(img_url, &filename, app).await?;
+    let local_path = download_and_save(img_url, &filename).await?;
     Ok(Wallpaper {
         path: local_path,
         source: source_name(SourceKind::Wallhaven).to_string(),
@@ -402,7 +390,7 @@ async fn fetch_wallhaven(
 }
 
 // Lorem Picsum — a random photo at the screen's native resolution. No key.
-async fn fetch_picsum(app: &AppHandle) -> Result<Wallpaper, String> {
+async fn fetch_picsum() -> Result<Wallpaper, String> {
     let (w, h) = crate::monitor::get_primary_monitor_pixels()
         .map(|m| (m.width, m.height))
         .unwrap_or((1920, 1080));
@@ -410,7 +398,7 @@ async fn fetch_picsum(app: &AppHandle) -> Result<Wallpaper, String> {
     // filename so repeated pulls stay distinct in the library.
     let url = format!("https://picsum.photos/{}/{}", w, h);
     let filename = format!("picsum-{}.jpg", ms_since_epoch());
-    let local_path = download_and_save(&url, &filename, app).await?;
+    let local_path = download_and_save(&url, &filename).await?;
     Ok(Wallpaper {
         path: local_path,
         source: source_name(SourceKind::Picsum).to_string(),

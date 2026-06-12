@@ -14,7 +14,6 @@ pub struct MonitorInfo {
     pub source: String,
 }
 
-#[tauri::command]
 pub fn get_primary_monitor_pixels() -> Result<MonitorInfo, String> {
     if let Some(info) = try_cosmic_randr() {
         return Ok(info);

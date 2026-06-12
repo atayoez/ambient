@@ -1,8 +1,9 @@
 // Rust-owned Settings store. SettingsState holds the in-memory
 // authority behind a tokio::sync::RwLock; on patch we apply a JSON
 // merge, persist atomically to ambient-settings.json, broadcast on a
-// watch channel (so Phase 4's rotation task can react), and emit a
-// `settings-changed` Tauri event (so the JS layer can re-render).
+// watch channel (so the shell's rotation task can react), and fire a
+// `settings-changed` app event through the shell's event sink (so the
+// UI layer can re-render).
 //
 // Migration: on first launch after Phase 1, `load_or_default` lifts
 // the `settings` sub-object out of the legacy tauri-plugin-store
@@ -12,7 +13,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
 use tokio::sync::{watch, RwLock};
 
 use crate::types::Settings;
@@ -46,20 +46,17 @@ impl SettingsState {
     }
 
     /// Apply a JSON patch (shallow merge of top-level keys), persist
-    /// to disk, broadcast on the watch channel, and emit the Tauri
-    /// event. All settings writes from any code path go through here.
-    pub async fn patch(
-        &self,
-        patch: serde_json::Value,
-        app: &AppHandle,
-    ) -> Result<Settings, String> {
+    /// to disk, broadcast on the watch channel, and fire the
+    /// `settings-changed` app event. All settings writes from any code
+    /// path go through here.
+    pub async fn patch(&self, patch: serde_json::Value) -> Result<Settings, String> {
         let mut guard = self.inner.write().await;
         let updated = apply_patch(&guard, patch)?;
         write_atomic(&self.path, &updated)?;
         *guard = updated.clone();
         drop(guard);
         let _ = self.tx.send(updated.clone());
-        let _ = app.emit("settings-changed", &updated);
+        crate::events::emit("settings-changed", &updated);
         Ok(updated)
     }
 }
@@ -183,20 +180,6 @@ pub(crate) fn strip_keys_from_legacy(
             let _ = std::fs::rename(&tmp, legacy_path);
         }
     }
-}
-
-#[tauri::command]
-pub async fn get_settings(state: State<'_, SettingsState>) -> Result<Settings, String> {
-    Ok(state.get().await)
-}
-
-#[tauri::command]
-pub async fn patch_settings(
-    patch: serde_json::Value,
-    state: State<'_, SettingsState>,
-    app: AppHandle,
-) -> Result<Settings, String> {
-    state.patch(patch, &app).await
 }
 
 #[cfg(test)]

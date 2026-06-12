@@ -47,13 +47,7 @@ dependencies = [
 name = "ambient"
 version = "1.0.3"
 dependencies = [
- "apple-native-keyring-store",
- "base64 0.22.1",
- "chrono",
- "dbus-secret-service-keyring-store",
- "image",
- "keyring-core",
- "reqwest",
+ "ambient-core",
  "serde",
  "serde_json",
  "sysinfo",
@@ -62,10 +56,28 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-updater",
- "tiny-skia",
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "ambient-core"
+version = "0.0.0"
+dependencies = [
+ "apple-native-keyring-store",
+ "base64 0.22.1",
+ "chrono",
+ "dbus-secret-service-keyring-store",
+ "directories",
+ "image",
+ "keyring-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tiny-skia",
+ "tokio",
+ "tracing",
  "urlencoding",
  "wallpaper",
  "windows-native-keyring-store",
@@ -913,6 +925,15 @@ dependencies = [
  "block-buffer",
  "crypto-common",
  "subtle",
+]
+
+[[package]]
+name = "directories"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
+dependencies = [
+ "dirs-sys",
 ]
 
 [[package]]

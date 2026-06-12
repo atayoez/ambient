@@ -240,17 +240,14 @@ pub fn migrate_from_settings(app_data_dir: &Path) {
     }
 }
 
-#[tauri::command]
 pub fn get_secret(name: String) -> Result<Option<String>, String> {
     get(&name)
 }
 
-#[tauri::command]
 pub fn set_secret(name: String, value: String) -> Result<(), String> {
     set(&name, &value)
 }
 
-#[tauri::command]
 pub fn clear_secret(name: String) -> Result<(), String> {
     clear(&name)
 }

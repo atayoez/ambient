@@ -80,7 +80,10 @@ jobs:
 
       - name: Cargo tests (Rust unit tests)
         working-directory: ./src-tauri
-        run: cargo test --lib
+        # --workspace so the ambient-core member's tests run too — from
+        # the root package dir a bare `cargo test --lib` would only test
+        # the (test-less) shell crate.
+        run: cargo test --workspace --lib
 
   build-tauri:
     name: Build (${{ matrix.platform }} / ${{ matrix.arch }})

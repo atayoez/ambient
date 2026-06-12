@@ -17,6 +17,13 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Changed
 
+- Backend extracted into a Tauri-independent `ambient-core` crate
+  (`src-tauri/core`): pattern renderer, source fetchers, AI generation,
+  settings/library/license stores, secrets, and the wallpaper-apply
+  pipeline. The Tauri shell keeps only window/tray/updater/solo-instance,
+  the rotation scheduler, and thin command wrappers. No user-facing
+  change; groundwork for the Tauri-mobile (Android/iOS) port.
+
 ### Fixed
 
 ## [1.0.3] — 2026-06-05

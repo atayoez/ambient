@@ -1,8 +1,20 @@
+# The Tauri shell. Domain logic lives in the ambient-core workspace
+# member (core/) — this crate owns only what is inherently shell:
+# the webview/window lifecycle, tray, solo-instance handoff, updater,
+# desktop integration (AppImage/autostart), the rotation scheduler, and
+# the thin #[tauri::command] wrappers in src/commands.rs.
 [package]
 name = "ambient"
 version = "1.0.3"
 description = "Cross-platform wallpaper app with dynamic pattern generation."
 edition = "2024"
+
+# Workspace root: src-tauri stays the cargo root on purpose so the
+# target dir (src-tauri/target) and lockfile (src-tauri/Cargo.lock)
+# keep their paths — CI bundle globs, packaging scripts, and the rpm
+# signing bind mounts all reference them.
+[workspace]
+members = ["core"]
 
 [lib]
 name = "ambient_lib"
@@ -12,6 +24,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# The Tauri-independent backend: renderer, sources, AI generation,
+# settings/library/license stores, secrets, wallpaper apply.
+ambient-core = { path = "core" }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -28,82 +43,17 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # us a single place to wire auto-install once a code-signing + Tauri
 # update-signing keypair are in place.
 tauri-plugin-updater = "2"
-wallpaper = "3"
-# Rust-side HTTP client for license validation, source APIs (NASA,
-# Unsplash, Pexels), AI generation (OpenAI), and image downloads.
-# Phase 6 dropped tauri-plugin-http when all JS-side HTTP moved to Rust.
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "webpki-roots", "json", "query"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# Image decoding for Library thumbnail cache. Minimal feature set: just
-# the formats the Library can actually store (PNG patterns, JPEG
-# downloads, WEBP thumbnails). Lossless WebP encoder ships in
-# image-webp under the `webp` feature.
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
-# Tokio's sync primitives (RwLock, watch channel) own the in-memory
-# state for settings + library. The rest of tokio comes in transitively
-# via tauri's async_runtime; we only need the sync feature explicitly.
-# macros (select!), time (sleep), rt (spawn_blocking) used by rotation.rs /
-# the render pipeline. These were previously satisfied transitively via
-# tauri-plugin-store's tokio features; declared explicitly now that the
-# plugin is gone, so our deps are honest about what we use.
+# sync/macros/time for the rotation scheduler's select! + sleep loops.
 tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
-# OS keyring for BYO API keys (Unsplash, Pexels, OpenAI). v4 of the
-# keyring crate was rewritten — the actual API lives in keyring-core
-# now, with per-platform store crates registered as the default at
-# startup (see [target.*.dependencies] near the bottom of this file).
-# Headless Linux without DBus falls back to a mode-0600 JSON file
-# (secrets.rs::Backend::JsonFallback).
-keyring-core = "1"
-# URL encoding for the Pollinations prompt-in-URL pattern. Tiny crate,
-# nothing else fits the bill — reqwest's .query() handles query-string
-# encoding but not path-segment encoding.
-urlencoding = "2"
-# Local-date formatting for the NASA APOD daily cache key. clock feature
-# only — no parsing, no serde, no timezone DB.
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-# Software 2D rasterizer for the Pattern renderer (Phase 5 — replaces
-# the JS Canvas implementation). Pure Rust, no GPU dependency, fast
-# enough for live preview at thumbnail res + native-res export via
-# spawn_blocking.
-tiny-skia = "0.12"
-# base64-encoded data URLs for the preview pipeline. Tauri's
-# ipc::Response/ArrayBuffer round-trip was producing blank previews
-# (likely a quirk of the 2.x bytes-to-JS bridge) so we ship the JPEG
-# as a data:image/jpeg;base64,… string instead. ~33% wire overhead is
-# negligible for ~30-50KB preview frames and the <img src=…> binding
-# becomes trivial — no Blob, no ObjectURL, no revoke bookkeeping.
-base64 = "0.22"
-# (HDR AVIF output removed 2026-06-03 — desktop wallpapers are
-# SDR-composited on every current OS, so a PQ/BT.2020 file renders dark
-# as a wallpaper. The full implementation lives in git history if HDR
-# desktop support ever lands; see the project memory.)
 # Structured logging — replaces scattered eprintln! calls so log
-# levels can be filtered at runtime via RUST_LOG and so future Sentry
-# / file-sink integrations are one-subscriber-add away. tracing-
-# subscriber's `env-filter` reads RUST_LOG, `fmt` is the terminal
-# printer; both default features are intentionally trimmed.
+# levels can be filtered at runtime via RUST_LOG and so future file-sink
+# integrations are one-subscriber-add away. tracing-subscriber's
+# `env-filter` reads RUST_LOG, `fmt` is the terminal printer; both
+# default features are intentionally trimmed.
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
-
-# Per-platform keyring backends, registered as the keyring-core default
-# in secrets.rs::init.
-# `keychain` selects the standard macOS Keychain backend — v1 of the
-# crate ships NO default features and hard-errors at compile time unless
-# `keychain` or `protected` is set (the latter is the iOS-style
-# data-protection keychain, wrong for a desktop app).
-[target.'cfg(target_os = "macos")'.dependencies]
-apple-native-keyring-store = { version = "1", features = ["keychain"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-windows-native-keyring-store = "1"
-
-[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
-# Secret Service is the right Linux backend for a desktop app — it
-# survives logout (kernel keyutils don't) and is what every major
-# distro ships by default via GNOME Keyring / KWallet. crypto-rust
-# keeps us off a system libssl, matching reqwest's rustls choice.
-dbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
 
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting
@@ -124,7 +74,7 @@ opt-level = 3
 [profile.dev.package."*"]
 opt-level = 3
 
-# Our own crate at opt-level=1 in dev too: the renderer's hot loops
+# Our own crates at opt-level=1 in dev too: the renderer's hot loops
 # (emoji compositing, dot/shape placement, the per-pixel paths) were the
 # remaining bottleneck once deps were optimized — opt-0 left apply/preview
 # renders sluggish under `tauri dev`. opt-level=1 is the sweet spot:

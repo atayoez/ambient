@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo clippy *)",
+      "Bash(command -v *)",
+      "Bash(curl -sI *)",
+      "Bash(git fetch *)",
+      "Bash(pacman -Q *)",
+      "Bash(pacman -Si *)",
+      "Bash(pacman -Ss *)",
+      "Bash(systemctl status *)",
+      "Bash(systemctl --user status *)"
+    ]
+  }
+}

@@ -8,7 +8,6 @@
 // dependency-free. The lookups run on every app launch (<10 ms total)
 // and the result is cached in the frontend for the session.
 
-#[tauri::command]
 pub fn get_system_accent() -> Option<String> {
     #[cfg(target_os = "macos")]
     {

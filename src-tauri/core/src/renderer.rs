@@ -15,7 +15,6 @@ use std::path::PathBuf;
 use image::codecs::jpeg::JpegEncoder;
 use image::ExtendedColorType;
 use serde::Deserialize;
-use tauri::AppHandle;
 use tiny_skia::{
     Color, FillRule, FilterQuality, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap,
     PixmapPaint, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
@@ -1289,7 +1288,6 @@ pub fn encode_pixmap_jpeg(pix: &Pixmap, quality: u8) -> Result<Vec<u8>, String> 
 /// Returned as a `data:image/jpeg;base64,…` string — round-tripping
 /// raw bytes through `tauri::ipc::Response` produced blank previews
 /// in 2.x, and the data-URL form binds straight to `<img src=…>`.
-#[tauri::command]
 pub async fn render_preview(
     config: PatternConfig,
     width: u32,
@@ -1358,11 +1356,7 @@ pub async fn render_preview(
 /// desktop wallpapers are SDR-composited on every current OS, so a
 /// PQ/BT.2020 file renders dark as a wallpaper. Preserved in git history
 /// for revival if HDR desktop support ever materializes.)
-#[tauri::command]
-pub async fn apply_pattern(
-    config: PatternConfig,
-    app: AppHandle,
-) -> Result<Wallpaper, String> {
+pub async fn apply_pattern(config: PatternConfig) -> Result<Wallpaper, String> {
     // Fetch any not-yet-cached emoji glyphs before the sync render.
     if matches!(config.pattern_type, PatternType::Emoji) {
         crate::emojis::preload(&config.emojis).await;
@@ -1410,7 +1404,7 @@ pub async fn apply_pattern(
     // cache point at. We then try to also write an AVIF HDR sibling;
     // if that succeeds, set_wallpaper will prefer it for the actual
     // OS desktop background on HDR-capable systems.
-    let png_path = save_pixmap_16bit_png(&pix, &format!("{}.png", stem), &app)?;
+    let png_path = save_pixmap_16bit_png(&pix, &format!("{}.png", stem))?;
 
     let entry = Wallpaper {
         path: png_path,
@@ -1424,7 +1418,7 @@ pub async fn apply_pattern(
         )),
         mode: crate::types::WallpaperMode::Both,
     };
-    let _ = prepend_entry(&app, entry.clone()).await;
+    let _ = prepend_entry(entry.clone()).await;
     Ok(entry)
 }
 
@@ -1518,9 +1512,8 @@ fn pick_ssaa(t: PatternType, max_dim: u32) -> u32 {
 fn save_pixmap_16bit_png(
     pix: &Pixmap,
     filename: &str,
-    app: &AppHandle,
 ) -> Result<String, String> {
-    let wallpapers = crate::library::wallpaper_dir(app)?;
+    let wallpapers = crate::library::wallpaper_dir()?;
     std::fs::create_dir_all(&wallpapers)
         .map_err(|e| format!("create wallpapers dir: {}", e))?;
     let safe = crate::library::safe_filename(filename);

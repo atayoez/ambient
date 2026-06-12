@@ -13,7 +13,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::RwLock;
 
 use crate::settings::{strip_keys_from_legacy, write_atomic};
@@ -54,17 +53,13 @@ impl LibraryState {
         self.inner.read().await.clone()
     }
 
-    pub async fn patch(
-        &self,
-        op: LibraryOp,
-        app: &AppHandle,
-    ) -> Result<Vec<Wallpaper>, String> {
+    pub async fn patch(&self, op: LibraryOp) -> Result<Vec<Wallpaper>, String> {
         let mut guard = self.inner.write().await;
         let updated = apply_op(&guard, op);
         write_atomic(&self.path, &updated)?;
         *guard = updated.clone();
         drop(guard);
-        let _ = app.emit("library-changed", &updated);
+        crate::events::emit("library-changed", &updated);
         Ok(updated)
     }
 }
@@ -151,29 +146,13 @@ pub fn load_or_default(app_data_dir: &Path) -> Vec<Wallpaper> {
     Vec::new()
 }
 
-/// Helper for Rust-side callers (sources.rs, aigen.rs) that want to
-/// prepend a freshly-fetched Wallpaper into the index. TS-side callers
-/// use the patch_library command + the prependLibrary JS helper.
-pub async fn prepend_entry(
-    app: &AppHandle,
-    entry: Wallpaper,
-) -> Result<Vec<Wallpaper>, String> {
-    let state = app.state::<LibraryState>();
-    state.patch(LibraryOp::Prepend(entry), app).await
-}
-
-#[tauri::command]
-pub async fn get_library(state: State<'_, LibraryState>) -> Result<Vec<Wallpaper>, String> {
-    Ok(state.get().await)
-}
-
-#[tauri::command]
-pub async fn patch_library(
-    op: LibraryOp,
-    state: State<'_, LibraryState>,
-    app: AppHandle,
-) -> Result<Vec<Wallpaper>, String> {
-    state.patch(op, &app).await
+/// Helper for Rust-side callers (sources.rs, aigen.rs, renderer.rs)
+/// that want to prepend a freshly-fetched Wallpaper into the index.
+/// UI-side callers go through the shell's patch_library command.
+pub async fn prepend_entry(entry: Wallpaper) -> Result<Vec<Wallpaper>, String> {
+    crate::state::library()
+        .patch(LibraryOp::Prepend(entry))
+        .await
 }
 
 #[cfg(test)]

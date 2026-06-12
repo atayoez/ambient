@@ -4,13 +4,10 @@
 // one Tauri command that reads settings + secrets, dispatches to the
 // configured provider, downloads, prepends to library, returns Wallpaper.
 
-use tauri::{AppHandle, Manager};
-
 use crate::library::download_and_save;
 use crate::library_store::prepend_entry;
 use crate::monitor::get_primary_monitor_pixels;
 use crate::secrets;
-use crate::settings::SettingsState;
 use crate::types::{GenProvider, Settings, Wallpaper};
 use crate::util::{ms_since_epoch, pseudo_seed};
 
@@ -35,7 +32,6 @@ fn http_client() -> Result<reqwest::Client, String> {
 /// asks the server instead of shipping a made-up list. Returns the raw
 /// model ids; the frontend renders them and picks a sensible default if
 /// the stored choice is no longer offered.
-#[tauri::command]
 pub async fn pollinations_models() -> Result<Vec<String>, String> {
     let client = http_client()?;
     let mut req = client
@@ -120,25 +116,20 @@ fn pollinations_error(body: &[u8], status: reqwest::StatusCode) -> String {
     format!("Pollinations: HTTP {}", status)
 }
 
-#[tauri::command]
-pub async fn generate_wallpaper(
-    prompt: String,
-    app: AppHandle,
-) -> Result<Wallpaper, String> {
-    let settings = app.state::<SettingsState>().get().await;
+pub async fn generate_wallpaper(prompt: String) -> Result<Wallpaper, String> {
+    let settings = crate::state::settings().get().await;
     let (w, h) = resolve_dimensions(&settings);
     let entry = match settings.gen_provider {
         GenProvider::Pollinations => {
-            generate_pollinations(&app, &settings, &prompt, w, h).await?
+            generate_pollinations(&settings, &prompt, w, h).await?
         }
-        GenProvider::Openai => generate_openai(&app, &settings, &prompt, w, h).await?,
+        GenProvider::Openai => generate_openai(&settings, &prompt, w, h).await?,
     };
-    let _ = prepend_entry(&app, entry.clone()).await;
+    let _ = prepend_entry(entry.clone()).await;
     Ok(entry)
 }
 
 async fn generate_pollinations(
-    app: &AppHandle,
     settings: &Settings,
     prompt: &str,
     width: u32,
@@ -189,7 +180,7 @@ async fn generate_pollinations(
         return Err(pollinations_error(&bytes, status));
     }
     let filename = format!("ai-pollinations-{}.jpg", seed);
-    let local_path = crate::library::save_image_bytes(&bytes, &filename, app)?;
+    let local_path = crate::library::save_image_bytes(&bytes, &filename)?;
     Ok(Wallpaper {
         path: local_path,
         source: "generated".to_string(),
@@ -201,7 +192,6 @@ async fn generate_pollinations(
 }
 
 async fn generate_openai(
-    app: &AppHandle,
     settings: &Settings,
     prompt: &str,
     width: u32,
@@ -250,7 +240,7 @@ async fn generate_openai(
         .and_then(|v| v.as_str())
         .ok_or_else(|| "OpenAI: no image URL returned.".to_string())?;
     let filename = format!("ai-openai-{}.png", ms_since_epoch());
-    let local_path = download_and_save(img_url, &filename, app).await?;
+    let local_path = download_and_save(img_url, &filename).await?;
     Ok(Wallpaper {
         path: local_path,
         source: "generated".to_string(),

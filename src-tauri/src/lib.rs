@@ -1,26 +1,13 @@
-mod accent;
-mod aigen;
-mod desktop;
-mod emojis;
+mod commands;
 mod integrate;
-mod library;
-mod library_store;
-mod license;
-mod monitor;
-mod renderer;
 mod rotation;
-mod secrets;
-mod settings;
 mod solo_instance;
-mod sources;
 mod tray_icon;
-mod types;
-mod util;
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, RunEvent,
+    AppHandle, Emitter, Manager, RunEvent,
 };
 
 /// Uninstall from inside the app (About panel "Uninstall" button).
@@ -209,29 +196,29 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            desktop::set_wallpaper,
-            library::list_wallpapers,
-            library::delete_wallpaper,
-            library::get_or_create_thumbnail,
-            library::clear_thumbnail_cache,
-            library::delete_local_wallpapers,
-            library_store::get_library,
-            library_store::patch_library,
-            license::get_startup_license,
-            license::activate_license,
-            license::clear_license,
-            monitor::get_primary_monitor_pixels,
-            accent::get_system_accent,
-            secrets::get_secret,
-            secrets::set_secret,
-            secrets::clear_secret,
-            settings::get_settings,
-            settings::patch_settings,
-            sources::fetch_source_wallpaper,
-            aigen::generate_wallpaper,
-            aigen::pollinations_models,
-            renderer::apply_pattern,
-            renderer::render_preview,
+            commands::set_wallpaper,
+            commands::list_wallpapers,
+            commands::delete_wallpaper,
+            commands::get_or_create_thumbnail,
+            commands::clear_thumbnail_cache,
+            commands::delete_local_wallpapers,
+            commands::get_library,
+            commands::patch_library,
+            commands::get_startup_license,
+            commands::activate_license,
+            commands::clear_license,
+            commands::get_primary_monitor_pixels,
+            commands::get_system_accent,
+            commands::get_secret,
+            commands::set_secret,
+            commands::clear_secret,
+            commands::get_settings,
+            commands::patch_settings,
+            commands::fetch_source_wallpaper,
+            commands::generate_wallpaper,
+            commands::pollinations_models,
+            commands::apply_pattern,
+            commands::render_preview,
             rotation::rotate_now,
             tray_icon::update_tray_theme,
             uninstall_self,
@@ -245,62 +232,43 @@ pub fn run() {
             // macOS / Windows.
             integrate::integrate_if_needed();
 
-            // Rust-owned Settings + Library state. Phase 1 — every later
-            // phase reads from here via the watch channel (rotation task)
-            // or via the get_settings / patch_settings commands (TS UI).
-            // load_or_default migrates from the legacy tauri-plugin-store
-            // `ambient.json` on first run, leaving per-tab draft keys
-            // (patterns.config, generate.prompt, app.tab) intact so the
-            // JS plugin path keeps working for those.
+            // Bridge ambient-core's app events onto the Tauri event bus.
+            // Registered BEFORE core init so nothing fires into the void.
+            // The tray-mode system notification derives from the same
+            // `wallpaper-applied` event the frontend listens for, so the
+            // notification keeps firing even when rotation runs with the
+            // webview destroyed.
+            let sink = app.handle().clone();
+            ambient_core::events::set_sink(move |name, payload| {
+                if name == "wallpaper-applied" {
+                    if let Some(path) = payload.as_str() {
+                        notify_if_hidden(path, &sink);
+                    }
+                }
+                let _ = sink.emit(name, payload);
+            });
+
+            // One-time core bootstrap: secrets backend + key migration,
+            // emoji cache, then the settings / library / license
+            // singletons (same ordering the pre-extraction setup used).
+            // The shell injects the data dir so Tauri's app.path()
+            // remains the single source of truth for where user data
+            // lives.
             let app_data_dir = app
                 .path()
                 .app_data_dir()
                 .expect("resolve app_data_dir for state load");
-            let _ = std::fs::create_dir_all(&app_data_dir);
-
-            // Secrets backend MUST init before settings::load_or_default
-            // — the key-migration step looks for BYO keys in the
-            // settings JSON (whether legacy ambient.json or fresh
-            // ambient-settings.json) and pushes them into the chosen
-            // backend (OS keyring, or JSON fallback on headless Linux).
-            // Running before settings::load means the migrated file is
-            // already clean by the time Settings deserializes — no
-            // dropped-on-the-floor secrets.
-            secrets::init(&app_data_dir);
-            secrets::migrate_from_settings(&app_data_dir);
-
-            // Emoji cache dir for on-demand Fluent glyph fetches (the
-            // picker offers the full Unicode set; non-bundled glyphs are
-            // fetched + cached here on first use).
-            emojis::init(&app_data_dir);
-
-            let loaded_settings = settings::load_or_default(&app_data_dir);
-            let loaded_library = library_store::load_or_default(&app_data_dir);
-            app.manage(settings::SettingsState::new(
-                loaded_settings,
-                app_data_dir.join("ambient-settings.json"),
-            ));
-            app.manage(library_store::LibraryState::new(
-                loaded_library,
-                app_data_dir.join("ambient-library.json"),
-            ));
+            let needs_reval = ambient_core::state::init(app_data_dir);
 
             // License gate runs before the webview's first paint. Disk
-            // load is synchronous (~ms), Polar revalidation runs in a
+            // load is synchronous (~ms); Polar revalidation runs in a
             // background task so cold launches don't pay the network
             // round-trip — the frontend mounts on cached state and
-            // listens for `license-revoked` if Polar rejects later.
-            let (license_info, startup_state, needs_reval) =
-                license::load_at_startup(&app_data_dir);
-            app.manage(license::LicenseState::new(
-                license_info,
-                startup_state,
-                app_data_dir.join("ambient-license.json"),
-            ));
+            // listens for `license-revoked` (via the sink) if Polar
+            // rejects later.
             if needs_reval {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    license::revalidate_background(handle).await;
+                tauri::async_runtime::spawn(async {
+                    ambient_core::license::revalidate_background().await;
                 });
             }
 
@@ -426,4 +394,30 @@ fn show_main_window(app: &AppHandle) {
             let _ = builder.build();
         }
     }
+}
+
+/// System notification for wallpaper changes that happen while the
+/// window is hidden/destroyed (tray-only state) — when the window IS
+/// visible the in-tab status pill is enough feedback. Driven by the
+/// `wallpaper-applied` events core fires through the sink, which covers
+/// every apply path (frontend command, rotation tick, tray "Next").
+fn notify_if_hidden(abs_path: &str, app: &AppHandle) {
+    use tauri_plugin_notification::NotificationExt;
+    let visible = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false);
+    if visible {
+        return;
+    }
+    let filename = std::path::Path::new(abs_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("wallpaper");
+    let _ = app
+        .notification()
+        .builder()
+        .title("Ambient")
+        .body(format!("Wallpaper changed — {}", filename))
+        .show();
 }

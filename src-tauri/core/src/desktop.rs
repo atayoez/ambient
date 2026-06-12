@@ -7,10 +7,9 @@
 //      is on (KDE Plasma; no-op on other DEs / OSes).
 //   4. Promote the entry to the head of the library so the grid is
 //      sorted by most-recently-applied.
-//   5. Emit a `wallpaper-applied` Tauri event.
-//   6. If the window is hidden/destroyed (tray-only state), fire a
-//      system notification — when the window IS visible the status
-//      pill in-tab is enough feedback.
+//   5. Fire a `wallpaper-applied` app event through the shell's event
+//      sink. (The shell derives the tray-mode system notification from
+//      this same event — see the sink closure in src-tauri's lib.rs.)
 //
 // (Per-wallpaper light/dark eligibility now lives as a tag on each
 // library entry — see WallpaperMode + rotation.rs — replacing the old
@@ -23,19 +22,16 @@
 
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_notification::NotificationExt;
+use crate::library_store::LibraryOp;
 
-use crate::library_store::{LibraryOp, LibraryState};
-use crate::settings::SettingsState;
-
-/// Internal: full apply pipeline. Called by both the #[tauri::command]
-/// wrapper (frontend invokes) and the rotation task (background tick).
+/// Full apply pipeline. Called by both the shell's set_wallpaper
+/// command wrapper (frontend invokes) and the rotation task
+/// (background tick).
 ///
 /// Always applies the SDR PNG. (HDR AVIF wallpaper output was removed
 /// 2026-06-03 — the desktop background layer is SDR-composited on every
 /// current OS, so a PQ/BT.2020 file renders dark as a wallpaper.)
-pub async fn apply_wallpaper(path: &str, app: &AppHandle) -> Result<(), String> {
+pub async fn apply_wallpaper(path: &str) -> Result<(), String> {
     let pb = PathBuf::from(path);
     if !pb.exists() {
         return Err(format!("wallpaper file not found on disk: {}", path));
@@ -52,12 +48,12 @@ pub async fn apply_wallpaper(path: &str, app: &AppHandle) -> Result<(), String> 
 
     // Mirror to the lock screen when enabled (KDE; no-op elsewhere).
     // Best-effort — a lock-screen failure shouldn't fail the apply.
-    if app.state::<SettingsState>().get().await.lockscreen {
+    if crate::state::settings().get().await.lockscreen {
         let _ = set_lockscreen(&abs_str);
     }
 
-    record_post_apply(&abs_str, app).await;
-    let _ = app.emit("wallpaper-applied", abs_str.as_str());
+    record_post_apply(&abs_str).await;
+    crate::events::emit("wallpaper-applied", &abs_str);
 
     Ok(())
 }
@@ -210,56 +206,26 @@ fn set_wallpaper_kde(abs_path: &str) -> Result<(), String> {
     }
 }
 
-async fn record_post_apply(abs_str: &str, app: &AppHandle) {
+async fn record_post_apply(abs_str: &str) {
     // Stamp lastApplied so the "currently applied" indicator + the
     // theme-check's "does the current wallpaper still fit?" logic survive
     // a webview destroy/rebuild.
-    let state = app.state::<SettingsState>();
     let mut patch = serde_json::Map::new();
     patch.insert(
         "lastApplied".to_string(),
         serde_json::Value::String(abs_str.to_string()),
     );
-    let _ = state.patch(serde_json::Value::Object(patch), app).await;
+    let _ = crate::state::settings()
+        .patch(serde_json::Value::Object(patch))
+        .await;
 
     // Promote to head of library — no-op when not in library (the
     // typical mid-fetch case where the prepend hasn't committed yet).
-    let lib_state = app.state::<LibraryState>();
-    let _ = lib_state
-        .patch(
-            LibraryOp::PromoteToHead {
-                path: abs_str.to_string(),
-            },
-            app,
-        )
+    let _ = crate::state::library()
+        .patch(LibraryOp::PromoteToHead {
+            path: abs_str.to_string(),
+        })
         .await;
-
-    notify_if_hidden(abs_str, app);
-}
-
-fn notify_if_hidden(abs_path: &str, app: &AppHandle) {
-    let visible = app
-        .get_webview_window("main")
-        .and_then(|w| w.is_visible().ok())
-        .unwrap_or(false);
-    if visible {
-        return;
-    }
-    let filename = std::path::Path::new(abs_path)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("wallpaper");
-    let _ = app
-        .notification()
-        .builder()
-        .title("Ambient")
-        .body(format!("Wallpaper changed — {}", filename))
-        .show();
-}
-
-#[tauri::command]
-pub async fn set_wallpaper(path: String, app: AppHandle) -> Result<(), String> {
-    apply_wallpaper(&path, &app).await
 }
 
 #[cfg(target_os = "linux")]

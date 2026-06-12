@@ -14,7 +14,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::RwLock;
 
 use crate::settings::{strip_keys_from_legacy, write_atomic};
@@ -133,10 +132,10 @@ pub(crate) fn load_or_migrate(app_data_dir: &Path) -> Option<LicenseInfo> {
 }
 
 /// Background revalidation. Updates `last_validated` on success, flips
-/// state to Invalid + emits a `license-revoked` Tauri event on explicit
+/// state to Invalid + fires a `license-revoked` app event on explicit
 /// rejection, no-op on transient failures.
-pub async fn revalidate_background(app: AppHandle) {
-    let state = app.state::<LicenseState>();
+pub async fn revalidate_background() {
+    let state = crate::state::license();
     let info = match state.current().await {
         Some(i) => i,
         None => return,
@@ -149,7 +148,7 @@ pub async fn revalidate_background(app: AppHandle) {
         }
         Err(ValidateErr::Rejected(msg)) => {
             state.mark_invalid(msg.clone()).await;
-            let _ = app.emit("license-revoked", &msg);
+            crate::events::emit("license-revoked", &msg);
         }
         Err(ValidateErr::Transient(_)) => {
             // Trust local copy. The next launch will revalidate again.
@@ -226,18 +225,13 @@ pub(crate) fn extract_email(body: &serde_json::Value) -> Option<String> {
         .map(String::from)
 }
 
-#[tauri::command]
-pub async fn get_startup_license(
-    state: State<'_, LicenseState>,
-) -> Result<StartupLicense, String> {
-    Ok(state.startup().await)
+/// The license decision the UI gates on at mount.
+pub async fn get_startup_license() -> StartupLicense {
+    crate::state::license().startup().await
 }
 
-#[tauri::command]
-pub async fn activate_license(
-    key: String,
-    state: State<'_, LicenseState>,
-) -> Result<LicenseInfo, String> {
+/// Validate a key against Polar and persist it on success.
+pub async fn activate_license(key: String) -> Result<LicenseInfo, String> {
     let key = key.trim().to_string();
     if key.is_empty() {
         return Err("License key is empty.".to_string());
@@ -251,7 +245,7 @@ pub async fn activate_license(
                 activated_at: now,
                 last_validated: now,
             };
-            state.set(info.clone()).await?;
+            crate::state::license().set(info.clone()).await?;
             Ok(info)
         }
         Err(ValidateErr::Rejected(msg)) => Err(msg),
@@ -259,10 +253,9 @@ pub async fn activate_license(
     }
 }
 
-#[tauri::command]
-pub async fn clear_license(state: State<'_, LicenseState>) -> Result<(), String> {
-    state.clear().await;
-    Ok(())
+/// Drop the stored license (Settings → "Sign out").
+pub async fn clear_license() {
+    crate::state::license().clear().await;
 }
 
 #[cfg(test)]

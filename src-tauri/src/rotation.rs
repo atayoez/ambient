@@ -16,30 +16,28 @@
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tokio::time::sleep;
 
-use crate::desktop::apply_wallpaper;
-use crate::library_store::LibraryState;
-use crate::settings::SettingsState;
-use crate::sources::fetch_source_wallpaper;
+use ambient_core::desktop::apply_wallpaper;
+use ambient_core::sources::fetch_source_wallpaper;
+use ambient_core::state;
+use ambient_core::types::{RotationSource, Settings, ThemeMode, Wallpaper};
+use ambient_core::util::pseudo_seed;
+
 use crate::tray_icon::is_system_dark;
-use crate::types::{RotationSource, Settings, ThemeMode, Wallpaper};
-use crate::util::pseudo_seed;
 
 const THEME_CHECK_INTERVAL_SECS: u64 = 300;
 
 /// Spawn the two background tasks. Called from lib.rs setup() once
 /// SettingsState is managed.
 pub fn spawn(app: AppHandle) {
-    let app_rot = app.clone();
-    tauri::async_runtime::spawn(async move { rotation_task(app_rot).await });
-    let app_theme = app.clone();
-    tauri::async_runtime::spawn(async move { theme_check_task(app_theme).await });
+    tauri::async_runtime::spawn(async move { rotation_task(app).await });
+    tauri::async_runtime::spawn(async { theme_check_task().await });
 }
 
 async fn rotation_task(app: AppHandle) {
-    let mut rx = app.state::<SettingsState>().subscribe();
+    let mut rx = state::settings().subscribe();
     loop {
         let cfg = rx.borrow().clone();
         if matches!(cfg.rotation_source, RotationSource::Off) {
@@ -64,8 +62,8 @@ async fn rotation_task(app: AppHandle) {
     }
 }
 
-async fn theme_check_task(app: AppHandle) {
-    let mut rx = app.state::<SettingsState>().subscribe();
+async fn theme_check_task() {
+    let mut rx = state::settings().subscribe();
     loop {
         let cfg = rx.borrow().clone();
         if !matches!(cfg.theme_mode, ThemeMode::Auto) {
@@ -76,7 +74,7 @@ async fn theme_check_task(app: AppHandle) {
         }
         tokio::select! {
             _ = sleep(Duration::from_secs(THEME_CHECK_INTERVAL_SECS)) => {
-                if let Err(e) = theme_check(&app, &cfg).await {
+                if let Err(e) = theme_check(&cfg).await {
                     tracing::error!(error = %e, "theme check failed");
                 }
             }
@@ -95,7 +93,7 @@ pub async fn tick(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, String> 
         // is empty (nothing to advance through).
         RotationSource::Library => shuffle_library(app, cfg).await,
         RotationSource::Off => {
-            if app.state::<LibraryState>().get().await.is_empty() {
+            if state::library().get().await.is_empty() {
                 fetch_and_apply_source(app).await
             } else {
                 shuffle_library(app, cfg).await
@@ -108,13 +106,13 @@ pub async fn tick(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, String> 
 /// Tray menu / manual trigger entry point. Reads fresh settings and
 /// dispatches the same tick code path the periodic timer uses.
 pub async fn trigger_once(app: &AppHandle) -> Result<Wallpaper, String> {
-    let cfg = app.state::<SettingsState>().get().await;
+    let cfg = state::settings().get().await;
     tick(app, &cfg).await
 }
 
 async fn fetch_and_apply_source(app: &AppHandle) -> Result<Wallpaper, String> {
-    let entry = fetch_source_wallpaper(app.clone()).await?;
-    apply_wallpaper(&entry.path, app).await?;
+    let entry = fetch_source_wallpaper().await?;
+    apply_wallpaper(&entry.path).await?;
     let _ = app.emit("wallpaper-rotated", &entry);
     Ok(entry)
 }
@@ -130,7 +128,7 @@ fn effective_dark(cfg: &Settings) -> bool {
 }
 
 async fn shuffle_library(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, String> {
-    let lib = app.state::<LibraryState>().get().await;
+    let lib = state::library().get().await;
     if lib.is_empty() {
         return Err("Library is empty — nothing to shuffle from.".to_string());
     }
@@ -157,7 +155,7 @@ async fn shuffle_library(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, S
     };
     let idx = (pseudo_seed() as usize) % pool.len();
     let pick = pool[idx].clone();
-    apply_wallpaper(&pick.path, app).await?;
+    apply_wallpaper(&pick.path).await?;
     let _ = app.emit("wallpaper-rotated", &pick);
     Ok(pick)
 }
@@ -166,9 +164,9 @@ async fn shuffle_library(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, S
 /// if the current wallpaper no longer fits the new theme, switch to one
 /// from the matching pool. A `Both`-tagged wallpaper always fits, so it's
 /// never disturbed; only mode-specific wallpapers trigger a swap.
-async fn theme_check(app: &AppHandle, cfg: &Settings) -> Result<(), String> {
+async fn theme_check(cfg: &Settings) -> Result<(), String> {
     let dark = is_system_dark();
-    let lib = app.state::<LibraryState>().get().await;
+    let lib = state::library().get().await;
     if lib.is_empty() {
         return Ok(());
     }
@@ -185,7 +183,7 @@ async fn theme_check(app: &AppHandle, cfg: &Settings) -> Result<(), String> {
     let Some(pick) = lib.iter().find(|w| w.mode.matches(dark)) else {
         return Ok(());
     };
-    apply_wallpaper(&pick.path, app).await
+    apply_wallpaper(&pick.path).await
 }
 
 #[tauri::command]
