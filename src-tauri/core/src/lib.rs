@@ -22,6 +22,7 @@ pub mod events;
 pub mod library;
 pub mod library_store;
 pub mod license;
+pub mod live;
 pub mod monitor;
 pub mod renderer;
 pub mod secrets;

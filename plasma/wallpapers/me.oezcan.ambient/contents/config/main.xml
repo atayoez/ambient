@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+
+  <group name="General">
+    <!-- The full Ambient PatternConfig, serialized as JSON. Written by the
+         Ambient app via plasmashell's scripting API; parsed in main.qml. -->
+    <entry name="Spec" type="String">
+      <label>Serialized Ambient live-wallpaper spec (JSON)</label>
+      <default>{}</default>
+    </entry>
+  </group>
+</kcfg>

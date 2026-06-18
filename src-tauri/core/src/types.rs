@@ -109,6 +109,13 @@ pub struct Settings {
     // webview's localStorage). `#[serde(default)]` for legacy stores.
     #[serde(default)]
     pub custom_presets: Vec<serde_json::Value>,
+    // The active live (animated) wallpaper's PatternConfig, or None when a
+    // static wallpaper is set. Kept here (not a separate file) so the
+    // rotation + theme-follow tasks watch it via the settings channel and
+    // stand down while a live wallpaper owns the desktop. Opaque JSON —
+    // Rust only persists it and checks presence; the KDE plugin renders it.
+    #[serde(default)]
+    pub live_wallpaper: Option<serde_json::Value>,
 }
 
 impl Default for Settings {
@@ -131,6 +138,7 @@ impl Default for Settings {
             lockscreen: false,
             last_applied: None,
             custom_presets: Vec::new(),
+            live_wallpaper: None,
         }
     }
 }

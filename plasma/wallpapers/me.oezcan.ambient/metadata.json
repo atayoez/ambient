@@ -1,0 +1,18 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Id": "me.oezcan.ambient",
+        "Name": "Ambient",
+        "Description": "Animated generative wallpaper from Ambient",
+        "Authors": [
+            {
+                "Name": "Atay Özcan",
+                "Email": "atayozcan160@gmail.com"
+            }
+        ],
+        "Category": "",
+        "License": "Proprietary",
+        "Website": "https://oezcan.me"
+    },
+    "X-KDE-ParentApp": "org.kde.plasmashell"
+}

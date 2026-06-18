@@ -148,3 +148,20 @@ pub async fn render_preview(
 ) -> Result<String, String> {
     ambient_core::renderer::render_preview(config, width, height).await
 }
+
+// --- live (animated) wallpaper ---------------------------------------
+
+#[tauri::command]
+pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String> {
+    ambient_core::live::apply_live_pattern(config).await
+}
+
+#[tauri::command]
+pub async fn clear_live_wallpaper() -> Result<(), String> {
+    ambient_core::live::clear_live_wallpaper().await
+}
+
+#[tauri::command]
+pub async fn get_live_wallpaper() -> Result<Option<serde_json::Value>, String> {
+    Ok(ambient_core::state::settings().get().await.live_wallpaper)
+}

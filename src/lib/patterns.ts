@@ -387,6 +387,12 @@ export const DEFAULT_CONFIG: PatternConfig = {
   colorPresetId: COLOR_PRESETS[0].id,
 };
 
+// Pattern types whose renderers are built on sin/cos phase fields and can
+// animate by advancing the phase with time — the live-wallpaper subset
+// (mirrored by FRAG_SHADERS in lib/shaders.ts). The other seven types are
+// static arrangements and have no live shader.
+export const ANIMATABLE: PatternType[] = ['flow', 'waves', 'aurora', 'dots'];
+
 // User-facing metadata for each pattern type — single source of truth used
 // by the type picker UI and by library entries.
 export const PATTERN_TYPES: { id: PatternType; name: string }[] = [

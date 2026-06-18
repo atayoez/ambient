@@ -1549,7 +1549,9 @@ button.primary.icon-btn {
   }
   /* Snap state transitions for the sliding pills instead of easing. */
   .tab-indicator,
-  .toast {
+  .toast,
+  .gen-bg-drift,
+  .emoji-field-item {
     transition: none;
     animation: none;
   }
@@ -1647,6 +1649,49 @@ button.primary.icon-btn {
 }
 
 
+
+/* Static patterns set as a live wallpaper get a slow Ken-Burns drift in
+   the preview (the desktop plugin does the same in QML). The image is
+   object-fit: cover, so scaling >1 + a small translate never reveals an
+   edge. Generative types use the WebGL canvas instead. */
+@keyframes gen-drift {
+  0% { transform: scale(1.08) translate(-1.5%, -1%); }
+  50% { transform: scale(1.13) translate(1.5%, 1%); }
+  100% { transform: scale(1.08) translate(-1.5%, -1%); }
+}
+.gen-bg-drift {
+  animation: gen-drift 48s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Animated emoji field (Animate + Emoji). Each glyph drifts (individual
+   `translate`) and spins (`rotate`) independently — separate transform
+   properties so the two animations compose instead of clobbering. The
+   `transform: translate(-50%,-50%)` centres the span on its grid point and
+   composes on top of the animated translate. Per-glyph randomness comes
+   from inline styles. */
+.emoji-field-item {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+  animation-name: emoji-float, emoji-spin;
+  animation-timing-function: ease-in-out, linear;
+  animation-iteration-count: infinite, infinite;
+  will-change: translate, rotate;
+}
+@keyframes emoji-float {
+  0% { translate: 0 calc(var(--amp) * -1); }
+  25% { translate: var(--amp) 0; }
+  50% { translate: 0 var(--amp); }
+  75% { translate: calc(var(--amp) * -1) 0; }
+  100% { translate: 0 calc(var(--amp) * -1); }
+}
+@keyframes emoji-spin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
 
 /* Shared floating-glass panel for the controls tray + prompt composer. */
 .gen-panel {
@@ -1776,6 +1821,18 @@ button.primary.icon-btn {
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Animate toggle in the action bar — label + iOS switch. */
+.pat-anim {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  font-size: var(--fs-eyebrow);
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 /* --- OptionScroller (arrow pill) --- */

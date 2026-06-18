@@ -40,6 +40,14 @@ async fn rotation_task(app: AppHandle) {
     let mut rx = state::settings().subscribe();
     loop {
         let cfg = rx.borrow().clone();
+        // A live (animated) wallpaper owns the desktop — stand down until
+        // it's turned off (a settings change wakes us).
+        if cfg.live_wallpaper.is_some() {
+            if rx.changed().await.is_err() {
+                break;
+            }
+            continue;
+        }
         if matches!(cfg.rotation_source, RotationSource::Off) {
             if rx.changed().await.is_err() {
                 break;
@@ -66,6 +74,12 @@ async fn theme_check_task() {
     let mut rx = state::settings().subscribe();
     loop {
         let cfg = rx.borrow().clone();
+        if cfg.live_wallpaper.is_some() {
+            if rx.changed().await.is_err() {
+                break;
+            }
+            continue;
+        }
         if !matches!(cfg.theme_mode, ThemeMode::Auto) {
             if rx.changed().await.is_err() {
                 break;
@@ -107,6 +121,9 @@ pub async fn tick(app: &AppHandle, cfg: &Settings) -> Result<Wallpaper, String> 
 /// dispatches the same tick code path the periodic timer uses.
 pub async fn trigger_once(app: &AppHandle) -> Result<Wallpaper, String> {
     let cfg = state::settings().get().await;
+    if cfg.live_wallpaper.is_some() {
+        return Err("A live wallpaper is active — turn it off to shuffle.".to_string());
+    }
     tick(app, &cfg).await
 }
 

@@ -15,6 +15,7 @@ export interface UseApplyPattern {
   busy: boolean;
   status: string | null;
   apply: () => Promise<void>;
+  applyLive: () => Promise<void>;
 }
 
 export function useApplyPattern(
@@ -54,5 +55,29 @@ export function useApplyPattern(
     }
   }, [config, saveConfig]);
 
-  return { busy, status, apply };
+  // Set the live (animated) wallpaper from the current config instead of
+  // rendering a still. Same commit-the-draft-first + busy/status shape as
+  // apply(); the platform setter (KDE plugin for now) lives in Rust.
+  const applyLive = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await saveConfig();
+    } catch {}
+    setStatus('Setting live wallpaper…');
+    try {
+      await invoke('apply_live_pattern', { config });
+      setStatus(null);
+      toast.success('Live wallpaper set');
+    } catch (e: unknown) {
+      toast.fromError(e);
+      setStatus(null);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, [config, saveConfig]);
+
+  return { busy, status, apply, applyLive };
 }

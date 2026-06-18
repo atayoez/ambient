@@ -3,6 +3,7 @@ import { useSystemAccentColor } from '../lib/appHooks';
 import { dispatch } from '../lib/events';
 import { useDraftState, useKeydown, usePersistedState } from '../lib/hooks';
 import {
+  ANIMATABLE,
   accentPreset,
   COLOR_PRESETS,
   type ColorPreset,
@@ -29,7 +30,9 @@ import {
   SegmentedIcons,
   StatusInline,
 } from '../ui';
+import EmojiField from './EmojiField';
 import { CheckIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
+import LivePreview from './LivePreview';
 import PaletteEditor from './PaletteEditor';
 import { THEME_MODE_OPTIONS } from './themeOptions';
 import { useApplyPattern } from './useApplyPattern';
@@ -78,6 +81,9 @@ export default function Patterns() {
     'patterns.themeMode',
     'auto',
   );
+  // When on, Apply sets a live (animated) wallpaper instead of a still —
+  // generative types animate via their shader, the rest via a slow drift.
+  const [animated, setAnimated] = usePersistedState<boolean>('patterns.animated', false);
   // patterns.config is draft state: tweaks live in memory only until
   // the user clicks Apply, which calls saveConfig() to commit. Slider
   // drags don't thrash the disk; tab switch without applying drops
@@ -159,7 +165,7 @@ export default function Patterns() {
 
   // Apply pipeline (busy/status + the render-save-set flow). Terminal
   // outcomes surface as toasts; `status` is just in-progress text.
-  const { busy, status, apply } = useApplyPattern(config, saveConfig);
+  const { busy, status, apply, applyLive } = useApplyPattern(config, saveConfig);
 
   // Preview wrapper element + measured pixel size. We pass the live
   // CSS size × devicePixelRatio to the Rust renderer so the image
@@ -366,7 +372,9 @@ export default function Patterns() {
   // Cmd/Ctrl+Enter applies, Cmd/Ctrl+Shift+R re-rolls. Apple desktop
   // staples — Cmd+R itself is avoided since some webviews still treat
   // it as a reload.
-  useKeydown('Enter', () => void apply(), { cmdOrCtrl: true });
+  useKeydown('Enter', () => void (animated ? applyLive() : apply()), {
+    cmdOrCtrl: true,
+  });
   useKeydown('r', () => reroll(), { cmdOrCtrl: true, shift: true });
 
   const ranges = SLIDER_RANGES[config.type] ?? {};
@@ -391,9 +399,30 @@ export default function Patterns() {
           are arrow scrollers — the same shape as the marketing site. */}
       <div className="gen-stage" ref={previewWrapRef}>
         {previewUrl ? (
-          <img className="gen-bg" src={previewUrl} alt="" />
+          // When Animate is on, static patterns get a slow CSS drift (the
+          // desktop plugin does the same in QML); generative types are
+          // covered by the live WebGL canvas below instead.
+          <img
+            className={
+              animated && !ANIMATABLE.includes(config.type) && config.type !== 'emoji'
+                ? 'gen-bg gen-bg-drift'
+                : 'gen-bg'
+            }
+            src={previewUrl}
+            alt=""
+          />
         ) : (
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
+        )}
+        {/* When Animate is on: generative types run the live WebGL canvas
+            (same shader as the wallpaper), Emoji runs the animated glyph
+            field, and the rest fall back to the drifting <img> above. Each
+            overlay is opaque and covers the still beneath it. */}
+        {animated && ANIMATABLE.includes(config.type) && (
+          <LivePreview config={config} className="gen-bg" />
+        )}
+        {animated && config.type === 'emoji' && (
+          <EmojiField config={config} className="gen-bg" />
         )}
 
         <div className="gen-panel pat-top">
@@ -757,11 +786,23 @@ export default function Patterns() {
 
         <div className="pat-actions">
           <StatusInline status={status} />
+          {/* One Apply button; the Animate toggle decides whether it sets a
+              live (animated) wallpaper or a static one. */}
+          <label className="pat-anim">
+            <span>Animate</span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={animated}
+              onChange={(e) => setAnimated(e.target.checked)}
+              aria-label="Animate the wallpaper"
+            />
+          </label>
           <IconButton
             variant="primary"
-            onClick={apply}
+            onClick={animated ? applyLive : apply}
             disabled={busy}
-            label="Apply as wallpaper"
+            label={animated ? 'Apply animated wallpaper' : 'Apply as wallpaper'}
             title="Apply as wallpaper (⌘⏎)"
           >
             <CheckIcon />
