@@ -22,7 +22,7 @@ WallpaperItem {
         }
     }
     readonly property string patternType: (typeof spec.type === "string") ? spec.type : "aurora";
-    readonly property bool isGenerative: (patternType === "flow" || patternType === "waves" || patternType === "aurora" || patternType === "dots");
+    readonly property bool isGenerative: (patternType === "flow" || patternType === "waves" || patternType === "aurora" || patternType === "dots" || patternType === "bokeh" || patternType === "stripes" || patternType === "geometric" || patternType === "flower" || patternType === "mesh");
     readonly property bool isEmoji: patternType === "emoji";
     // Non-generative patterns are delivered as a rendered still (path written
     // into the spec by the app); they animate as a slow drift below.
@@ -36,6 +36,21 @@ WallpaperItem {
     function colorAt(i) { return i < pcolors.length ? pcolors[i] : "transparent"; }
     // typeof guard (not `|| default`) so a legitimate 0 isn't replaced.
     function num(value, fallback) { return (typeof value === "number") ? value : fallback; }
+    // Geometric's enums encode to numbers for the shader (see liveShader.ts).
+    function geoShapeCode(s) {
+        if (s === "circles") return 1;
+        if (s === "triangles") return 2;
+        if (s === "squares") return 3;
+        if (s === "hexagons") return 4;
+        if (s === "stars") return 5;
+        if (s === "plus") return 6;
+        return 0; // mix / unset
+    }
+    function geoFillCode(s) {
+        if (s === "outline") return 1;
+        if (s === "mix") return 2;
+        return 0; // solid / unset
+    }
     function knob(which) {
         var k;
         if (patternType === "flow")
@@ -44,6 +59,16 @@ WallpaperItem {
             k = [num(spec.wavesLayers, 7), num(spec.wavesAmplitude, 0.5), num(spec.wavesFrequency, 0.4)];
         else if (patternType === "dots")
             k = [num(spec.density, 18), num(spec.dotsJitter, 0.5), num(spec.dotsSizeVar, 0.7)];
+        else if (patternType === "bokeh")
+            k = [num(spec.density, 22), 0, 0];
+        else if (patternType === "stripes")
+            k = [num(spec.stripesAngle, 30), num(spec.stripesWidthVar, 0.5), 0];
+        else if (patternType === "geometric")
+            k = [num(spec.density, 40), geoShapeCode(spec.geometricShape), geoFillCode(spec.geometricFill)];
+        else if (patternType === "flower")
+            k = [num(spec.flowerPetals, 12), num(spec.flowerTwist, 0.5), 0];
+        else if (patternType === "mesh")
+            k = [num(spec.meshBubbles, 16), num(spec.meshSoftness, 0.5), 0];
         else
             k = [num(spec.auroraBands, 5), num(spec.auroraAmplitude, 0.5), num(spec.auroraSpread, 0.5)];
         return k[which];
@@ -63,17 +88,23 @@ WallpaperItem {
     // fragment shader into a reduced-resolution layer the scene graph
     // upscales — together cutting GPU work ~20-40x with no visible loss.
     property real iTime: 0
-    // Cap the shader's internal render to a ~1280px long edge.
+    // Render quality (resolution + fps caps) the app stamped into the spec
+    // from the user's Settings; fall back to the Balanced defaults (1280px,
+    // 30fps). maxRenderEdge == 0 means uncapped (Native).
+    readonly property int maxRenderEdge: num(spec.maxRenderEdge, 1280)
+    readonly property int targetFps: Math.max(1, num(spec.fps, 30))
+    readonly property int frameMs: Math.max(8, Math.round(1000 / targetFps))
+    // Cap the shader's internal render to maxRenderEdge px on the long edge.
     readonly property real renderScale: {
         var longEdge = Math.max(width, height, 1);
-        return longEdge > 1280 ? 1280 / longEdge : 1.0;
+        return (maxRenderEdge > 0 && longEdge > maxRenderEdge) ? maxRenderEdge / longEdge : 1.0;
     }
 
     Timer {
-        interval: 33 // ~30 fps — caps GPU vs vsync-rate repaints
+        interval: root.frameMs // app-configured fps cap (GPU vs vsync-rate)
         repeat: true
         running: root.isGenerative // only the shader needs the clock
-        onTriggered: root.iTime += 0.033
+        onTriggered: root.iTime += root.frameMs / 1000.0
     }
 
     ShaderEffect {

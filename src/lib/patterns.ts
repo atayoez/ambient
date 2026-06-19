@@ -387,11 +387,23 @@ export const DEFAULT_CONFIG: PatternConfig = {
   colorPresetId: COLOR_PRESETS[0].id,
 };
 
-// Pattern types whose renderers are built on sin/cos phase fields and can
-// animate by advancing the phase with time — the live-wallpaper subset
-// (mirrored by FRAG_SHADERS in lib/shaders.ts). The other seven types are
-// static arrangements and have no live shader.
-export const ANIMATABLE: PatternType[] = ['flow', 'waves', 'aurora', 'dots'];
+// Pattern types with a live fragment shader (mirrored by FRAG_SHADERS in
+// lib/shaders.ts) — the live-wallpaper subset. Flow/Waves/Aurora drift their
+// sin/cos phase fields; Dots/Bokeh/Geometric move per element; Stripes scroll;
+// Flower counter-rotates its layers; Mesh drifts soft metaball blobs. Every
+// pattern animates as a shader except Emoji, which animates via its own glyph
+// field.
+export const ANIMATABLE: PatternType[] = [
+  'flow',
+  'waves',
+  'aurora',
+  'dots',
+  'bokeh',
+  'stripes',
+  'geometric',
+  'flower',
+  'mesh',
+];
 
 // User-facing metadata for each pattern type — single source of truth used
 // by the type picker UI and by library entries.

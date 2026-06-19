@@ -64,6 +64,32 @@ impl WallpaperMode {
     }
 }
 
+/// Live-wallpaper render quality. Trades GPU load for sharpness by capping
+/// the KDE plugin shader's internal render resolution (long edge in px; 0 =
+/// uncapped) and frame rate. `resolve()` produces the numbers the plugin
+/// reads from the spec.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LiveQuality {
+    Performance,
+    #[default]
+    Balanced,
+    High,
+    Native,
+}
+
+impl LiveQuality {
+    /// `(max render long-edge px — 0 means uncapped, target fps)`.
+    pub fn resolve(self) -> (u32, u32) {
+        match self {
+            LiveQuality::Performance => (960, 24),
+            LiveQuality::Balanced => (1280, 30),
+            LiveQuality::High => (1920, 30),
+            LiveQuality::Native => (0, 30),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -116,6 +142,10 @@ pub struct Settings {
     // Rust only persists it and checks presence; the KDE plugin renders it.
     #[serde(default)]
     pub live_wallpaper: Option<serde_json::Value>,
+    // Live-wallpaper render quality — caps the KDE plugin shader's internal
+    // resolution + fps. `#[serde(default)]` → legacy stores land on Balanced.
+    #[serde(default)]
+    pub live_wallpaper_quality: LiveQuality,
 }
 
 impl Default for Settings {
@@ -139,6 +169,7 @@ impl Default for Settings {
             last_applied: None,
             custom_presets: Vec::new(),
             live_wallpaper: None,
+            live_wallpaper_quality: LiveQuality::default(),
         }
     }
 }

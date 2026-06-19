@@ -31,9 +31,18 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
         // plugin its path.
         let renders_in_plugin = matches!(
             config.get("type").and_then(|t| t.as_str()),
-            Some("flow") | Some("waves") | Some("aurora") | Some("dots") | Some("emoji")
+            Some("flow")
+                | Some("waves")
+                | Some("aurora")
+                | Some("dots")
+                | Some("bokeh")
+                | Some("stripes")
+                | Some("geometric")
+                | Some("flower")
+                | Some("mesh")
+                | Some("emoji")
         );
-        let spec_value = if renders_in_plugin {
+        let mut spec_value = if renders_in_plugin {
             config.clone()
         } else {
             let cfg: crate::renderer::PatternConfig =
@@ -49,6 +58,17 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
             }
             s
         };
+        // Stamp the user's live render quality (resolution + fps caps) into
+        // the spec so the plugin's shader renders at the chosen quality.
+        let (max_edge, fps) = crate::state::settings()
+            .get()
+            .await
+            .live_wallpaper_quality
+            .resolve();
+        if let Some(obj) = spec_value.as_object_mut() {
+            obj.insert("maxRenderEdge".to_string(), serde_json::json!(max_edge));
+            obj.insert("fps".to_string(), serde_json::json!(fps));
+        }
         let spec = serde_json::to_string(&spec_value)
             .map_err(|e| format!("serialize live spec: {e}"))?;
         set_kde_live(&spec)?;
@@ -92,7 +112,7 @@ fn is_kde(desktop: &str) -> bool {
 // PLUGIN_VERSION whenever any embedded file changes so installed copies
 // get refreshed on the next apply.
 #[cfg(target_os = "linux")]
-const PLUGIN_VERSION: &str = "6";
+const PLUGIN_VERSION: &str = "8";
 
 #[cfg(target_os = "linux")]
 struct Asset {
@@ -147,6 +167,36 @@ const ASSETS: &[Asset] = &[
             "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/aurora.frag.qsb"
         )),
     },
+    Asset {
+        rel: "contents/shaders/bokeh.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/bokeh.frag.qsb"
+        )),
+    },
+    Asset {
+        rel: "contents/shaders/stripes.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/stripes.frag.qsb"
+        )),
+    },
+    Asset {
+        rel: "contents/shaders/geometric.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/geometric.frag.qsb"
+        )),
+    },
+    Asset {
+        rel: "contents/shaders/flower.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/flower.frag.qsb"
+        )),
+    },
+    Asset {
+        rel: "contents/shaders/mesh.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/mesh.frag.qsb"
+        )),
+    },
 ];
 
 #[cfg(target_os = "linux")]
@@ -163,16 +213,22 @@ fn plugin_dir() -> Result<std::path::PathBuf, String> {
 
 /// Write the bundled plugin into the user's Plasma wallpapers dir, unless an
 /// up-to-date copy is already there. Idempotent (version-marker gated).
+///
+/// Returns `Ok(true)` when it *replaced* an older install: the running
+/// plasmashell still holds that version's QML in its per-session component
+/// cache, so the caller must reload it or new pattern types render blank. A
+/// first install (no prior marker) returns `Ok(false)` — plasmashell loads
+/// our plugin cleanly on the apply that follows.
 #[cfg(target_os = "linux")]
-pub fn install_plugin() -> Result<(), String> {
+pub fn install_plugin() -> Result<bool, String> {
     let _ = PLUGIN_ROOT; // documents the embedded source root
     let dir = plugin_dir()?;
     let marker = dir.join(".ambient-plugin-version");
-    if std::fs::read_to_string(&marker)
-        .map(|v| v.trim() == PLUGIN_VERSION)
-        .unwrap_or(false)
-    {
-        return Ok(());
+    let existing = std::fs::read_to_string(&marker)
+        .ok()
+        .map(|v| v.trim().to_string());
+    if existing.as_deref() == Some(PLUGIN_VERSION) {
+        return Ok(false);
     }
     for asset in ASSETS {
         let dest = dir.join(asset.rel);
@@ -184,7 +240,31 @@ pub fn install_plugin() -> Result<(), String> {
             .map_err(|e| format!("write {dest:?}: {e}"))?;
     }
     let _ = std::fs::write(&marker, PLUGIN_VERSION);
-    Ok(())
+    Ok(existing.is_some())
+}
+
+/// Best-effort restart of plasmashell so a freshly-upgraded wallpaper plugin
+/// is reloaded — Plasma caches a plugin's QML per shell process for the whole
+/// session, so an in-place file upgrade alone won't take effect. Plasma 6
+/// runs plasmashell as a systemd user service; fall back to kquitapp6 +
+/// kstart for non-systemd sessions. Never fatal: the apply already
+/// succeeded, so at worst the new look waits for the next login.
+#[cfg(target_os = "linux")]
+fn reload_plasmashell() {
+    let via_systemd = std::process::Command::new("systemctl")
+        .args(["--user", "restart", "plasma-plasmashell.service"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if via_systemd {
+        return;
+    }
+    let _ = std::process::Command::new("kquitapp6")
+        .arg("plasmashell")
+        .status();
+    let _ = std::process::Command::new("kstart")
+        .arg("plasmashell")
+        .spawn();
 }
 
 #[cfg(target_os = "linux")]
@@ -229,7 +309,7 @@ fn evaluate_script(script: &str) -> Result<(), String> {
 
 #[cfg(target_os = "linux")]
 fn set_kde_live(spec_json: &str) -> Result<(), String> {
-    install_plugin()?;
+    let upgraded = install_plugin()?;
     // spec_json is JSON (double quotes only) → safe inside a single-quoted
     // JS string; escape backslashes/quotes defensively anyway.
     let safe = spec_json.replace('\\', "\\\\").replace('\'', "\\'");
@@ -242,7 +322,13 @@ fn set_kde_live(spec_json: &str) -> Result<(), String> {
         \x20   d.wallpaperPlugin = \"{PLUGIN_ID}\";\n\
          }}"
     );
-    evaluate_script(&script)
+    evaluate_script(&script)?;
+    // The config is persisted now; if we just upgraded the plugin, reload the
+    // shell so it drops the old cached QML and renders the new build.
+    if upgraded {
+        reload_plasmashell();
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "linux")]

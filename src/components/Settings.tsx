@@ -15,6 +15,7 @@ import { toast } from '../lib/toast';
 import {
   type Settings as AppSettings,
   DEFAULT_SETTINGS,
+  type LiveQuality,
   type RotationSource,
 } from '../lib/types';
 import { checkForUpdateManual } from '../lib/updater';
@@ -31,6 +32,15 @@ const ROTATION_OPTIONS: { id: RotationSource; label: string }[] = [
   { id: 'off', label: 'Off' },
   { id: 'sources', label: 'Fetch from source' },
   { id: 'library', label: 'Shuffle library' },
+];
+
+// Live-wallpaper render quality. Resolution + fps caps are resolved in Rust
+// (LiveQuality::resolve) and stamped into the spec the KDE plugin reads.
+const LIVE_QUALITY_OPTIONS: { id: LiveQuality; label: string }[] = [
+  { id: 'performance', label: 'Performance' },
+  { id: 'balanced', label: 'Balanced' },
+  { id: 'high', label: 'High' },
+  { id: 'native', label: 'Native' },
 ];
 
 type UpdateState =
@@ -79,6 +89,19 @@ export default function Settings() {
     const next = await patchSettings(p);
     setSettings(next);
     dispatch('settings-changed');
+  }
+
+  // Persist the quality, then re-apply the active live wallpaper (if any) so
+  // the new resolution/fps caps take effect immediately rather than on the
+  // next apply.
+  async function setLiveQuality(v: LiveQuality) {
+    await patch({ liveWallpaperQuality: v });
+    try {
+      const cfg = await invoke<unknown>('get_live_wallpaper');
+      if (cfg) await invoke('apply_live_pattern', { config: cfg });
+    } catch {
+      // Nothing live, or not on a supported desktop — leave it.
+    }
   }
 
   async function toggleAutostart(enabled: boolean) {
@@ -260,6 +283,15 @@ export default function Settings() {
               checked={settings.lockscreen}
               onChange={(e) => void patch({ lockscreen: e.target.checked })}
               aria-label="Also set the lock screen wallpaper"
+            />
+          </div>
+          <div className="set-row">
+            <span>Live wallpaper quality</span>
+            <OptionScroller
+              options={LIVE_QUALITY_OPTIONS}
+              value={settings.liveWallpaperQuality}
+              onChange={(v) => void setLiveQuality(v)}
+              ariaLabel="Live wallpaper render quality"
             />
           </div>
           <div className="set-row">

@@ -1,0 +1,103 @@
+# Live Wallpaper — Roadmap for the backlog
+
+Follow-up to the live-wallpaper feature shipped 2026-06-18 (branch feat/tauri-mobile,
+commit 86ad1ac): an Animate toggle in Patterns turns the single Apply button into a
+live-wallpaper apply, delivered on KDE Plasma 6 via a bundled wallpaper plugin. See the
+project_live_wallpaper memory for the full architecture + gotchas.
+
+DONE 2026-06-19 — section C: every pattern now animates as a real shader (bokeh = rising
+swirling bubbles, stripes = directional scroll, geometric = drifting/spinning SDF shapes,
+flower = symmetric counter-rotating petal rings, mesh = drifting metaball gradient). Plus
+a render-quality selector (Settings → resolution/fps caps) and an app-triggered
+plasmashell reload when the plugin upgrades (Plasma caches plugin QML per session, so new
+types rendered blank otherwise). Next: per-pattern selectable animation styles.
+
+Remaining order by value/effort: A (video) -> B (other platforms). Each is
+independently shippable.
+
+## Carry-forward gotchas (don't rediscover these)
+- Qt6 ShaderEffect on Plasma's GL backend needs our own wallpaper.vert pass-through vertex
+  shader (built-in fails "qt_TexCoord0 ... no matching output").
+- GPU cap is mandatory: drive the clock from a ~30fps Timer (not FrameAnimation) and render
+  into a reduced-res layer.textureSize. Bump PLUGIN_VERSION in live.rs on any plugin change.
+- Plasma caches plugin QML per shell session: after a PLUGIN_VERSION bump the running
+  plasmashell still runs the OLD main.qml, so new pattern types render blank. install_plugin
+  returns whether it upgraded; set_kde_live restarts plasmashell (systemctl --user) on upgrade.
+- Cell-grid shaders (dots/geometric): use a FIXED AA width, never fwidth(sd) — sd jumps across
+  cell borders so fwidth spikes there and smears colour into faint grid seams.
+- Regular polygons: use an exact radial-boundary coverage (boundary = s*cos(pi/n)/cos(angle));
+  the iq "fold" n-gon SDF reports far points along vertex axes as inside -> giant filled wedges.
+- WebGL is dead in the app's webview on NVIDIA (WEBKIT_DISABLE_DMABUF_RENDERER=1 kills it);
+  the KDE plugin renders in Qt so it's fine, but the desktop override-window (B1) inherits
+  this on Linux/NVIDIA.
+- Dev loop: edit .frag -> qsb --glsl "150,330,440" -o x.frag.qsb x.frag ->
+  kpackagetool6 --type Plasma/Wallpaper --upgrade <dir> ->
+  systemctl --user restart plasma-plasmashell.service -> apply via qdbus6 evaluateScript.
+  plasmoidviewer/qmlscene are NOT installed; verify via real apply + journalctl --user.
+
+## C. Depth for the 5 flat static patterns  — DONE 2026-06-19
+mesh, geometric, stripes, flower, bokeh all ported to procedural shaders (no longer the flat
+Image Ken-Burns drift). bokeh = rising/swirling bubbles; stripes = seeded directional scroll;
+geometric = drifting+spinning SDF shapes (circle/triangle/square/hexagon/star/plus, radial-
+boundary polygons, fixed AA); flower = symmetric counter-rotating petal rings, reach-capped to
+fit + opaque; mesh = drifting metaball gradient. Original plan kept below for reference.
+
+- Easy wins:
+  - bokeh ~ dots with a large soft radial falloff (copy dots.frag/DOTS_MAIN, widen radius,
+    soften edge, drop sizeVar's hard cutoff).
+  - stripes — a scrolling/waving stripe field (1D phase along the stripe-angle normal).
+  - geometric — drifting + slowly rotating polygons (dots but SDF shapes per cell).
+- Harder (defer or keep drift): mesh (metaballs) and flower (rotating petals).
+- Per-pattern wiring (grep "dots" for every touch point): add <name>.frag (Qt) + <NAME>_MAIN
+  (shaders.ts), bake .qsb, add to ANIMATABLE (patterns.ts), FRAG_SHADERS (shaders.ts),
+  knobs() (liveShader.ts), Rust renders_in_plugin (live.rs), isGenerative + knob() (main.qml).
+- Effort: ~half a day for bokeh+stripes+geometric.
+
+## A. Video / GIF import live wallpaper  (self-contained; KDE first)
+- Data model: add a kind discriminator — { "kind": "video", "video": "/abs/path.mp4" } vs
+  the pattern spec. Plugin branches on spec.kind === "video".
+- Import (Rust): new command import_video(src) — Tauri file dialog (mp4/webm/gif), validate,
+  copy into the wallpaper dir, return path; then write the video spec + set the plugin.
+- KDE plugin: a Video branch in main.qml — import QtMultimedia + MediaPlayer (loops:
+  Infinite, muted) + VideoOutput (fillMode: PreserveAspectCrop); GIF via AnimatedImage.
+  References: plasma-smart-video-wallpaper-reborn, TuxPapers. Confirm QtMultimedia/gstreamer;
+  pause on onVisibilityChanged.
+- Preview: <video loop muted playsinline> in the gen-stage (small new component).
+- UI: an "Import video..." entry near the Animate toggle (orthogonal — video is inherently live).
+- Effort: ~1-1.5 days (KDE only). AI/Source photos still can't move — out of scope.
+
+## B. Other delivery platforms  (biggest)
+
+### B1. Desktop override-window (Windows + macOS + X11 non-KDE)
+A second Tauri WebviewWindow ("live") pinned to the desktop layer, loading a live.html that
+reuses the existing web renderers (LivePreview WebGL canvas + EmojiField DOM + drift img +
+<video>) full-screen — a windowless "live mode" of the preview.
+- Per-OS pin from the native handle: Windows WorkerW reparent (windows crate); macOS NSWindow
+  desktop level (objc2-app-kit); X11 _NET_WM_WINDOW_TYPE_DESKTOP.
+- Owned by the tray process (survives main-window close via existing prevent_exit). Add the
+  "live" window to Tauri capabilities; create it AFTER the WebKit env guards in lib.rs.
+- Honest limits: GNOME-Wayland can't host a desktop-layer window -> frame-cycling fallback or
+  unsupported. Linux/NVIDIA WebGL caveat applies (KDE already has the plugin — keep it there).
+- Effort: ~2-3 days Win+macOS; X11/Wayland fallback extra.
+
+### B2. Android WallpaperService
+- Generative/dots: a GLSurfaceView-on-Engine-SurfaceHolder running the shaders adapted to
+  GLES2/3 (the WebGL GLSL ES is close). Emoji: Canvas.drawText, or GLES. Video: ExoPlayer.
+- Manifest: service + res/xml/wallpaper.xml + BIND_WALLPAPER; launch via
+  ACTION_CHANGE_LIVE_WALLPAPER. Read the spec from filesDir. Lives in plugins/wallpaper/.
+  Honor onVisibilityChanged; cap fps.
+- Effort: ~3-4 days (Kotlin + GLES + spec bridge). Largest item.
+
+## Verification (per item)
+- C: apply via qdbus6 + journalctl --user for shader errors; eyeball motion; GPU stays capped.
+- A: import a clip -> desktop plays it looped/muted; preview <video> matches; revert works.
+- B1: the live window sits behind icons, survives main-window close, ignores clicks (Win/macOS).
+- B2: on-device — the system live-wallpaper picker shows Ambient; home/lock animate; pause works.
+
+## Key files to reuse
+- Shaders: src/lib/shaders.ts (+ liveShader.ts, LivePreview.tsx); Qt
+  plasma/wallpapers/me.oezcan.ambient/contents/shaders/*.frag (+ .qsb).
+- Emoji: src/components/EmojiField.tsx + the QML Repeater in main.qml.
+- KDE delivery + spec + install: src-tauri/core/src/live.rs.
+- Data model / rotation guard: Settings.live_wallpaper (types.rs), rotation.rs.
+- Commands: apply_live_pattern / clear_live_wallpaper / get_live_wallpaper (commands.rs, lib.rs).

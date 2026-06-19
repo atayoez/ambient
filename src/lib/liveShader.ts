@@ -49,6 +49,19 @@ function hexToRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
+// Geometric's shape pool + fill mode are enums; the shader takes numbers, so
+// encode them into p2/p3 here (decoded in shaders.ts / main.qml GEOMETRIC).
+const GEO_SHAPE_CODE: Record<string, number> = {
+  mix: 0,
+  circles: 1,
+  triangles: 2,
+  squares: 3,
+  hexagons: 4,
+  stars: 5,
+  plus: 6,
+};
+const GEO_FILL_CODE: Record<string, number> = { solid: 0, outline: 1, mix: 2 };
+
 // Per-type knob mapping → (p1, p2, p3). Mirrors the uniform contract in
 // shaders.ts. Defaults match the Rust renderer's unwrap_or values.
 function knobs(c: PatternConfig): [number, number, number] {
@@ -61,6 +74,20 @@ function knobs(c: PatternConfig): [number, number, number] {
       return [c.auroraBands ?? 5, c.auroraAmplitude ?? 0.5, c.auroraSpread ?? 0.5];
     case 'dots':
       return [c.density ?? 18, c.dotsJitter ?? 0.5, c.dotsSizeVar ?? 0.7];
+    case 'bokeh':
+      return [c.density ?? 22, 0, 0];
+    case 'stripes':
+      return [c.stripesAngle ?? 30, c.stripesWidthVar ?? 0.5, 0];
+    case 'geometric':
+      return [
+        c.density ?? 40,
+        GEO_SHAPE_CODE[c.geometricShape ?? 'mix'] ?? 0,
+        GEO_FILL_CODE[c.geometricFill ?? 'solid'] ?? 0,
+      ];
+    case 'flower':
+      return [c.flowerPetals ?? 12, c.flowerTwist ?? 0.5, 0];
+    case 'mesh':
+      return [c.meshBubbles ?? 16, c.meshSoftness ?? 0.5, 0];
     default:
       return [1, 0.5, 0.5];
   }

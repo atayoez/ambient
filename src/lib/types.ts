@@ -9,6 +9,10 @@ export type SourceKind =
   | 'wallhaven'
   | 'picsum';
 export type GenProvider = 'pollinations' | 'openai';
+// Live-wallpaper render quality — caps the KDE plugin shader's internal
+// resolution + fps (resolved in Rust: LiveQuality::resolve). Higher is
+// sharper but heavier on the GPU; 'native' renders at full resolution.
+export type LiveQuality = 'performance' | 'balanced' | 'high' | 'native';
 // 'off' = no auto-rotation. 'sources' = fetch a new image from the
 // configured Source on each tick. 'library' = pick a random previously-
 // saved wallpaper. Mutually exclusive: enabling rotation in Sources tab
@@ -65,6 +69,9 @@ export interface Settings {
   /** Also mirror the applied wallpaper onto the OS lock screen (KDE
    * Plasma; no-op on other DEs). */
   lockscreen: boolean;
+  /** Live-wallpaper render quality — caps the KDE plugin shader's internal
+   * resolution + fps. Higher = sharper but heavier on the GPU. */
+  liveWallpaperQuality: LiveQuality;
   // Path of the most-recently-applied wallpaper. Owned by Rust's
   // set_wallpaper command (stamped under the SettingsState write lock
   // on every apply), exposed here so the Library "currently applied"
@@ -100,5 +107,6 @@ export const DEFAULT_SETTINGS: Settings = {
   themeMode: 'auto',
   customPresets: [],
   lockscreen: false,
+  liveWallpaperQuality: 'balanced',
   lastApplied: null,
 };
