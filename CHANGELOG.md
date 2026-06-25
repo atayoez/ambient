@@ -15,6 +15,14 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.2.0] — 2026-06-25
+
+### Added
+
 - **Live wallpapers on macOS.** macOS joins KDE Plasma and Windows: an
   animated pattern now renders as a real live wallpaper sitting behind
   the desktop icons, instead of a still. Flip **Animate** in Patterns and
