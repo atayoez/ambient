@@ -47,7 +47,8 @@
       },
       pricing: {
         eyebrow: 'Pricing',
-        sub: 'One price, one time. Future versions are free too.',
+        saleBadge: 'Summer sale — save 67%',
+        sub: 'Summer sale — 67% off, one price, one time. Future versions are free too.',
         period: 'once',
         tagline: 'Yours to keep, with every future update.',
         feat1: 'Every pattern, every source, the AI generator',
@@ -204,7 +205,8 @@
       },
       pricing: {
         eyebrow: 'Preis',
-        sub: 'Ein Preis, einmal. Spätere Versionen sind auch kostenlos.',
+        saleBadge: 'Sommer-Sale — 67% sparen',
+        sub: 'Sommer-Sale — 67% Rabatt, ein Preis, einmal. Spätere Versionen sind auch kostenlos.',
         period: 'einmalig',
         tagline: 'Gehört dir, mit jedem zukünftigen Update.',
         feat1: 'Jedes Muster, jede Quelle, der KI-Generator',
@@ -361,7 +363,8 @@
       },
       pricing: {
         eyebrow: 'Fiyat',
-        sub: 'Tek fiyat, bir kez. Sonraki sürümler de bedava.',
+        saleBadge: 'Yaz indirimi — %67 indirim',
+        sub: 'Yaz indirimi — %67 indirim, tek fiyat, bir kez. Sonraki sürümler de bedava.',
         period: 'tek seferlik',
         tagline: 'Senin, her gelecek güncellemeyle birlikte.',
         feat1: 'Tüm desenler, tüm kaynaklar ve AI üretici',
@@ -531,10 +534,11 @@
 
   var currentRegion = detectRegionSync();
   var currentCurrency = EUROZONE[currentRegion] ? 'EUR' : 'USD';
-  // Both displayed as "$15" / "€15" with the symbol before the digits —
-  // matches the existing price-card layout and reads consistently across
-  // locales. Polar's invoice will use the locale-correct format.
-  var PRICE_FORMS = { USD: '$15', EUR: '€15' };
+  // Summer sale: $14.99/€14.99 → $4.99/€4.99. PRICE_FORMS is the *current*
+  // (sale) price every {PRICE} placeholder + CTA shows; the struck pre-sale
+  // price lives in the .price-was markup. Polar's invoice uses the
+  // locale-correct format.
+  var PRICE_FORMS = { USD: '$4.99', EUR: '€4.99' };
   var CURRENCY_SYMBOLS = { USD: '$', EUR: '€' };
 
   function priceString() {
@@ -582,10 +586,12 @@
   }
 
   function applyCurrency() {
-    // Visual price-card: swap the symbol (number stays 15 in both
-    // currencies since Polar lists both at round 15).
-    document.querySelectorAll('.price-currency').forEach(function (el) {
-      el.textContent = CURRENCY_SYMBOLS[currentCurrency];
+    // Visual price-card: swap the symbol on both the sale price and the
+    // struck pre-sale price (the numbers — 4.99 / 14.99 — are the same in
+    // both currencies since Polar lists both round).
+    var sym = CURRENCY_SYMBOLS[currentCurrency];
+    document.querySelectorAll('.price-currency, .price-was-cur').forEach(function (el) {
+      el.textContent = sym;
     });
   }
 

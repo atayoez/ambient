@@ -740,12 +740,44 @@ code {
   pointer-events: none;
 }
 
+/* Summer-sale badge — a deliberately warm, summery accent that breaks the
+ * achromatic chrome so the sale actually reads as a sale (this is the one
+ * place a sunset gradient earns its keep). */
+.price-sale-badge {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 6px 15px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #20120a;
+  background: linear-gradient(100deg, #fcd34d 0%, #fb923c 52%, #f472b6 100%);
+  box-shadow: 0 6px 22px rgb(251 146 60 / 0.34);
+}
+
 .price-amount {
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 6px;
   margin-bottom: 8px;
+}
+
+/* The pre-sale price, struck through, sitting beside the big sale number. */
+.price-was {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--muted);
+  opacity: 0.72;
+  text-decoration: line-through;
+  text-decoration-color: rgb(248 113 113 / 0.8);
+  text-decoration-thickness: 2px;
+  margin-right: 4px;
+}
+.price-was-cur {
+  font-size: 0.66em;
 }
 
 .price-currency {
