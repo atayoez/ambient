@@ -18,6 +18,16 @@
   --tint-r: 255;
   --tint-g: 255;
   --tint-b: 255;
+
+  /* Backdrop-filter values MUST live in custom properties, never as literal
+     `blur(..) saturate(..)` in a rule. The CSS minifier strips the space
+     between the two filter functions (`blur(30px)saturate(150%)`), which is
+     an invalid filter list, so the glass silently renders as plain
+     transparency. Minifiers preserve custom-property values verbatim, so a
+     var keeps the space and the frost. (This is why the tab glass, which
+     already used a var, survived while the panels went see-through.) */
+  --blur-panel: blur(30px) saturate(150%);
+  --blur-glass: blur(16px) saturate(150%);
 }
 
 * {
@@ -1498,8 +1508,8 @@ button.primary.icon-btn {
   color: var(--text);
   border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.18);
   box-shadow: var(--shadow-toast);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
   transition: transform var(--t-fast) ease;
 }
 
@@ -1731,8 +1741,8 @@ button.primary.icon-btn {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
     rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(30px) saturate(150%);
-  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow:
     0 16px 44px rgba(0, 0, 0, 0.5),
@@ -1780,7 +1790,10 @@ button.primary.icon-btn {
 .pat-side {
   top: 12px;
   right: 12px;
-  bottom: 84px; /* clear of the centered tab pill */
+  /* Height follows the content instead of always spanning top-to-bottom.
+     Capped at the available space (12px top inset + 84px bottom clearance
+     for the centered tab pill); only then does it scroll. */
+  max-height: calc(100% - 96px);
   width: 264px;
   display: flex;
   flex-direction: column;
