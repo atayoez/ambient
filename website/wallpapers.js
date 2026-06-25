@@ -154,6 +154,10 @@
   // --- wiring --------------------------------------------------------
 
   function wire() {
+    // Stand down if the live shader backdrop (live-shader.js) took over —
+    // it owns the canvas, the prev/next arrows, and the tint publishing.
+    if (window.__AMBIENT_LIVE__) return;
+
     var root = document.documentElement;
     var layerEls = Array.prototype.slice.call(
       document.querySelectorAll('#wp-backdrop .wp-layer'),

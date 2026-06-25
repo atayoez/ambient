@@ -78,6 +78,24 @@ body {
   opacity: 1;
 }
 
+/* Live wallpaper canvas (live-shader.js). When WebGL2 is available and the
+ * visitor hasn't asked for reduced motion, this runs the app's real shaders
+ * full-bleed — stacked above the static CSS layers, under the ::after scrim
+ * (so the headline stays legible). The opacity transition is the crossfade
+ * the engine drives when it switches presets. Slight blur softens any aliasing
+ * at the capped internal resolution and matches the static layers' field. */
+#wp-backdrop #wp-canvas {
+  position: absolute;
+  inset: -2%;
+  width: 104%;
+  height: 104%;
+  display: block;
+  opacity: 1;
+  filter: blur(2px) saturate(118%);
+  transition: opacity 380ms ease;
+  will-change: opacity;
+}
+
 /* Readability scrim over the wallpaper — keeps headline + glass legible
  * no matter how bright the active palette is. Darkens toward the bottom
  * where the dense feature/pricing content lives. */
@@ -261,6 +279,36 @@ code {
   flex-direction: column;
   align-items: center;
   gap: 18px;
+}
+
+/* "New — Live wallpapers" eyebrow above the headline. Achromatic glass pill
+ * that adopts the active wallpaper's tint; the dot is static (the live
+ * backdrop carries the motion — the chrome stays still). */
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 22px;
+  padding: 7px 15px 7px 13px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--tint) 28%, #ffffff);
+  background: rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.12);
+  border: 1px solid rgb(var(--tint-r) var(--tint-g) var(--tint-b) / 0.32);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.28);
+}
+.hero-eyebrow::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tint);
+  box-shadow: 0 0 10px var(--tint);
 }
 
 .hero h1 {

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Ambient: a desktop wallpaper app for macOS, Windows, Linux</title>
-    <meta name="description" content="Ambient is a small desktop wallpaper app. Built-in patterns, photos from NASA / Unsplash / Pexels, and an AI generator. $15 one-time, no subscription, no telemetry." />
+    <meta name="description" content="Ambient is a small desktop wallpaper app with live, animated wallpapers (KDE Plasma + Windows), pattern generators, photos from NASA / Unsplash / Pexels, and an AI generator. $15 one-time, no subscription, no telemetry." />
     <meta name="keywords" content="desktop wallpaper, wallpaper generator, mesh gradient, AI wallpaper, NASA APOD, Unsplash, Pexels, DALL-E, Tauri app, macOS wallpaper, Windows wallpaper, Linux wallpaper" />
     <meta name="author" content="Atay Özcan" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -43,7 +43,7 @@
         "applicationCategory": "DesignApplication",
         "applicationSubCategory": "Wallpaper generator",
         "operatingSystem": "macOS, Windows, Linux",
-        "description": "Small desktop wallpaper app. Five pattern generators, photo sources (NASA APOD, Unsplash, Pexels), and AI generation. One-time purchase, no subscription.",
+        "description": "Small desktop wallpaper app. Live, animated wallpapers (KDE Plasma + Windows), nine pattern generators, photo sources (NASA APOD, Unsplash, Pexels), and AI generation. One-time purchase, no subscription.",
         "url": "https://ambient.oezcan.me/",
         "image": "https://ambient.oezcan.me/og-banner.png",
         "offers": [
@@ -73,8 +73,8 @@
           "name": "Atay Özcan",
           "url": "https://oezcan.me"
         },
-        "softwareVersion": "0.7.0",
-        "datePublished": "2026-06-02"
+        "softwareVersion": "1.1.0",
+        "datePublished": "2026-06-25"
       }
     </script>
 
@@ -120,13 +120,17 @@
       <section id="top" class="hero hero-center">
 
         <div class="hero-content">
+          <span class="hero-eyebrow" data-i18n="hero.eyebrow">
+            New in 1.1 — Live wallpapers
+          </span>
           <h1>
             <span data-i18n="hero.title">Wallpapers</span>
             <span class="gradient-text" data-i18n="hero.titleAccent">that move with you.</span>
           </h1>
           <p class="hero-sub" data-i18n="hero.sub">
-            A small desktop app for changing your wallpaper. Built-in
-            patterns, a few photo sources, and an AI generator if you'd
+            A small desktop app for your wallpaper — now with live, animated
+            wallpapers that actually move (this whole page is one). Plus
+            pattern generators, photo sources, and an AI generator if you'd
             rather just describe one.
           </p>
         </div>
@@ -473,6 +477,11 @@
       </div>
     </footer>
     <script src="./i18n.js"></script>
+    <!-- Live shader backdrop runs first and sets window.__AMBIENT_LIVE__ so
+         the static CSS engine below stands down when the real shaders take
+         over. If WebGL2 is missing / reduced-motion, live-shader bails and
+         wallpapers.js paints the static backdrop instead. -->
+    <script src="./live-shader.js"></script>
     <script src="./wallpapers.js"></script>
     <script src="./download.js"></script>
   </body>
