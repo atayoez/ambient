@@ -15,26 +15,27 @@
 
 pub const PLUGIN_ID: &str = "me.oezcan.ambient";
 
-// Windows live-wallpaper delivery hook. Unlike KDE (a Plasma plugin the
-// shell renders) and mobile (a WallpaperService), the Windows path needs a
-// background window parented behind the desktop icons (WorkerW) — which
-// only the Tauri shell can create. So the shell registers a setter/clearer
-// pair here at startup, mirroring desktop::OS_SETTER, and the Windows branch
-// of apply/clear routes through it. The setter receives the finished spec
-// JSON (the same PatternConfig + quality the KDE plugin gets).
-#[cfg(target_os = "windows")]
+// Desktop live-wallpaper delivery hook for Windows and macOS. Unlike KDE
+// (a Plasma plugin the shell renders) and mobile (a WallpaperService), these
+// platforms need a background window placed behind the desktop icons. On
+// Windows that means parenting under WorkerW, on macOS it means a
+// desktop-level NSWindow. Only the Tauri shell can create that window, so the
+// shell registers a setter/clearer pair here at startup, mirroring
+// desktop::OS_SETTER. The setter receives the finished spec JSON, the same
+// PatternConfig plus quality the KDE plugin gets.
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 type LiveSetter = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 type LiveClearer = Box<dyn Fn() + Send + Sync>;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 static LIVE_SETTER: std::sync::OnceLock<LiveSetter> = std::sync::OnceLock::new();
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 static LIVE_CLEARER: std::sync::OnceLock<LiveClearer> = std::sync::OnceLock::new();
 
 /// Register the Windows live-wallpaper delivery hooks (shell-only). Later
 /// calls are ignored — one shell per process. `set` receives the spec JSON
 /// and parents/refreshes the background window; `clear` tears it down.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn set_live_setter<S, C>(set: S, clear: C)
 where
     S: Fn(&str) -> Result<(), String> + Send + Sync + 'static,
@@ -51,7 +52,7 @@ where
 /// config; every other pattern animates as a slow drift over a pre-rendered
 /// still, so render it now and stamp its path. The user's live render
 /// quality (resolution + fps caps) is stamped in for both.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
     let renders_live = matches!(
         config.get("type").and_then(|t| t.as_str()),
@@ -95,7 +96,7 @@ async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
 
 /// Mark a live wallpaper active in settings so rotation / theme-follow stand
 /// down (they watch this channel).
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 async fn mark_active(config: &serde_json::Value) {
     let _ = crate::state::settings()
         .patch(serde_json::json!({ "liveWallpaper": config }))
@@ -109,7 +110,7 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
         let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
         if !is_kde(&desktop) {
             return Err(
-                "Live wallpaper is currently supported on KDE Plasma and Windows only."
+                "Live wallpaper is currently supported on KDE Plasma, Windows, and macOS only."
                     .to_string(),
             );
         }
@@ -118,7 +119,7 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
         mark_active(&config).await;
         Ok(())
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let setter = LIVE_SETTER
             .get()
@@ -128,10 +129,10 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
         mark_active(&config).await;
         Ok(())
     }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
         let _ = config;
-        Err("Live wallpaper is currently supported on KDE Plasma and Windows only.".to_string())
+        Err("Live wallpaper is currently supported on KDE Plasma, Windows, and macOS only.".to_string())
     }
 }
 
@@ -141,7 +142,7 @@ pub async fn clear_live_wallpaper() -> Result<(), String> {
     {
         let _ = clear_kde_live();
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         if let Some(clear) = LIVE_CLEARER.get() {
             clear();

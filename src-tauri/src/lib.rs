@@ -1,5 +1,7 @@
 mod commands;
 mod integrate;
+#[cfg(target_os = "macos")]
+mod live_mac;
 #[cfg(target_os = "windows")]
 mod live_win;
 mod rotation;
@@ -321,6 +323,11 @@ pub fn run() {
             // delivery hook ambient-core's apply_live_pattern routes through.
             #[cfg(target_os = "windows")]
             live_win::register(app.handle());
+
+            // macOS: same idea, but the background window sits at the desktop
+            // window level (behind the icons) instead of under WorkerW.
+            #[cfg(target_os = "macos")]
+            live_mac::register(app.handle());
 
             // Bridge ambient-core's app events onto the Tauri event bus.
             // Registered BEFORE core init so nothing fires into the void.

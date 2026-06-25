@@ -80,6 +80,17 @@ windows = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+# macOS live-wallpaper delivery (live_mac.rs): AppKit calls to place the
+# background window at the desktop window level. objc2 versions match the
+# ones Tauri's own macOS path already pulls, so there's no second copy.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = [
+    "NSResponder",
+    "NSWindow",
+    "NSScreen",
+] }
+
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting
 # binary is ~20-30% smaller, starts faster, and uses noticeably less
