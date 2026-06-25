@@ -32,20 +32,37 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # paths-ignore on PRs only — never on push, so a tag push (= a release)
+  # always builds regardless of which files the release commit touched.
+  # Docs/website/marketing-only PRs don't need the full Rust compile +
+  # tests; deploy-site.yml covers website/** independently.
   pull_request:
+    paths-ignore:
+      - 'website/**'
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
+
+# Collapse superseded runs: a new push to a branch/PR cancels the older
+# in-flight run for that same ref, so we don't pay for `check` (full Rust
+# workspace compile + tests) twice on a rapid re-push. Tag refs get their
+# own per-tag group with cancel-in-progress OFF — a tag build is a release
+# in progress and must never be killed mid-publish.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   check:
     name: TypeScript + lint
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14  # pinned for reproducibility; Renovate bumps it
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
@@ -60,10 +77,10 @@ jobs:
         run: bun run test
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       - name: Cargo cache for tests
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         continue-on-error: true
         with:
           workspaces: './src-tauri -> target'
@@ -125,12 +142,12 @@ jobs:
               src-tauri/target/release/bundle/rpm/*.rpm
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14  # pinned for reproducibility; Renovate bumps it
 
       - name: Install Linux dev libs
         if: startsWith(matrix.platform, 'ubuntu-')
@@ -145,13 +162,13 @@ jobs:
             xdg-utils
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
       # rust-cache restore occasionally flakes mid-extract on Windows
       # runners; don't fail the whole job because of a cache miss/restore
       # error — the build will just rebuild from scratch this run.
       - name: Cache Rust build
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         continue-on-error: true
         with:
           workspaces: './src-tauri -> target'
@@ -163,7 +180,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build the app
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Tauri auto-signs the updater bundles when this is set: the
@@ -175,7 +192,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.artifact-glob }}
@@ -193,9 +210,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Download x86_64 Linux artifacts (.deb)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ambient-ubuntu-22.04-x86_64
           path: linux-x64
@@ -213,7 +230,7 @@ jobs:
             runuser -u builder -- ./scripts/build-arch-pkg.sh "$VERSION" "$DEB" /work/arch-out
           '
       - name: Upload arch artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ambient-arch-x86_64
           path: arch-out/*.pkg.tar.*
@@ -229,12 +246,12 @@ jobs:
     permissions:
       contents: write  # for gh release create
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: 1.3.14  # pinned for reproducibility; Renovate bumps it
 
       - name: Extract version from tag
         id: ver
@@ -242,7 +259,7 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Download all build artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: dist
           pattern: ambient-*

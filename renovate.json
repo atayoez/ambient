@@ -13,6 +13,17 @@
   "labels": ["chore"],
   "prHourlyLimit": 4,
   "prConcurrentLimit": 10,
+  "customManagers": [
+    {
+      "description": "Keep the pinned `bun-version:` in the workflows fresh — the github-actions manager only tracks `uses:` refs, not step `with:` inputs.",
+      "customType": "regex",
+      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
+      "matchStrings": ["bun-version:\\s*(?<currentValue>\\S+)"],
+      "depName": "oven-sh/bun",
+      "datasource": "github-releases",
+      "extractVersion": "^bun-v(?<version>.+)$"
+    }
+  ],
   "packageRules": [
     {
       "description": "Tauri family travels together — major/minor jumps in the plugin set need to land in lockstep with the core crate.",

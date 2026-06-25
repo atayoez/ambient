@@ -23,6 +23,13 @@ on:
         description: Build run ID to reuse the platform artifacts from
         required: true
 
+# Serialize rescue publishes so two manual runs can't race on the same R2
+# upload / GitHub release. cancel-in-progress is OFF — never kill a publish
+# mid-flight; queue the second run behind the first instead.
+concurrency:
+  group: finish-release
+  cancel-in-progress: false
+
 jobs:
   finish:
     runs-on: [self-hosted]
@@ -34,7 +41,7 @@ jobs:
       # so ci-publish.sh's container signing uses it directly.
       CONTAINER: podman
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Reuse platform artifacts from the source run
         env:

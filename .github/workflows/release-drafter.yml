@@ -18,6 +18,12 @@ on:
     types: [opened, reopened, synchronize, edited]
   workflow_dispatch:
 
+# The draft is fully regenerated each run, so only the latest matters —
+# cancel any older in-flight drafter for the same ref.
+concurrency:
+  group: release-drafter-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write    # to update the draft release
   pull-requests: write  # to apply labels on PR open
@@ -26,6 +32,6 @@ jobs:
   update_release_draft:
     runs-on: ubuntu-22.04
     steps:
-      - uses: release-drafter/release-drafter@v6
+      - uses: release-drafter/release-drafter@6a93d829887aa2e0748befe2e808c66c0ec6e4c7 # v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
