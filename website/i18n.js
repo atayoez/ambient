@@ -10,10 +10,10 @@
     en: {
       nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       hero: {
-        eyebrow: 'New in 1.1 — Live wallpapers',
+        eyebrow: 'Live wallpapers, new in 1.1',
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
-        sub: "A small desktop app for your wallpaper — now with live, animated wallpapers that actually move (this whole page is one). Plus pattern generators, photo sources, and an AI generator if you'd rather just describe one.",
+        sub: "A small desktop app for your wallpaper. It just got live wallpapers that actually move, and this whole page is one of them. You also get pattern generators, a few photo sources, and an AI generator if you'd rather just describe what you want.",
         ctaBuy: 'Buy for {PRICE}',
         ctaDownload: 'Download →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} one-time</strong> &nbsp;·&nbsp; no subscription &nbsp;·&nbsp; no telemetry',
@@ -22,15 +22,15 @@
         eyebrow: "What's in it",
         patterns: {
           title: 'Ten pattern generators',
-          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, and emoji walls — ten in all. Tweak the knobs or hit shuffle until one clicks.',
+          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, and emoji walls. Ten of them. Tweak the knobs or hit shuffle until one clicks.',
         },
         sources: {
           title: 'Curated photo sources',
-          body: 'A fresh photo daily from NASA and Bing, plus random shots from Lorem Picsum — all free, no key. Add a free Unsplash, Pexels, or Wallhaven key for search-driven picks. Everything you apply is saved locally.',
+          body: 'A fresh photo daily from NASA and Bing, plus random shots from Lorem Picsum, all free with no key. Add a free Unsplash, Pexels, or Wallhaven key if you want to search. Everything you apply gets saved locally.',
         },
         ai: {
           title: 'AI generation',
-          body: 'Type a prompt, hit ⌘↩. Pollinations works out of the box for free — add a token to lift the rate limit. Or bring your own OpenAI key for DALL·E 3.',
+          body: 'Type a prompt, hit ⌘↩. Pollinations works for free with no setup. Add a token to lift the rate limit, or use your own OpenAI key for DALL·E 3.',
         },
         library: {
           title: 'Your own library',
@@ -47,8 +47,8 @@
       },
       pricing: {
         eyebrow: 'Pricing',
-        saleBadge: 'Summer sale — save 67%',
-        sub: 'Summer sale — 67% off, one price, one time. Future versions are free too.',
+        saleBadge: 'Summer sale, 67% off',
+        sub: 'Summer sale is on, 67% off. One price, one time. Future versions are free too.',
         period: 'once',
         tagline: 'Yours to keep, with every future update.',
         feat1: 'Every pattern, every source, the AI generator',
@@ -58,7 +58,7 @@
         feat5: 'No subscription, no account, no analytics',
         buy: 'Buy for {PRICE}',
         fineprint:
-          "Pay once and that's the whole thing. Same license for your Mac, PC, or Linux machine.",
+          "Pay once and that's the whole thing. Same license for your Mac, PC, or Linux machine. It's an instant download, so there are no refunds.",
       },
       download: {
         eyebrow: 'Download',
@@ -90,7 +90,7 @@
         },
         contact_email_label: 'Email:',
         vat_body:
-          'Operating under the small-business rule (§19 UStG — Kleinunternehmerregelung). VAT is not separately stated and cannot be deducted by customers as input tax.',
+          'Operating under the small-business rule (§19 UStG, Kleinunternehmerregelung). VAT is not separately stated and cannot be deducted by customers as input tax.',
         responsible_body: 'Atay Özcan (address as above).',
         odr_body:
           'The European Commission provides a platform for online dispute resolution at <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>. We are neither obligated nor willing to participate in dispute-resolution procedures before a consumer arbitration board.',
@@ -123,43 +123,43 @@
         logs_body:
           'When you visit this site, our hosting provider Cloudflare automatically records: IP address, requested URL, HTTP method, response status, user-agent string, referrer, timestamp. This is kept for at most 30 days for the purpose of detecting and mitigating attacks, abuse, and operational issues.',
         logs_basis:
-          '<strong>Legal basis:</strong> Art. 6(1)(f) GDPR — our legitimate interest in the secure operation of this website.',
+          '<strong>Legal basis:</strong> Art. 6(1)(f) GDPR, our legitimate interest in the secure operation of this website.',
         purchase_body:
           'The "Buy" button takes you to a checkout hosted by <a href="https://polar.sh" target="_blank" rel="noopener">Polar Software, Inc.</a> ("Polar"), our Merchant of Record. Polar collects your payment information, billing country, and email address directly. We receive only: your email address, an order ID, the product purchased, and confirmation of payment. Polar\'s own privacy policy applies during checkout.',
         purchase_basis:
-          '<strong>Legal basis:</strong> Art. 6(1)(b) GDPR — performance of the contract you enter into when you buy.',
+          '<strong>Legal basis:</strong> Art. 6(1)(b) GDPR, performance of the contract you enter into when you buy.',
         cookies_body1:
           'This site sets no first-party cookies. We do not run analytics (no Google Analytics, no Plausible, no Posthog, no anything).',
         cookies_body2:
           'Cloudflare may set a strictly-necessary technical cookie (<code>__cf_bm</code>, "bot management") for ~30 minutes for security purposes. Under §25 (2) TDDDG this falls under the consent exception for technically necessary cookies; no banner is required.',
         recipients_cf:
-          '<strong>Cloudflare, Inc.</strong> — site hosting and CDN. Server-log data may transit and be cached in jurisdictions outside the EEA, including the United States, under the EU-U.S. Data Privacy Framework + Cloudflare\'s GDPR DPA.',
+          '<strong>Cloudflare, Inc.</strong>: site hosting and CDN. Server-log data may transit and be cached in jurisdictions outside the EEA, including the United States, under the EU-U.S. Data Privacy Framework + Cloudflare\'s GDPR DPA.',
         recipients_polar:
-          '<strong>Polar Software, Inc.</strong> — payment processing. Acts as Merchant of Record for purchases. Processes your payment info under their own privacy policy.',
+          '<strong>Polar Software, Inc.</strong>: payment processing. Acts as Merchant of Record for purchases. Processes your payment info under their own privacy policy.',
         recipients_note:
           'We do not sell, rent, or otherwise share your data with any other party.',
         intl_body:
           'Where data is transferred outside the EEA (chiefly via Cloudflare and Polar), we rely on either an adequacy decision under Art. 45 GDPR or Standard Contractual Clauses under Art. 46(2)(c) GDPR for the relevant processors.',
         rights: {
           access:
-            '<strong>Access</strong> (Art. 15) — confirmation of whether we process data about you and, if so, a copy.',
+            '<strong>Access</strong> (Art. 15): confirmation of whether we process data about you and, if so, a copy.',
           rectification:
-            '<strong>Rectification</strong> (Art. 16) — correction of inaccurate data.',
+            '<strong>Rectification</strong> (Art. 16): correction of inaccurate data.',
           erasure:
-            '<strong>Erasure</strong> (Art. 17) — deletion of your data where the legal grounds for processing no longer exist.',
+            '<strong>Erasure</strong> (Art. 17): deletion of your data where the legal grounds for processing no longer exist.',
           restriction:
-            '<strong>Restriction</strong> (Art. 18) — limit processing to storage during a dispute.',
+            '<strong>Restriction</strong> (Art. 18): limit processing to storage during a dispute.',
           portability:
-            '<strong>Portability</strong> (Art. 20) — export of your data in a structured, machine-readable format.',
+            '<strong>Portability</strong> (Art. 20): export of your data in a structured, machine-readable format.',
           objection:
-            '<strong>Objection</strong> (Art. 21) — to processing based on legitimate interest.',
+            '<strong>Objection</strong> (Art. 21): to processing based on legitimate interest.',
           withdraw:
             '<strong>Withdraw consent</strong> at any time (where processing is based on consent), without affecting the lawfulness of processing already carried out.',
         },
         rights_exercise:
           'To exercise any of these rights, email <a href="mailto:atay@oezcan.me">atay@oezcan.me</a>. We will respond within one month per Art. 12(3) GDPR.',
         complaint_body:
-          'You can lodge a complaint with a data-protection supervisory authority — typically the one in the federal state where you reside or work. In Germany, see the <a href="https://www.bfdi.bund.de" target="_blank" rel="noopener">Bundesbeauftragte für den Datenschutz</a> for the list of state authorities.',
+          'You can lodge a complaint with a data-protection supervisory authority, typically the one in the federal state where you reside or work. In Germany, see the <a href="https://www.bfdi.bund.de" target="_blank" rel="noopener">Bundesbeauftragte für den Datenschutz</a> for the list of state authorities.',
         changes_body:
           'We may update this policy when our practices change. The effective date at the top reflects the most recent revision.',
       },
@@ -168,10 +168,10 @@
     de: {
       nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       hero: {
-        eyebrow: 'Neu in 1.1 — Lebende Hintergründe',
+        eyebrow: 'Lebende Hintergründe, neu in 1.1',
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
-        sub: 'Eine kleine Desktop-App für dein Hintergrundbild — jetzt mit lebenden, animierten Hintergründen, die sich wirklich bewegen (diese ganze Seite ist eines davon). Dazu Muster-Generatoren, Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
+        sub: 'Eine kleine Desktop-App für dein Hintergrundbild. Neu sind lebende Hintergründe, die sich wirklich bewegen, und diese ganze Seite ist einer davon. Dazu gibt es Muster-Generatoren, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
         ctaBuy: 'Für {PRICE} kaufen',
         ctaDownload: 'Herunterladen →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} einmalig</strong> &nbsp;·&nbsp; kein Abo &nbsp;·&nbsp; keine Telemetrie',
@@ -180,15 +180,15 @@
         eyebrow: 'Was drin steckt',
         patterns: {
           title: 'Zehn Muster-Generatoren',
-          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter und Emoji-Wallpaper — zehn an der Zahl. An den Reglern drehen oder mischen, bis eins passt.',
+          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter und Emoji-Wallpaper. Zehn Stück. An den Reglern drehen oder mischen, bis eins passt.',
         },
         sources: {
           title: 'Kuratierte Bildquellen',
-          body: 'Täglich ein frisches Foto von NASA und Bing, dazu zufällige Bilder von Lorem Picsum — alles kostenlos, ohne Key. Für suchbasierte Auswahl einen gratis Unsplash-, Pexels- oder Wallhaven-Key hinterlegen. Was du anwendest, wird lokal gespeichert.',
+          body: 'Täglich ein frisches Foto von NASA und Bing, dazu zufällige Bilder von Lorem Picsum, alles kostenlos ohne Key. Für die Suche einen gratis Unsplash-, Pexels- oder Wallhaven-Key hinterlegen. Was du anwendest, wird lokal gespeichert.',
         },
         ai: {
           title: 'KI-Generierung',
-          body: 'Prompt tippen, ⌘↩ drücken. Pollinations läuft kostenlos ohne Setup — mit einem Token hebst du das Limit. Oder du nimmst deinen eigenen OpenAI-Key für DALL·E 3.',
+          body: 'Prompt tippen, ⌘↩ drücken. Pollinations läuft kostenlos ohne Setup. Mit einem Token hebst du das Limit, oder du nimmst deinen eigenen OpenAI-Key für DALL·E 3.',
         },
         library: {
           title: 'Deine eigene Bibliothek',
@@ -205,8 +205,8 @@
       },
       pricing: {
         eyebrow: 'Preis',
-        saleBadge: 'Sommer-Sale — 67% sparen',
-        sub: 'Sommer-Sale — 67% Rabatt, ein Preis, einmal. Spätere Versionen sind auch kostenlos.',
+        saleBadge: 'Sommer-Sale, 67% Rabatt',
+        sub: 'Sommer-Sale läuft, 67% Rabatt. Ein Preis, einmal. Spätere Versionen sind auch kostenlos.',
         period: 'einmalig',
         tagline: 'Gehört dir, mit jedem zukünftigen Update.',
         feat1: 'Jedes Muster, jede Quelle, der KI-Generator',
@@ -216,7 +216,7 @@
         feat5: 'Kein Abo, kein Account, keine Analytics',
         buy: 'Für {PRICE} kaufen',
         fineprint:
-          'Einmal zahlen und das war\'s. Dieselbe Lizenz für deinen Mac, PC oder Linux-Rechner.',
+          'Einmal zahlen und das war\'s. Dieselbe Lizenz für deinen Mac, PC oder Linux-Rechner. Es ist ein sofortiger Download, also gibt es keine Rückerstattung.',
       },
       download: {
         eyebrow: 'Download',
@@ -281,43 +281,43 @@
         logs_body:
           'Wenn Sie diese Seite besuchen, protokolliert unser Hosting-Anbieter Cloudflare automatisch: IP-Adresse, angefragte URL, HTTP-Methode, Antwortstatus, User-Agent-String, Referrer, Zeitstempel. Diese Daten werden für höchstens 30 Tage gespeichert, um Angriffe, Missbrauch und Betriebsstörungen erkennen und abwehren zu können.',
         logs_basis:
-          '<strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO — unser berechtigtes Interesse am sicheren Betrieb dieser Website.',
+          '<strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO, unser berechtigtes Interesse am sicheren Betrieb dieser Website.',
         purchase_body:
           'Die „Kaufen"-Schaltfläche führt Sie zu einem Checkout von <a href="https://polar.sh" target="_blank" rel="noopener">Polar Software, Inc.</a> („Polar"), unserem Merchant of Record. Polar erhebt Ihre Zahlungsinformationen, das Rechnungsland und Ihre E-Mail-Adresse direkt. Wir erhalten lediglich: Ihre E-Mail-Adresse, eine Bestell-ID, das gekaufte Produkt und die Zahlungsbestätigung. Während des Checkouts gilt die eigene Datenschutzerklärung von Polar.',
         purchase_basis:
-          '<strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO — Erfüllung des bei einem Kauf abgeschlossenen Vertrags.',
+          '<strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO, Erfüllung des bei einem Kauf abgeschlossenen Vertrags.',
         cookies_body1:
           'Diese Seite setzt keine First-Party-Cookies. Wir nutzen keinerlei Analyse-Tools (kein Google Analytics, kein Plausible, kein Posthog, gar nichts).',
         cookies_body2:
           'Cloudflare kann aus Sicherheitsgründen ein technisch notwendiges Cookie (<code>__cf_bm</code>, „Bot-Management") für etwa 30 Minuten setzen. Gemäß § 25 Abs. 2 TDDDG fällt dies unter die Einwilligungsausnahme für technisch notwendige Cookies; ein Cookie-Banner ist nicht erforderlich.',
         recipients_cf:
-          '<strong>Cloudflare, Inc.</strong> — Hosting und CDN. Server-Log-Daten können in Rechtsgebiete außerhalb des EWR übertragen und dort zwischengespeichert werden, darunter die USA, gestützt auf das EU-US Data Privacy Framework und Cloudflares DSGVO-Auftragsverarbeitungsvertrag.',
+          '<strong>Cloudflare, Inc.</strong>: Hosting und CDN. Server-Log-Daten können in Rechtsgebiete außerhalb des EWR übertragen und dort zwischengespeichert werden, darunter die USA, gestützt auf das EU-US Data Privacy Framework und Cloudflares DSGVO-Auftragsverarbeitungsvertrag.',
         recipients_polar:
-          '<strong>Polar Software, Inc.</strong> — Zahlungsabwicklung. Tritt als Merchant of Record für Käufe auf. Verarbeitet Ihre Zahlungsinformationen nach eigener Datenschutzerklärung.',
+          '<strong>Polar Software, Inc.</strong>: Zahlungsabwicklung. Tritt als Merchant of Record für Käufe auf. Verarbeitet Ihre Zahlungsinformationen nach eigener Datenschutzerklärung.',
         recipients_note:
           'Wir verkaufen, vermieten oder teilen Ihre Daten in keiner anderen Weise mit Dritten.',
         intl_body:
           'Soweit Daten außerhalb des EWR übermittelt werden (hauptsächlich über Cloudflare und Polar), stützen wir uns entweder auf einen Angemessenheitsbeschluss nach Art. 45 DSGVO oder auf Standardvertragsklauseln nach Art. 46 Abs. 2 lit. c DSGVO für die jeweiligen Auftragsverarbeiter.',
         rights: {
           access:
-            '<strong>Auskunft</strong> (Art. 15) — Bestätigung, ob und welche Daten wir über Sie verarbeiten, samt einer Kopie.',
+            '<strong>Auskunft</strong> (Art. 15): Bestätigung, ob und welche Daten wir über Sie verarbeiten, samt einer Kopie.',
           rectification:
-            '<strong>Berichtigung</strong> (Art. 16) — Korrektur unrichtiger Daten.',
+            '<strong>Berichtigung</strong> (Art. 16): Korrektur unrichtiger Daten.',
           erasure:
-            '<strong>Löschung</strong> (Art. 17) — Löschung Ihrer Daten, wenn die Rechtsgrundlage für die Verarbeitung entfällt.',
+            '<strong>Löschung</strong> (Art. 17): Löschung Ihrer Daten, wenn die Rechtsgrundlage für die Verarbeitung entfällt.',
           restriction:
-            '<strong>Einschränkung</strong> (Art. 18) — Beschränkung der Verarbeitung auf reine Speicherung während eines Streits.',
+            '<strong>Einschränkung</strong> (Art. 18): Beschränkung der Verarbeitung auf reine Speicherung während eines Streits.',
           portability:
-            '<strong>Übertragbarkeit</strong> (Art. 20) — Export Ihrer Daten in einem strukturierten, maschinenlesbaren Format.',
+            '<strong>Übertragbarkeit</strong> (Art. 20): Export Ihrer Daten in einem strukturierten, maschinenlesbaren Format.',
           objection:
-            '<strong>Widerspruch</strong> (Art. 21) — gegen Verarbeitungen, die auf berechtigtem Interesse beruhen.',
+            '<strong>Widerspruch</strong> (Art. 21): gegen Verarbeitungen, die auf berechtigtem Interesse beruhen.',
           withdraw:
             '<strong>Widerruf der Einwilligung</strong> jederzeit (sofern die Verarbeitung auf einer Einwilligung beruht), ohne die Rechtmäßigkeit der bisherigen Verarbeitung zu berühren.',
         },
         rights_exercise:
           'Zur Ausübung eines dieser Rechte senden Sie eine E-Mail an <a href="mailto:atay@oezcan.me">atay@oezcan.me</a>. Wir antworten innerhalb eines Monats gemäß Art. 12 Abs. 3 DSGVO.',
         complaint_body:
-          'Sie können bei einer Datenschutz-Aufsichtsbehörde Beschwerde einlegen — in der Regel im Bundesland Ihres Wohn- oder Arbeitsorts. In Deutschland finden Sie die Übersicht der Landesbehörden bei der <a href="https://www.bfdi.bund.de" target="_blank" rel="noopener">Bundesbeauftragten für den Datenschutz</a>.',
+          'Sie können bei einer Datenschutz-Aufsichtsbehörde Beschwerde einlegen, in der Regel im Bundesland Ihres Wohn- oder Arbeitsorts. In Deutschland finden Sie die Übersicht der Landesbehörden bei der <a href="https://www.bfdi.bund.de" target="_blank" rel="noopener">Bundesbeauftragten für den Datenschutz</a>.',
         changes_body:
           'Wir können diese Erklärung aktualisieren, wenn sich unsere Praktiken ändern. Das Datum oben spiegelt die jüngste Überarbeitung wider.',
       },
@@ -326,10 +326,10 @@
     tr: {
       nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       hero: {
-        eyebrow: "1.1'de yeni — Canlı duvar kağıtları",
+        eyebrow: "Canlı duvar kağıtları, 1.1'de yeni",
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
-        sub: 'Duvar kağıdın için küçük bir masaüstü uygulaması — artık gerçekten hareket eden canlı, animasyonlu duvar kağıtlarıyla (bu sayfanın tamamı bir tane). Ayrıca desen üreticileri, fotoğraf kaynakları ve istersen ne yazarsan onu üreten bir AI üretici.',
+        sub: 'Duvar kağıdın için küçük bir masaüstü uygulaması. Artık gerçekten hareket eden canlı duvar kağıtları var, bu sayfanın tamamı da onlardan biri. Ayrıca desen üreticileri, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
         ctaBuy: '{PRICE}\'a satın al',
         ctaDownload: 'İndir →',
         meta: 'macOS · Windows · Linux &nbsp;·&nbsp; <strong>{PRICE} tek seferlik</strong> &nbsp;·&nbsp; abonelik yok &nbsp;·&nbsp; telemetri yok',
@@ -338,15 +338,15 @@
         eyebrow: 'İçinde neler var',
         patterns: {
           title: 'On desen üreticisi',
-          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar ve emoji duvar kağıtları — toplam on tane. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
+          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar ve emoji duvar kağıtları. Toplam on tane. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
         },
         sources: {
           title: 'Seçili fotoğraf kaynakları',
-          body: 'NASA ve Bing\'den her gün yeni bir fotoğraf, Lorem Picsum\'dan rastgele kareler — hepsi bedava, anahtarsız. Aramaya dayalı seçim için ücretsiz bir Unsplash, Pexels ya da Wallhaven anahtarı ekle. Uyguladığın her şey yerele kaydediliyor.',
+          body: 'NASA ve Bing\'den her gün yeni bir fotoğraf, Lorem Picsum\'dan rastgele kareler, hepsi bedava ve anahtarsız. Arama için ücretsiz bir Unsplash, Pexels ya da Wallhaven anahtarı ekle. Uyguladığın her şey yerele kaydediliyor.',
         },
         ai: {
           title: 'Yapay zeka üretimi',
-          body: 'Bir komut yaz, ⌘↩ tuşla. Pollinations baştan ücretsiz çalışıyor — bir token ile limiti kaldırırsın. Ya da DALL·E 3 için kendi OpenAI anahtarını kullanırsın.',
+          body: 'Bir komut yaz, ⌘↩ tuşla. Pollinations baştan ücretsiz çalışıyor. Bir token ile limiti kaldırırsın, ya da DALL·E 3 için kendi OpenAI anahtarını kullanırsın.',
         },
         library: {
           title: 'Kendi kütüphanen',
@@ -363,8 +363,8 @@
       },
       pricing: {
         eyebrow: 'Fiyat',
-        saleBadge: 'Yaz indirimi — %67 indirim',
-        sub: 'Yaz indirimi — %67 indirim, tek fiyat, bir kez. Sonraki sürümler de bedava.',
+        saleBadge: 'Yaz indirimi, %67 indirim',
+        sub: 'Yaz indirimi başladı, %67 indirim. Tek fiyat, bir kez. Sonraki sürümler de bedava.',
         period: 'tek seferlik',
         tagline: 'Senin, her gelecek güncellemeyle birlikte.',
         feat1: 'Tüm desenler, tüm kaynaklar ve AI üretici',
@@ -374,7 +374,7 @@
         feat5: 'Abonelik yok, hesap yok, analitik yok',
         buy: '{PRICE}\'a satın al',
         fineprint:
-          'Bir kez öde, hepsi bu. Aynı lisans Mac, PC ya da Linux makinen için geçerli.',
+          'Bir kez öde, hepsi bu. Aynı lisans Mac, PC ya da Linux makinen için geçerli. Anında indirme, yani iade yok.',
       },
       download: {
         eyebrow: 'İndir',
@@ -406,7 +406,7 @@
         },
         contact_email_label: 'E-posta:',
         vat_body:
-          'Almanya\'da küçük işletme kuralı (§ 19 UStG — Kleinunternehmerregelung) çerçevesinde faaliyet gösterilmektedir. KDV ayrıca gösterilmez ve müşteriler tarafından girdi vergisi olarak indirim konusu yapılamaz.',
+          'Almanya\'da küçük işletme kuralı (§ 19 UStG, Kleinunternehmerregelung) çerçevesinde faaliyet gösterilmektedir. KDV ayrıca gösterilmez ve müşteriler tarafından girdi vergisi olarak indirim konusu yapılamaz.',
         responsible_body: 'Atay Özcan (yukarıdaki adres).',
         odr_body:
           'Avrupa Komisyonu, çevrimiçi uyuşmazlık çözümü için bir platform sağlamaktadır: <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>. Tüketici tahkim kurulu önündeki uyuşmazlık çözüm süreçlerine katılma ne yükümlülüğümüz ne de niyetimiz vardır.',
@@ -439,43 +439,43 @@
         logs_body:
           'Bu siteyi ziyaret ettiğinizde, barındırma sağlayıcımız Cloudflare otomatik olarak şu bilgileri kaydeder: IP adresi, istenen URL, HTTP yöntemi, yanıt durumu, user-agent dizesi, referrer, zaman damgası. Bu veriler, saldırıları, kötüye kullanımı ve operasyonel sorunları tespit etmek ve azaltmak amacıyla en fazla 30 gün saklanır.',
         logs_basis:
-          '<strong>Hukuki dayanak:</strong> GDPR Madde 6(1)(f) — bu web sitesinin güvenli işletilmesindeki meşru menfaatimiz.',
+          '<strong>Hukuki dayanak:</strong> GDPR Madde 6(1)(f): bu web sitesinin güvenli işletilmesindeki meşru menfaatimiz.',
         purchase_body:
           '„Satın al" düğmesi, Merchant of Record\'ımız <a href="https://polar.sh" target="_blank" rel="noopener">Polar Software, Inc.</a> („Polar") tarafından barındırılan ödeme sayfasına götürür. Polar ödeme bilgilerinizi, fatura ülkenizi ve e-posta adresinizi doğrudan toplar. Biz yalnızca şunları alırız: e-posta adresiniz, sipariş kimliği, satın alınan ürün ve ödeme onayı. Ödeme sırasında Polar\'ın kendi gizlilik politikası geçerlidir.',
         purchase_basis:
-          '<strong>Hukuki dayanak:</strong> GDPR Madde 6(1)(b) — satın alma sırasında akdettiğiniz sözleşmenin ifası.',
+          '<strong>Hukuki dayanak:</strong> GDPR Madde 6(1)(b): satın alma sırasında akdettiğiniz sözleşmenin ifası.',
         cookies_body1:
           'Bu site birinci taraf çerez kullanmaz. Hiçbir analitik araç çalıştırmıyoruz (Google Analytics yok, Plausible yok, Posthog yok, hiçbir şey yok).',
         cookies_body2:
           'Cloudflare, güvenlik amacıyla yaklaşık 30 dakika boyunca kesinlikle gerekli bir teknik çerez (<code>__cf_bm</code>, „bot yönetimi") yerleştirebilir. § 25 (2) TDDDG kapsamında bu, teknik olarak gerekli çerezler için onay istisnasına girer; banner gerekmez.',
         recipients_cf:
-          '<strong>Cloudflare, Inc.</strong> — site barındırma ve CDN. Sunucu kayıt verileri AB-ABD Veri Gizliliği Çerçevesi ve Cloudflare\'in GDPR Veri İşleme Sözleşmesi kapsamında ABD dahil AEA dışındaki yargı bölgelerine aktarılabilir ve önbelleğe alınabilir.',
+          '<strong>Cloudflare, Inc.</strong>: site barındırma ve CDN. Sunucu kayıt verileri AB-ABD Veri Gizliliği Çerçevesi ve Cloudflare\'in GDPR Veri İşleme Sözleşmesi kapsamında ABD dahil AEA dışındaki yargı bölgelerine aktarılabilir ve önbelleğe alınabilir.',
         recipients_polar:
-          '<strong>Polar Software, Inc.</strong> — ödeme işleme. Satın alımlar için Merchant of Record olarak hareket eder. Ödeme bilgilerinizi kendi gizlilik politikası altında işler.',
+          '<strong>Polar Software, Inc.</strong>: ödeme işleme. Satın alımlar için Merchant of Record olarak hareket eder. Ödeme bilgilerinizi kendi gizlilik politikası altında işler.',
         recipients_note:
           'Verilerinizi başka hiçbir tarafa satmıyor, kiralamıyor veya başka şekilde paylaşmıyoruz.',
         intl_body:
           'Verilerin AEA dışına aktarıldığı durumlarda (esas olarak Cloudflare ve Polar üzerinden), ilgili işleyiciler için ya GDPR Madde 45 kapsamındaki yeterlilik kararına ya da GDPR Madde 46(2)(c) kapsamındaki Standart Sözleşme Maddelerine dayanırız.',
         rights: {
           access:
-            '<strong>Erişim</strong> (Madde 15) — hakkınızda veri işleyip işlemediğimizin teyidi ve işliyorsak bir kopyası.',
+            '<strong>Erişim</strong> (Madde 15): hakkınızda veri işleyip işlemediğimizin teyidi ve işliyorsak bir kopyası.',
           rectification:
-            '<strong>Düzeltme</strong> (Madde 16) — hatalı verilerin düzeltilmesi.',
+            '<strong>Düzeltme</strong> (Madde 16): hatalı verilerin düzeltilmesi.',
           erasure:
-            '<strong>Silme</strong> (Madde 17) — işleme için hukuki gerekçenin kalmadığı verilerinizin silinmesi.',
+            '<strong>Silme</strong> (Madde 17): işleme için hukuki gerekçenin kalmadığı verilerinizin silinmesi.',
           restriction:
-            '<strong>Kısıtlama</strong> (Madde 18) — uyuşmazlık süresince işlemenin saklamayla sınırlandırılması.',
+            '<strong>Kısıtlama</strong> (Madde 18): uyuşmazlık süresince işlemenin saklamayla sınırlandırılması.',
           portability:
-            '<strong>Taşınabilirlik</strong> (Madde 20) — verilerinizin yapılandırılmış, makine tarafından okunabilir biçimde dışa aktarılması.',
+            '<strong>Taşınabilirlik</strong> (Madde 20): verilerinizin yapılandırılmış, makine tarafından okunabilir biçimde dışa aktarılması.',
           objection:
-            '<strong>İtiraz</strong> (Madde 21) — meşru menfaate dayalı işlemelere.',
+            '<strong>İtiraz</strong> (Madde 21): meşru menfaate dayalı işlemelere.',
           withdraw:
             'İşleme onaya dayalı olduğunda <strong>onayı geri çekme</strong> hakkı; geri çekme, önceki işlemlerin hukuka uygunluğunu etkilemez.',
         },
         rights_exercise:
           'Bu haklardan herhangi birini kullanmak için <a href="mailto:atay@oezcan.me">atay@oezcan.me</a> adresine e-posta gönderin. GDPR Madde 12(3) uyarınca bir ay içinde yanıtlarız.',
         complaint_body:
-          'Bir veri koruma denetim makamına şikayette bulunabilirsiniz — genellikle yaşadığınız veya çalıştığınız eyaletteki makam. Almanya\'da eyalet makamlarının listesi için <a href="https://www.bfdi.bund.de" target="_blank" rel="noopener">Bundesbeauftragte für den Datenschutz</a> sayfasına bakın.',
+          'Bir veri koruma denetim makamına şikayette bulunabilirsiniz, genellikle yaşadığınız veya çalıştığınız eyaletteki makam. Almanya\'da eyalet makamlarının listesi için <a href="https://www.bfdi.bund.de" target="_blank" rel="noopener">Bundesbeauftragte für den Datenschutz</a> sayfasına bakın.',
         changes_body:
           'Uygulamalarımız değiştiğinde bu politikayı güncelleyebiliriz. Üstteki yürürlük tarihi en son revizyonu yansıtır.',
       },
@@ -490,13 +490,13 @@
   // the same currency they saw on the page; everyone else gets USD.
   // Polar's hosted checkout honors the customer's billing country if
   // they pick differently, so worst case we under-guess and Polar
-  // shows the alternative — still consistent.
+  // shows the alternative, still consistent.
   var EUROZONE = {
     AT: 1, BE: 1, CY: 1, DE: 1, EE: 1, ES: 1, FI: 1, FR: 1, GR: 1, HR: 1,
     IE: 1, IT: 1, LT: 1, LU: 1, LV: 1, MT: 1, NL: 1, PT: 1, SI: 1, SK: 1,
   };
 
-  // Sync best-guess region for the initial paint — used before the
+  // Sync best-guess region for the initial paint, used before the
   // /cdn-cgi/trace fetch returns. Order: TZ (mirrors physical
   // location better than browser language) → browser locale region.
   function detectRegionSync() {
@@ -589,7 +589,7 @@
 
   function applyCurrency() {
     // Visual price-card: swap the symbol on both the sale price and the
-    // struck pre-sale price (the numbers — 4.99 / 14.99 — are the same in
+    // struck pre-sale price (the numbers, 4.99 / 14.99, are the same in
     // both currencies since Polar lists both round).
     var sym = CURRENCY_SYMBOLS[currentCurrency];
     document.querySelectorAll('.price-currency, .price-was-cur').forEach(function (el) {
@@ -600,7 +600,7 @@
   // Cloudflare exposes the visitor's country at /cdn-cgi/trace on
   // every CF-hosted domain. We hit it AFTER initial paint so the
   // first render uses the best-guess (TZ/locale) region, then snap
-  // to the truth once the trace responds. Free, no JSON parse —
+  // to the truth once the trace responds. Free, no JSON parse.
   // text key=value lines.
   function refineCurrencyFromTrace() {
     fetch('/cdn-cgi/trace', { cache: 'no-store' })
