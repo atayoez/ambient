@@ -1780,6 +1780,11 @@ button.primary.icon-btn {
   flex: none;
   width: 28px;
   height: 28px;
+  /* No padding: the base button rule sets 6px 12px, which with border-box
+     leaves a 4px-wide content box on a 28px button and squeezes the 12px X
+     down to a single dot. */
+  padding: 0;
+  line-height: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1955,7 +1960,10 @@ button.primary.icon-btn {
   background: transparent;
   border: none;
   border-radius: var(--radius-pill);
-  color: color-mix(in oklch, var(--text) 60%, transparent);
+  /* Plain muted (a clean rgba) for the inactive icons. color-mix with the
+     `transparent` keyword premultiplies against transparent-black, which
+     renders muddy and near-invisible on Chromium / WebView2. */
+  color: var(--muted);
   cursor: pointer;
   transition: color var(--t-fast) ease;
 }
