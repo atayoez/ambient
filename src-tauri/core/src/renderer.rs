@@ -16,8 +16,8 @@ use image::codecs::jpeg::JpegEncoder;
 use image::ExtendedColorType;
 use serde::Deserialize;
 use tiny_skia::{
-    Color, FillRule, FilterQuality, GradientStop, LinearGradient, Paint, PathBuilder, Pixmap,
-    PixmapPaint, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
+    Color, FillRule, FilterQuality, GradientStop, LineJoin, LinearGradient, Paint, PathBuilder,
+    Pixmap, PixmapPaint, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
 };
 
 use crate::library_store::prepend_entry;
@@ -783,6 +783,11 @@ fn render_flower(pix: &mut Pixmap, cfg: &PatternConfig) {
         return;
     }
 
+    // Foreground palette as RGB, sampled cyclically per petal so the colour
+    // wraps around the whole bloom with no seam regardless of how many
+    // colours there are — mirrors the live shader's `paletteRing`.
+    let pal: Vec<(f32, f32, f32)> = palette.iter().map(|h| hex_to_rgb(h)).collect();
+
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
     let min_dim = w_f.min(h_f);
@@ -850,8 +855,13 @@ fn render_flower(pix: &mut Pixmap, cfg: &PatternConfig) {
             let angle = angle_off
                 + t * two_pi
                 + (rng.next() - 0.5) * (two_pi / petals as f32) * 0.25;
-            let c0 = palette[i as usize % palette.len()];
-            let c1 = palette[(i as usize + 1) % palette.len()];
+            // Cyclic colour position: one full ring of petals == one full
+            // palette cycle, so petal `petals-1` blends back into petal 0
+            // seamlessly for any palette size.
+            let plen = pal.len() as f32;
+            let t1 = (i as f32 + 1.0) / petals as f32;
+            let c0 = cyclic_sample(&pal, t * plen);
+            let c1 = cyclic_sample(&pal, t1 * plen);
             draw_petal(pix, cx, cy, base_r, jitter_len, half_w, bend, angle, c0, c1, alpha);
         }
     }
@@ -873,8 +883,8 @@ fn draw_petal(
     half_w: f32,
     bend: f32,
     angle_rad: f32,
-    c0: &str,
-    c1: &str,
+    c0: (f32, f32, f32),
+    c1: (f32, f32, f32),
     alpha: f32,
 ) {
     let r1 = r0 + len;
@@ -907,8 +917,8 @@ fn draw_petal(
 
     let transform = Transform::from_translate(cx, cy).pre_rotate(angle_rad.to_degrees());
     let stops = vec![
-        GradientStop::new(0.0, hex_to_color(c0, alpha)),
-        GradientStop::new(1.0, hex_to_color(c1, alpha)),
+        GradientStop::new(0.0, rgb_color(c0, alpha)),
+        GradientStop::new(1.0, rgb_color(c1, alpha)),
     ];
     let shader = match LinearGradient::new(
         Point::from_xy(r0, 0.0),
@@ -926,6 +936,66 @@ fn draw_petal(
         ..Paint::default()
     };
     pix.fill_path(&path, &paint, FillRule::Winding, transform, None);
+
+    // Defined edge: outline the petal in a deeper, slightly more saturated
+    // shade of its own base hue (mirrors the live shader's per-petal rim) so
+    // petals read as distinct instead of melting together.
+    let mut edge_paint = Paint {
+        anti_alias: true,
+        ..Paint::default()
+    };
+    edge_paint.set_color(edge_shade(c0, alpha));
+    let stroke = Stroke {
+        width: (half_w * 0.06).max(1.0),
+        line_join: LineJoin::Round,
+        ..Stroke::default()
+    };
+    pix.stroke_path(&path, &edge_paint, &stroke, transform, None);
+}
+
+/// Parse `#rrggbb` into linear-ish sRGB floats (0..1) for cyclic blending.
+fn hex_to_rgb(hex: &str) -> (f32, f32, f32) {
+    let c = hex_to_color(hex, 1.0);
+    (c.red(), c.green(), c.blue())
+}
+
+/// Build a tiny-skia colour from an RGB triple at `alpha`.
+fn rgb_color(c: (f32, f32, f32), alpha: f32) -> Color {
+    Color::from_rgba(c.0, c.1, c.2, alpha.clamp(0.0, 1.0)).unwrap_or(Color::TRANSPARENT)
+}
+
+/// Foreground palette as a closed cyclic ring: `pos` runs 0..len and wraps,
+/// so a full revolution of petals lands back on the start hue with no seam,
+/// for any palette size. Mirrors the live shader's `paletteRing`.
+fn cyclic_sample(pal: &[(f32, f32, f32)], pos: f32) -> (f32, f32, f32) {
+    let n = pal.len();
+    if n == 0 {
+        return (0.0, 0.0, 0.0);
+    }
+    if n == 1 {
+        return pal[0];
+    }
+    let fln = n as f32;
+    let p = pos - fln * (pos / fln).floor(); // wrap into [0, n)
+    let i0 = (p.floor() as usize) % n;
+    let i1 = (i0 + 1) % n;
+    let f = p - p.floor();
+    let a = pal[i0];
+    let b = pal[i1];
+    (
+        a.0 + (b.0 - a.0) * f,
+        a.1 + (b.1 - a.1) * f,
+        a.2 + (b.2 - a.2) * f,
+    )
+}
+
+/// A deeper, slightly more saturated shade of `c` for the petal rim: push
+/// saturation up off the colour's own luma, then darken. Keeps the hue so
+/// the edge reads as a shade of the petal, not a flat dark outline.
+fn edge_shade(c: (f32, f32, f32), alpha: f32) -> Color {
+    let lum = 0.299 * c.0 + 0.587 * c.1 + 0.114 * c.2;
+    let s = |x: f32| (lum + (x - lum) * 1.3).clamp(0.0, 1.0) * 0.6;
+    Color::from_rgba(s(c.0), s(c.1), s(c.2), alpha.clamp(0.0, 1.0)).unwrap_or(Color::BLACK)
 }
 
 /// "Flow" generator: smooth wavy lines that span the canvas edge-to-edge,
