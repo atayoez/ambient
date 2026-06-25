@@ -533,7 +533,9 @@
   }
 
   var currentRegion = detectRegionSync();
-  var currentCurrency = EUROZONE[currentRegion] ? 'EUR' : 'USD';
+  // EUR-only: the product is priced in euros (Polar charges EUR), so every
+  // visitor sees €4.99 regardless of region.
+  var currentCurrency = 'EUR';
   // Summer sale: $14.99/€14.99 → $4.99/€4.99. PRICE_FORMS is the *current*
   // (sale) price every {PRICE} placeholder + CTA shows; the struck pre-sale
   // price lives in the .price-was markup. Polar's invoice uses the
@@ -608,7 +610,7 @@
         var m = text.match(/^loc=([A-Z]{2})$/m) || text.match(/^country=([A-Z]{2})$/m);
         if (!m) return;
         var region = m[1].toUpperCase();
-        var nextCurrency = EUROZONE[region] ? 'EUR' : 'USD';
+        var nextCurrency = 'EUR'; // EUR-only pricing
         if (nextCurrency === currentCurrency) return;
         currentRegion = region;
         currentCurrency = nextCurrency;
