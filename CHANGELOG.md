@@ -15,6 +15,14 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.1.0] — 2026-06-25
+
+### Added
+
 - **Live wallpapers.** Patterns can now animate as a real, GPU-rendered
   live wallpaper instead of a still. Flip the new **Animate** toggle in
   Patterns, pick a pattern, and Apply — the desktop animates continuously.
