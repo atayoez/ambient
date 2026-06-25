@@ -197,6 +197,12 @@ jobs:
           name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
+          # These are an intermediate hop: the release job downloads them
+          # within the same run, and finish-release.yml's rescue path reuses
+          # them for a few days. 90-day default piled up GB of installers and
+          # blew the account artifact-storage quota (which failed a release
+          # mid-publish). A week keeps the rescue window without the pile-up.
+          retention-days: 7
 
   # Native Arch package. Tauri v2 has no pacman bundler, so we repackage
   # the x86_64 .deb (built by build-tauri) into a .pkg.tar.zst via makepkg.
@@ -234,6 +240,7 @@ jobs:
         with:
           name: ambient-arch-x86_64
           path: arch-out/*.pkg.tar.*
+          retention-days: 7
 
   release:
     name: Publish release
