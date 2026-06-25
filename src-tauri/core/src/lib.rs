@@ -19,6 +19,9 @@ pub mod aigen;
 pub mod desktop;
 pub mod emojis;
 pub mod events;
+// Headless GPU shader renderer — desktop-only (mobile falls back to tiny-skia).
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod gpu;
 pub mod library;
 pub mod library_store;
 pub mod license;

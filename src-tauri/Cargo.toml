@@ -71,6 +71,15 @@ tauri-plugin-wallpaper = { path = "../plugins/wallpaper" }
 jni = "0.21"
 rustls-platform-verifier = "0.6"
 
+# Windows live-wallpaper delivery (live_win.rs): the WorkerW window-parenting
+# Win32 calls. Same major as Tauri's own `windows` dep so the build doesn't
+# pull a second copy.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting
 # binary is ~20-30% smaller, starts faster, and uses noticeably less

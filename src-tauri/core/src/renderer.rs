@@ -194,7 +194,160 @@ fn hex_to_color(hex: &str, alpha: f32) -> Color {
     Color::from_rgba8(r, g, b, (alpha.clamp(0.0, 1.0) * 255.0) as u8)
 }
 
+// --- GPU shader render path -------------------------------------------------
+// The static render runs the SAME fragment shaders as the live KDE wallpaper
+// and the WebGL preview (the Qt `.frag`, via gpu.rs / naga), so all three
+// match. Resolves a PatternConfig into the shader's uniforms; emoji has no
+// shader (real glyph images), so it stays on tiny-skia. Desktop-only.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod gpu_render {
+    use super::{GeometricFill, GeometricShape, PatternConfig, PatternType};
+    use crate::gpu::ShaderUniforms;
+
+    macro_rules! frag {
+        ($f:literal) => {
+            include_str!(concat!(
+                "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/",
+                $f
+            ))
+        };
+    }
+
+    /// The Qt `.frag` for a type, or None for emoji (no shader).
+    pub fn frag_source(t: PatternType) -> Option<&'static str> {
+        Some(match t {
+            PatternType::Flow => frag!("flow.frag"),
+            PatternType::Waves => frag!("waves.frag"),
+            PatternType::Aurora => frag!("aurora.frag"),
+            PatternType::Dots => frag!("dots.frag"),
+            PatternType::Bokeh => frag!("bokeh.frag"),
+            PatternType::Stripes => frag!("stripes.frag"),
+            PatternType::Geometric => frag!("geometric.frag"),
+            PatternType::Flower => frag!("flower.frag"),
+            PatternType::Mesh => frag!("mesh.frag"),
+            PatternType::Emoji => return None,
+        })
+    }
+
+    // (p1, p2, p3) per type — mirrors liveShader.ts knobs() / main.qml knob().
+    // density/size are always present in the Rust config, so use them directly.
+    fn knobs(cfg: &PatternConfig) -> (f32, f32, f32) {
+        match cfg.pattern_type {
+            PatternType::Flow => (
+                cfg.flow_lines.unwrap_or(28) as f32,
+                cfg.flow_amplitude.unwrap_or(0.5),
+                cfg.flow_frequency.unwrap_or(0.4),
+            ),
+            PatternType::Waves => (
+                cfg.waves_layers.unwrap_or(7) as f32,
+                cfg.waves_amplitude.unwrap_or(0.5),
+                cfg.waves_frequency.unwrap_or(0.4),
+            ),
+            PatternType::Aurora => (
+                cfg.aurora_bands.unwrap_or(5) as f32,
+                cfg.aurora_amplitude.unwrap_or(0.5),
+                cfg.aurora_spread.unwrap_or(0.5),
+            ),
+            PatternType::Dots => (
+                cfg.density,
+                cfg.dots_jitter.unwrap_or(0.5),
+                cfg.dots_size_var.unwrap_or(0.7),
+            ),
+            PatternType::Bokeh => (cfg.density, 0.0, 0.0),
+            PatternType::Stripes => (
+                cfg.stripes_angle.unwrap_or(30.0),
+                cfg.stripes_width_var.unwrap_or(0.5),
+                0.0,
+            ),
+            PatternType::Geometric => (
+                cfg.density,
+                shape_code(cfg.geometric_shape),
+                fill_code(cfg.geometric_fill),
+            ),
+            PatternType::Flower => (
+                cfg.flower_petals.unwrap_or(12) as f32,
+                cfg.flower_twist.unwrap_or(0.5),
+                0.0,
+            ),
+            PatternType::Mesh => (
+                cfg.mesh_bubbles.unwrap_or(16) as f32,
+                cfg.mesh_softness.unwrap_or(0.5),
+                0.0,
+            ),
+            PatternType::Emoji => (1.0, 0.5, 0.5),
+        }
+    }
+
+    fn shape_code(s: Option<GeometricShape>) -> f32 {
+        match s.unwrap_or(GeometricShape::Mix) {
+            GeometricShape::Mix => 0.0,
+            GeometricShape::Circles => 1.0,
+            GeometricShape::Triangles => 2.0,
+            GeometricShape::Squares => 3.0,
+            GeometricShape::Hexagons => 4.0,
+            GeometricShape::Stars => 5.0,
+            GeometricShape::Plus => 6.0,
+        }
+    }
+
+    fn fill_code(f: Option<GeometricFill>) -> f32 {
+        match f.unwrap_or(GeometricFill::Solid) {
+            GeometricFill::Solid => 0.0,
+            GeometricFill::Outline => 1.0,
+            GeometricFill::Mix => 2.0,
+        }
+    }
+
+    /// Resolve config + size into the shader uniforms (iTime stays 0 — the
+    /// static render is the live shader's first frame).
+    pub fn uniforms(cfg: &PatternConfig, w: u32, h: u32) -> ShaderUniforms {
+        let (p1, p2, p3) = knobs(cfg);
+        let mut colors = [[0.0f32, 0.0, 0.0, 1.0]; 6];
+        let n = cfg.colors.len().min(6);
+        for i in 0..n {
+            let c = super::hex_to_color(&cfg.colors[i], 1.0);
+            colors[i] = [c.red(), c.green(), c.blue(), 1.0];
+        }
+        ShaderUniforms {
+            resolution: [w as f32, h as f32],
+            time: 0.0,
+            color_count: n.max(1) as i32,
+            colors,
+            seed: cfg.seed as f32,
+            size: cfg.size,
+            p1,
+            p2,
+            p3,
+        }
+    }
+}
+
+/// Render a pattern to a Pixmap. Generative types go through the GPU shader
+/// path (so the static render matches the live wallpaper / preview exactly);
+/// emoji and any GPU failure fall through to the tiny-skia renderers.
 pub fn render(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
+    let w = w.max(1);
+    let h = h.max(1);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some(frag) = gpu_render::frag_source(config.pattern_type) {
+        let u = gpu_render::uniforms(config, w, h);
+        match crate::gpu::render_to_rgba8(frag, w, h, &u.to_std140()) {
+            Ok(rgba) if rgba.len() == (w as usize) * (h as usize) * 4 => {
+                if let Some(mut pix) = Pixmap::new(w, h) {
+                    // Shader output is opaque (alpha 255) → straight == premult.
+                    pix.data_mut().copy_from_slice(&rgba);
+                    return pix;
+                }
+            }
+            Ok(_) => {}
+            Err(e) => tracing::warn!("gpu shader render failed ({e}); using tiny-skia"),
+        }
+    }
+    render_cpu(config, w, h)
+}
+
+/// tiny-skia (CPU) renderer — the fallback path, and the only path for emoji.
+fn render_cpu(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
     let mut pix = Pixmap::new(w, h).expect("alloc pixmap");
     match config.pattern_type {
         PatternType::Mesh => render_mesh(&mut pix, config),
@@ -1564,6 +1717,36 @@ mod tests {
         assert_eq!(halton(1, 2), 0.5);
         assert_eq!(halton(2, 2), 0.25);
         assert_eq!(halton(3, 2), 0.75);
+    }
+
+    // GPU path end-to-end: render each generative type via `render()` (which
+    // routes through the GPU shaders) to a Pixmap PNG, to eyeball against the
+    // live wallpaper + confirm the byte order. Needs a GPU, so it's ignored:
+    //   cargo test -p ambient-core renderer::tests::gpu_render_all -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn gpu_render_all() {
+        use serde_json::json;
+        let pal = json!(["#0c0a1f", "#7c5cff", "#ec4899", "#fbbf24", "#f1ecff"]);
+        let cases = [
+            ("bokeh", json!({"type":"bokeh","density":22,"size":60})),
+            ("stripes", json!({"type":"stripes","density":20,"size":60,"stripesAngle":30,"stripesWidthVar":0.5})),
+            ("geometric", json!({"type":"geometric","density":40,"size":60,"geometricShape":"mix","geometricFill":"mix"})),
+            ("mesh", json!({"type":"mesh","density":14,"size":80,"meshBubbles":14,"meshSoftness":0.5})),
+            ("dots", json!({"type":"dots","density":18,"size":28,"dotsJitter":0.5,"dotsSizeVar":0.7})),
+            ("flow", json!({"type":"flow","density":20,"size":40,"flowLines":28})),
+        ];
+        for (name, mut spec) in cases {
+            spec["colors"] = pal.clone();
+            spec["emojis"] = json!([]);
+            spec["seed"] = json!(777);
+            let cfg: PatternConfig = serde_json::from_value(spec).expect("config");
+            // 2560×1440 exercises the >2048px path (catches an SSAA-size limit
+            // that would silently fall back to tiny-skia).
+            let pix = render(&cfg, 2560, 1440);
+            std::fs::write(format!("/tmp/gpu_{name}.png"), pix.encode_png().unwrap()).unwrap();
+            eprintln!("wrote /tmp/gpu_{name}.png");
+        }
     }
 
     #[test]

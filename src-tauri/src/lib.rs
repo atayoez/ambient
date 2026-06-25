@@ -1,5 +1,7 @@
 mod commands;
 mod integrate;
+#[cfg(target_os = "windows")]
+mod live_win;
 mod rotation;
 mod solo_instance;
 mod tray_icon;
@@ -313,6 +315,12 @@ pub fn run() {
                         .map_err(|e| e.to_string())
                 });
             }
+
+            // Windows: live wallpapers render in a background webview window
+            // parented behind the desktop icons (WorkerW). Register the
+            // delivery hook ambient-core's apply_live_pattern routes through.
+            #[cfg(target_os = "windows")]
+            live_win::register(app.handle());
 
             // Bridge ambient-core's app events onto the Tauri event bus.
             // Registered BEFORE core init so nothing fires into the void.

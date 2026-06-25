@@ -60,6 +60,14 @@ tracing = "0.1"
 # plugin in there), so the crate must not even build for them.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 wallpaper = "3"
+# Headless GPU renderer (gpu.rs): runs the SAME fragment shaders as the live
+# wallpaper / WebGL preview (the Qt .frag, via naga's GLSL frontend) to a PNG,
+# so the static render matches the animated look. Desktop-only; mobile and any
+# GPU-init failure fall back to the tiny-skia renderer. `glsl` enables naga's
+# GLSL-in; defaults keep wgsl + the per-platform backends.
+wgpu = { version = "24", features = ["glsl"] }
+pollster = "0.4"
+bytemuck = "1"
 
 # Per-platform keyring backends, registered as the keyring-core default
 # in secrets.rs::init. See src-tauri's pre-extraction Cargo.toml history

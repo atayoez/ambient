@@ -15,6 +15,93 @@
 
 pub const PLUGIN_ID: &str = "me.oezcan.ambient";
 
+// Windows live-wallpaper delivery hook. Unlike KDE (a Plasma plugin the
+// shell renders) and mobile (a WallpaperService), the Windows path needs a
+// background window parented behind the desktop icons (WorkerW) — which
+// only the Tauri shell can create. So the shell registers a setter/clearer
+// pair here at startup, mirroring desktop::OS_SETTER, and the Windows branch
+// of apply/clear routes through it. The setter receives the finished spec
+// JSON (the same PatternConfig + quality the KDE plugin gets).
+#[cfg(target_os = "windows")]
+type LiveSetter = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
+#[cfg(target_os = "windows")]
+type LiveClearer = Box<dyn Fn() + Send + Sync>;
+#[cfg(target_os = "windows")]
+static LIVE_SETTER: std::sync::OnceLock<LiveSetter> = std::sync::OnceLock::new();
+#[cfg(target_os = "windows")]
+static LIVE_CLEARER: std::sync::OnceLock<LiveClearer> = std::sync::OnceLock::new();
+
+/// Register the Windows live-wallpaper delivery hooks (shell-only). Later
+/// calls are ignored — one shell per process. `set` receives the spec JSON
+/// and parents/refreshes the background window; `clear` tears it down.
+#[cfg(target_os = "windows")]
+pub fn set_live_setter<S, C>(set: S, clear: C)
+where
+    S: Fn(&str) -> Result<(), String> + Send + Sync + 'static,
+    C: Fn() + Send + Sync + 'static,
+{
+    let _ = LIVE_SETTER.set(Box::new(set));
+    let _ = LIVE_CLEARER.set(Box::new(clear));
+}
+
+/// Build the live-wallpaper spec JSON from a PatternConfig. Cfg-agnostic so
+/// both the KDE plugin and the Windows background window get an identical
+/// spec. Shader patterns (flow/waves/aurora/dots/bokeh/stripes/geometric/
+/// flower/mesh) and emoji are rendered live by the delivery layer from the
+/// config; every other pattern animates as a slow drift over a pre-rendered
+/// still, so render it now and stamp its path. The user's live render
+/// quality (resolution + fps caps) is stamped in for both.
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
+    let renders_live = matches!(
+        config.get("type").and_then(|t| t.as_str()),
+        Some("flow")
+            | Some("waves")
+            | Some("aurora")
+            | Some("dots")
+            | Some("bokeh")
+            | Some("stripes")
+            | Some("geometric")
+            | Some("flower")
+            | Some("mesh")
+            | Some("emoji")
+    );
+    let mut spec_value = if renders_live {
+        config.clone()
+    } else {
+        let cfg: crate::renderer::PatternConfig = serde_json::from_value(config.clone())
+            .map_err(|e| format!("parse pattern config: {e}"))?;
+        let wallpaper = crate::renderer::apply_pattern(cfg).await?;
+        let mut s = config.clone();
+        if let Some(obj) = s.as_object_mut() {
+            obj.insert(
+                "image".to_string(),
+                serde_json::Value::String(wallpaper.path),
+            );
+        }
+        s
+    };
+    let (max_edge, fps) = crate::state::settings()
+        .get()
+        .await
+        .live_wallpaper_quality
+        .resolve();
+    if let Some(obj) = spec_value.as_object_mut() {
+        obj.insert("maxRenderEdge".to_string(), serde_json::json!(max_edge));
+        obj.insert("fps".to_string(), serde_json::json!(fps));
+    }
+    serde_json::to_string(&spec_value).map_err(|e| format!("serialize live spec: {e}"))
+}
+
+/// Mark a live wallpaper active in settings so rotation / theme-follow stand
+/// down (they watch this channel).
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+async fn mark_active(config: &serde_json::Value) {
+    let _ = crate::state::settings()
+        .patch(serde_json::json!({ "liveWallpaper": config }))
+        .await;
+}
+
 /// Set a generative live wallpaper from `config` (a PatternConfig as JSON).
 pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String> {
     #[cfg(target_os = "linux")]
@@ -22,66 +109,29 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
         let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
         if !is_kde(&desktop) {
             return Err(
-                "Live wallpaper is currently supported on KDE Plasma only.".to_string(),
+                "Live wallpaper is currently supported on KDE Plasma and Windows only."
+                    .to_string(),
             );
         }
-        // Shader patterns (flow/waves/aurora/dots) and emoji are rendered
-        // live by the plugin from the config; every other pattern animates as
-        // a slow drift over a rendered still, so render it now and pass the
-        // plugin its path.
-        let renders_in_plugin = matches!(
-            config.get("type").and_then(|t| t.as_str()),
-            Some("flow")
-                | Some("waves")
-                | Some("aurora")
-                | Some("dots")
-                | Some("bokeh")
-                | Some("stripes")
-                | Some("geometric")
-                | Some("flower")
-                | Some("mesh")
-                | Some("emoji")
-        );
-        let mut spec_value = if renders_in_plugin {
-            config.clone()
-        } else {
-            let cfg: crate::renderer::PatternConfig =
-                serde_json::from_value(config.clone())
-                    .map_err(|e| format!("parse pattern config: {e}"))?;
-            let wallpaper = crate::renderer::apply_pattern(cfg).await?;
-            let mut s = config.clone();
-            if let Some(obj) = s.as_object_mut() {
-                obj.insert(
-                    "image".to_string(),
-                    serde_json::Value::String(wallpaper.path),
-                );
-            }
-            s
-        };
-        // Stamp the user's live render quality (resolution + fps caps) into
-        // the spec so the plugin's shader renders at the chosen quality.
-        let (max_edge, fps) = crate::state::settings()
-            .get()
-            .await
-            .live_wallpaper_quality
-            .resolve();
-        if let Some(obj) = spec_value.as_object_mut() {
-            obj.insert("maxRenderEdge".to_string(), serde_json::json!(max_edge));
-            obj.insert("fps".to_string(), serde_json::json!(fps));
-        }
-        let spec = serde_json::to_string(&spec_value)
-            .map_err(|e| format!("serialize live spec: {e}"))?;
+        let spec = build_spec(&config).await?;
         set_kde_live(&spec)?;
-        // Mark active so rotation/theme-follow stand down (they watch this).
-        let _ = crate::state::settings()
-            .patch(serde_json::json!({ "liveWallpaper": config }))
-            .await;
+        mark_active(&config).await;
         Ok(())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    {
+        let setter = LIVE_SETTER
+            .get()
+            .ok_or_else(|| "live wallpaper delivery not initialized".to_string())?;
+        let spec = build_spec(&config).await?;
+        setter(&spec)?;
+        mark_active(&config).await;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
         let _ = config;
-        Err("Live wallpaper is currently supported on KDE Plasma only.".to_string())
+        Err("Live wallpaper is currently supported on KDE Plasma and Windows only.".to_string())
     }
 }
 
@@ -90,6 +140,12 @@ pub async fn clear_live_wallpaper() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let _ = clear_kde_live();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(clear) = LIVE_CLEARER.get() {
+            clear();
+        }
     }
     let _ = crate::state::settings()
         .patch(serde_json::json!({ "liveWallpaper": serde_json::Value::Null }))

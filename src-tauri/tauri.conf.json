@@ -31,7 +31,8 @@
         "decorations": true,
         "transparent": false,
         "visible": true,
-        "center": true
+        "center": true,
+        "backgroundColor": "#0e0e11"
       }
     ],
     "security": {

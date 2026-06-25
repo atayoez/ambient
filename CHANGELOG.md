@@ -15,6 +15,23 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Live wallpapers.** Patterns can now animate as a real, GPU-rendered
+  live wallpaper instead of a still. Flip the new **Animate** toggle in
+  Patterns, pick a pattern, and Apply — the desktop animates continuously.
+  All nine generative patterns animate as their own shader (Flow, Waves,
+  Aurora, Dots, Bokeh, Stripes, Geometric, Flower, Mesh), and the Emoji
+  field drifts per-glyph.
+  - **KDE Plasma** (X11 + Wayland) via a native Plasma wallpaper plugin
+    the desktop renders itself.
+  - **Windows 10/11** via a layer rendered behind the desktop icons.
+  - A **live render-quality selector** in Settings (Performance / Balanced
+    / High / Native) caps the shader's internal resolution and frame rate
+    to match your hardware.
+- **One shader, everywhere.** The in-app preview, the live wallpaper, and
+  the static PNG that gets applied as your wallpaper now all run the exact
+  same shaders — so a pattern looks identical whether it's animating live
+  or saved as a still.
+
 ### Changed
 
 - Backend extracted into a Tauri-independent `ambient-core` crate
@@ -25,6 +42,10 @@ is added on top. Edit this file as you go, not at release time.
   change; groundwork for the Tauri-mobile (Android/iOS) port.
 
 ### Fixed
+
+- **No more white flash on launch.** The window now opens on the app's
+  own dark surface instead of a blank white frame while the webview warms
+  up — most noticeable on Windows and on a cold first run.
 
 ## [1.0.3] — 2026-06-05
 
