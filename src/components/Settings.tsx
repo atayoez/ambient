@@ -277,13 +277,15 @@ export default function Settings() {
           <h3 className="set-title">Desktop</h3>
           <div className="set-row">
             <span>Also set the lock screen</span>
-            <input
-              type="checkbox"
-              className="switch"
-              checked={settings.lockscreen}
-              onChange={(e) => void patch({ lockscreen: e.target.checked })}
-              aria-label="Also set the lock screen wallpaper"
-            />
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={settings.lockscreen}
+                onChange={(e) => void patch({ lockscreen: e.target.checked })}
+                aria-label="Also set the lock screen wallpaper"
+              />
+              <span className="switch-track" />
+            </label>
           </div>
           <div className="set-row">
             <span>Live wallpaper quality</span>
@@ -296,13 +298,15 @@ export default function Settings() {
           </div>
           <div className="set-row">
             <span>Start on login</span>
-            <input
-              type="checkbox"
-              className="switch"
-              checked={autostart}
-              onChange={(e) => void toggleAutostart(e.target.checked)}
-              aria-label="Start Ambient on login"
-            />
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={autostart}
+                onChange={(e) => void toggleAutostart(e.target.checked)}
+                aria-label="Start Ambient on login"
+              />
+              <span className="switch-track" />
+            </label>
           </div>
         </section>
 

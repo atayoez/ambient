@@ -790,13 +790,15 @@ export default function Patterns() {
               live (animated) wallpaper or a static one. */}
           <label className="pat-anim">
             <span>Animate</span>
-            <input
-              type="checkbox"
-              className="switch"
-              checked={animated}
-              onChange={(e) => setAnimated(e.target.checked)}
-              aria-label="Animate the wallpaper"
-            />
+            <span className="switch">
+              <input
+                type="checkbox"
+                checked={animated}
+                onChange={(e) => setAnimated(e.target.checked)}
+                aria-label="Animate the wallpaper"
+              />
+              <span className="switch-track" />
+            </span>
           </label>
           <IconButton
             variant="primary"
