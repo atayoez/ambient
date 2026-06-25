@@ -15,9 +15,25 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Live wallpapers on macOS.** macOS joins KDE Plasma and Windows: an
+  animated pattern now renders as a real live wallpaper sitting behind
+  the desktop icons, instead of a still. Flip **Animate** in Patterns and
+  Apply.
+
 ### Changed
 
+- **Flower petals read as distinct.** Each petal edge is now shaded from
+  the petal's own colour rather than a flat dark outline, so the bloom has
+  clear, defined petals.
+
 ### Fixed
+
+- **Flower colours no longer depend on the palette size.** The petal
+  colouring wraps cleanly around the bloom for any number of colours, so a
+  4-colour palette looks as clean as a 6-colour one (no hard colour seam).
+- **Controls render correctly in the Linux webview.** The toggle switches,
+  checkboxes, and the custom-palette delete icon now draw properly under
+  WebKitGTK instead of showing as bare pills or blank boxes.
 
 ## [1.1.0] — 2026-06-25
 

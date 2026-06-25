@@ -10,7 +10,7 @@
     en: {
       nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       hero: {
-        eyebrow: 'Live wallpapers, new in 1.1',
+        eyebrow: 'Live wallpapers, new in 1.2',
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A small desktop app for your wallpaper. It just got live wallpapers that actually move, and this whole page is one of them. You also get pattern generators, a few photo sources, and an AI generator if you'd rather just describe what you want.",
@@ -168,7 +168,7 @@
     de: {
       nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       hero: {
-        eyebrow: 'Lebende Hintergründe, neu in 1.1',
+        eyebrow: 'Lebende Hintergründe, neu in 1.2',
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Eine kleine Desktop-App für dein Hintergrundbild. Neu sind lebende Hintergründe, die sich wirklich bewegen, und diese ganze Seite ist einer davon. Dazu gibt es Muster-Generatoren, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
@@ -326,7 +326,7 @@
     tr: {
       nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       hero: {
-        eyebrow: "Canlı duvar kağıtları, 1.1'de yeni",
+        eyebrow: "Canlı duvar kağıtları, 1.2'de yeni",
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Duvar kağıdın için küçük bir masaüstü uygulaması. Artık gerçekten hareket eden canlı duvar kağıtları var, bu sayfanın tamamı da onlardan biri. Ayrıca desen üreticileri, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
