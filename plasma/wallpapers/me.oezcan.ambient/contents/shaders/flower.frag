@@ -93,10 +93,15 @@ vec3 drawLayer(vec3 col, vec2 frag, vec2 center, float petals,
         float cpos = (pidx / petals) * colorsPerRev;
         float cspan = colorsPerRev / petals;
         vec3 pcol = paletteRing(cpos + uc * cspan);
-        // Darkened rim near the petal boundary so each petal's edge reads.
+        // Shaded rim near the petal boundary so each petal's edge reads. The
+        // shade is a deeper, slightly more saturated version of THIS petal's
+        // own colour (saturation pushed up off its own luma, then darkened)
+        // rather than a flat dark outline, so the edge keeps the petal's hue.
         float rimW = aaLat * 2.0 + wlat * 0.10;
         float rim = smoothstep(wlat - rimW, wlat, latd);
-        pcol = mix(pcol, pcol * 0.5, rim * 0.85);
+        float plum = dot(pcol, vec3(0.299, 0.587, 0.114));
+        vec3 edgeCol = clamp(mix(vec3(plum), pcol, 1.3), 0.0, 1.0) * 0.6;
+        pcol = mix(pcol, edgeCol, rim * 0.85);
         col = mix(col, pcol, alpha * cov);
     }
     return col;
