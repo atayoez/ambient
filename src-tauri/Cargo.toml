@@ -16,6 +16,14 @@ edition = "2024"
 [workspace]
 members = ["core"]
 
+# Tray dependency override (Linux). Tauri's tray stack pulls
+# libappindicator-sys, whose loader dlopens libayatana-appindicator3 first;
+# recent builds of that lib print a deprecation `g_warning` to stderr on
+# every launch. Our vendored copy only reverses the load order to prefer the
+# (ABI-identical, non-deprecated) libappindicator3 — see vendor/.../src/lib.rs.
+[patch.crates-io]
+libappindicator-sys = { path = "vendor/libappindicator-sys" }
+
 [lib]
 name = "ambient_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
