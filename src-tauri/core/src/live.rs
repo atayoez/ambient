@@ -116,6 +116,11 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
         }
         let spec = build_spec(&config).await?;
         set_kde_live(&spec)?;
+        // Mirror onto the lock screen when the user opted in. Best-effort —
+        // a greeter-config failure shouldn't fail the desktop apply.
+        if crate::state::settings().get().await.lockscreen {
+            let _ = set_kde_live_lockscreen(&spec);
+        }
         mark_active(&config).await;
         Ok(())
     }
@@ -141,6 +146,10 @@ pub async fn clear_live_wallpaper() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let _ = clear_kde_live();
+        // Revert the lock screen too if we were mirroring there.
+        if crate::state::settings().get().await.lockscreen {
+            clear_kde_live_lockscreen();
+        }
     }
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
@@ -169,7 +178,7 @@ fn is_kde(desktop: &str) -> bool {
 // PLUGIN_VERSION whenever any embedded file changes so installed copies
 // get refreshed on the next apply.
 #[cfg(target_os = "linux")]
-const PLUGIN_VERSION: &str = "8";
+const PLUGIN_VERSION: &str = "9";
 
 #[cfg(target_os = "linux")]
 struct Asset {
@@ -394,4 +403,81 @@ fn clear_kde_live() -> Result<(), String> {
         "var ds = desktops(); \
          for (var i = 0; i < ds.length; i++) { ds[i].wallpaperPlugin = \"org.kde.image\"; }",
     )
+}
+
+/// Mirror the live wallpaper onto the KDE lock screen. The greeter
+/// (kscreenlocker) drives its background through the same Plasma wallpaper
+/// plugin system as the desktop, so pointing it at our plugin + writing the
+/// same Spec makes the lock screen animate too. kscreenlocker reads
+/// kscreenlockerrc when it locks, so no reload is needed. Plain static
+/// wallpapers keep going through desktop::set_lockscreen (org.kde.image).
+#[cfg(target_os = "linux")]
+fn set_kde_live_lockscreen(spec_json: &str) -> Result<(), String> {
+    use std::process::Command;
+    for tool in ["kwriteconfig6", "kwriteconfig5"] {
+        let plugin_ok = Command::new(tool)
+            .args([
+                "--file",
+                "kscreenlockerrc",
+                "--group",
+                "Greeter",
+                "--key",
+                "WallpaperPlugin",
+                PLUGIN_ID,
+            ])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !plugin_ok {
+            continue;
+        }
+        let spec_ok = Command::new(tool)
+            .args([
+                "--file",
+                "kscreenlockerrc",
+                "--group",
+                "Greeter",
+                "--group",
+                "Wallpaper",
+                "--group",
+                PLUGIN_ID,
+                "--group",
+                "General",
+                "--key",
+                "Spec",
+                spec_json,
+            ])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if spec_ok {
+            return Ok(());
+        }
+    }
+    Err("no kwriteconfig6/5 available to set the live lock screen".to_string())
+}
+
+/// Revert the lock screen to the static image plugin when live is turned off
+/// (the next static apply re-points org.kde.image at a fresh PNG).
+#[cfg(target_os = "linux")]
+fn clear_kde_live_lockscreen() {
+    use std::process::Command;
+    for tool in ["kwriteconfig6", "kwriteconfig5"] {
+        let ok = Command::new(tool)
+            .args([
+                "--file",
+                "kscreenlockerrc",
+                "--group",
+                "Greeter",
+                "--key",
+                "WallpaperPlugin",
+                "org.kde.image",
+            ])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            break;
+        }
+    }
 }
