@@ -19,7 +19,7 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Fixed
 
-## [1.2.0] — 2026-06-25
+## [1.2.0] — 2026-06-26
 
 ### Added
 
@@ -27,18 +27,29 @@ is added on top. Edit this file as you go, not at release time.
   animated pattern now renders as a real live wallpaper sitting behind
   the desktop icons, instead of a still. Flip **Animate** in Patterns and
   Apply.
+- **Live wallpaper on the lock screen (KDE).** With "Also set the lock
+  screen" on, the animated wallpaper now drives the lock screen too, not
+  just a still.
 
 ### Changed
 
 - **Flower petals read as distinct.** Each petal edge is now shaded from
   the petal's own colour rather than a flat dark outline, so the bloom has
-  clear, defined petals.
+  clear, defined petals — in the live wallpaper and the applied still alike.
 
 ### Fixed
 
+- **The live wallpaper always shows the current look.** A rendering fix
+  (like the flower's) now reliably reaches the real desktop wallpaper
+  instead of only the in-app preview — an older copy of the shader could
+  be left installed, so the desktop and the app looked different.
 - **Flower colours no longer depend on the palette size.** The petal
   colouring wraps cleanly around the bloom for any number of colours, so a
-  4-colour palette looks as clean as a 6-colour one (no hard colour seam).
+  4-colour palette looks as clean as a 6-colour one (no hard colour seam) —
+  now in the applied wallpaper image as well as the live one.
+- **Glass panels keep their frost.** The frosted-glass surfaces no longer
+  lose their blur in release builds, and the right-hand panel sizes itself
+  to its content.
 - **Controls render correctly in the Linux webview.** The toggle switches,
   checkboxes, and the custom-palette delete icon now draw properly under
   WebKitGTK instead of showing as bare pills or blank boxes.
