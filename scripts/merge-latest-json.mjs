@@ -54,10 +54,14 @@ for (const [haveKey, dlKey, name] of dl) {
 for (const k of ['linux-deb', 'linux-deb-arm64', 'linux-rpm', 'linux-rpm-arm64', 'linux-pacman']) {
   delete out.downloads[k];
 }
-// Updater platform entries (signature + url): only the signed ones.
+// Updater platform entries (signature + url): only the signed ones. AppImage
+// is the one Linux format tauri-plugin-updater can self-update (it replaces
+// $APPIMAGE in place), so unlike deb/rpm, Linux now gets platform entries.
 if (have.has('macos_sig')) out.platforms['darwin-aarch64'] = { signature: sig('macos_sig'), url: url(n.macos_up) };
 if (have.has('windows_sig')) out.platforms['windows-x86_64'] = { signature: sig('windows_sig'), url: url(n.msi) };
 if (have.has('windows_arm_sig')) out.platforms['windows-aarch64'] = { signature: sig('windows_arm_sig'), url: url(n.msi_arm) };
+if (have.has('linux_appimage_sig')) out.platforms['linux-x86_64'] = { signature: sig('linux_appimage_sig'), url: url(n.appimage) };
+if (have.has('linux_appimage_arm_sig')) out.platforms['linux-aarch64'] = { signature: sig('linux_appimage_arm_sig'), url: url(n.appimage_arm) };
 
 fs.writeFileSync(outPath, `${JSON.stringify(out, null, 2)}\n`);
 console.log(`Wrote ${outPath} as v${v}. Kept previous release for: ${kept.join(', ') || '(none)'}`);

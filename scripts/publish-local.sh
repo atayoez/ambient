@@ -80,8 +80,10 @@ stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe'      "Ambient-$VERSIO
 stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe.sig'  "Ambient-$VERSION-Windows-x86_64-setup.exe.sig"  windows_sig
 stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe'      "Ambient-$VERSION-Windows-aarch64-setup.exe"     windows_arm
 stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe.sig'  "Ambient-$VERSION-Windows-aarch64-setup.exe.sig" windows_arm_sig
-stage $SRC/ambient-ubuntu-22.04-x86_64       '*.AppImage'     "Ambient-$VERSION-Linux-x86_64.AppImage"      linux_appimage
-stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.AppImage'     "Ambient-$VERSION-Linux-aarch64.AppImage"     linux_appimage_arm
+stage $SRC/ambient-ubuntu-22.04-x86_64       '*.AppImage'      "Ambient-$VERSION-Linux-x86_64.AppImage"       linux_appimage
+stage $SRC/ambient-ubuntu-22.04-x86_64       '*.AppImage.sig'  "Ambient-$VERSION-Linux-x86_64.AppImage.sig"   linux_appimage_sig
+stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.AppImage'      "Ambient-$VERSION-Linux-aarch64.AppImage"      linux_appimage_arm
+stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.AppImage.sig'  "Ambient-$VERSION-Linux-aarch64.AppImage.sig"  linux_appimage_arm_sig
 
 # Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
 echo "==> Building latest.json (merged with live)"

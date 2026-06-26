@@ -5,13 +5,14 @@
 // reports whether a newer version exists for this platform. We keep the 6h
 // throttle + per-version dismiss UX on top.
 //
-// We deliberately do NOT install in-app: the UpdateBanner + Settings both
-// link to the website download page instead (builds aren't code-signed,
-// and Linux installs are native packages that update via the package
-// manager). Note check() only reports on platforms present in
-// latest.json's `platforms` block — macOS + Windows. On Linux there's no
-// platform entry, so no banner shows and "Check for updates" reports
-// up-to-date; that's intended, the package manager owns Linux updates.
+// The UpdateBanner + Settings link to the website download page rather than
+// installing in-app (the Mac/Windows builds aren't code-signed, so the user
+// handles the OS prompt). check() reports on the platforms present in
+// latest.json's `platforms` block — macOS, Windows, and now Linux: since
+// Linux ships an AppImage (which tauri-plugin-updater CAN self-update),
+// merge-latest-json emits linux-x86_64/linux-aarch64 entries, so Linux users
+// get the update banner too. (Full in-app download-and-install for the
+// AppImage — replacing itself + relaunch via plugin-process — is a follow-up.)
 
 import { check } from '@tauri-apps/plugin-updater';
 
