@@ -117,12 +117,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CI builds ONLY the targets that aren't convenient to build on the
-          # dev machine: macOS (impossible off a Mac) and the two ARM variants
-          # (slow under local emulation / need extra VM setup). The x86_64
-          # Linux + Windows builds and the Arch package are produced locally by
-          # scripts/build-local.sh; publishing is local too (scripts/
-          # publish-local.sh downloads these CI artifacts and combines them).
+          # macOS is the ONLY target CI still builds — Apple's SDK + bundler are
+          # Mac-locked. Everything else (Linux x86_64/aarch64, Arch, Windows
+          # x86_64/aarch64) is cross-compiled locally by scripts/build-local.sh,
+          # and publishing is local too (scripts/publish-local.sh --ci-run <id>
+          # downloads this macOS artifact and merges it in).
           - platform: macos-latest
             arch: aarch64
             # .dmg is the installer download; the signed updater artifact is
@@ -131,16 +130,6 @@ jobs:
               src-tauri/target/release/bundle/dmg/*.dmg
               src-tauri/target/release/bundle/macos/*.app.tar.gz
               src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
-          - platform: windows-11-arm
-            arch: aarch64
-            artifact-glob: |
-              src-tauri/target/release/bundle/msi/*.msi
-              src-tauri/target/release/bundle/msi/*.msi.sig
-          - platform: ubuntu-22.04-arm
-            arch: aarch64
-            artifact-glob: |
-              src-tauri/target/release/bundle/deb/*.deb
-              src-tauri/target/release/bundle/rpm/*.rpm
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
