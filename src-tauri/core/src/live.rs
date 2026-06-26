@@ -174,12 +174,8 @@ fn is_kde(desktop: &str) -> bool {
 }
 
 // Bundled Plasma wallpaper plugin, embedded so a release build is
-// self-contained (the package lives outside src-tauri/). Bump
-// PLUGIN_VERSION whenever any embedded file changes so installed copies
-// get refreshed on the next apply.
-#[cfg(target_os = "linux")]
-const PLUGIN_VERSION: &str = "9";
-
+// self-contained (the package lives outside src-tauri/). install_plugin
+// always rewrites these on apply, so there's no version marker to maintain.
 #[cfg(target_os = "linux")]
 struct Asset {
     rel: &'static str,
@@ -277,25 +273,18 @@ fn plugin_dir() -> Result<std::path::PathBuf, String> {
     Ok(base.join("plasma/wallpapers").join(PLUGIN_ID))
 }
 
-/// Write the bundled plugin into the user's Plasma wallpapers dir, unless an
-/// up-to-date copy is already there. Idempotent (version-marker gated).
+/// Write the bundled plugin into the user's Plasma wallpapers dir. No skip,
+/// no marker: it ALWAYS overwrites every embedded asset, so a rebaked shader
+/// or edited QML can never be left stale — the live wallpaper always gets the
+/// current build's files.
 ///
-/// Returns `Ok(true)` when it *replaced* an older install: the running
-/// plasmashell still holds that version's QML in its per-session component
-/// cache, so the caller must reload it or new pattern types render blank. A
-/// first install (no prior marker) returns `Ok(false)` — plasmashell loads
-/// our plugin cleanly on the apply that follows.
+/// Always returns `Ok(true)` so the caller reloads plasmashell, which caches
+/// the plugin's QML + compiled shaders per session; an in-place file rewrite
+/// alone won't show until the shell restarts.
 #[cfg(target_os = "linux")]
 pub fn install_plugin() -> Result<bool, String> {
     let _ = PLUGIN_ROOT; // documents the embedded source root
     let dir = plugin_dir()?;
-    let marker = dir.join(".ambient-plugin-version");
-    let existing = std::fs::read_to_string(&marker)
-        .ok()
-        .map(|v| v.trim().to_string());
-    if existing.as_deref() == Some(PLUGIN_VERSION) {
-        return Ok(false);
-    }
     for asset in ASSETS {
         let dest = dir.join(asset.rel);
         if let Some(parent) = dest.parent() {
@@ -305,8 +294,7 @@ pub fn install_plugin() -> Result<bool, String> {
         std::fs::write(&dest, asset.bytes)
             .map_err(|e| format!("write {dest:?}: {e}"))?;
     }
-    let _ = std::fs::write(&marker, PLUGIN_VERSION);
-    Ok(existing.is_some())
+    Ok(true)
 }
 
 /// Best-effort restart of plasmashell so a freshly-upgraded wallpaper plugin
