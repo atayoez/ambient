@@ -72,24 +72,15 @@
     update();
   }
 
-  function linuxKey(format, arch) {
-    if (format === 'pacman') return 'linux-pacman'; // x86_64 only
-    return arch === 'aarch64' ? 'linux-' + format + '-arm64' : 'linux-' + format;
+  // Linux ships a single self-installing AppImage per arch.
+  function linuxKey(arch) {
+    return arch === 'aarch64' ? 'linux-appimage-arm64' : 'linux-appimage';
   }
 
   function wireLinux() {
-    var fmt = $('dl-lin-format');
     var arch = $('dl-lin-arch');
-    if (!fmt || !arch) return;
-    var armOpt = arch.querySelector('option[value="aarch64"]');
-    var update = function () {
-      var isPacman = fmt.value === 'pacman'; // Arch ships x86_64 only
-      if (armOpt) armOpt.disabled = isPacman;
-      if (isPacman && arch.value === 'aarch64') arch.value = 'x86_64';
-      setHref('dl-linux', linuxKey(fmt.value, arch.value));
-      updateRpmNote();
-    };
-    fmt.addEventListener('change', update);
+    if (!arch) return;
+    var update = function () { setHref('dl-linux', linuxKey(arch.value)); };
     arch.addEventListener('change', update);
     update();
   }
@@ -111,21 +102,6 @@
     // including mac+windows) is open. Hidden only when Linux is primary
     // and the disclosure is closed.
     note.hidden = primaryOS() === 'linux' && !open;
-    updateRpmNote();
-  }
-
-  // The rpm is signed but distributed outside a trusted repo, so zypper/dnf
-  // warn until the user imports our public key. Surface that note only when
-  // the .rpm is the visible choice: the Linux card is reachable (primary, or
-  // the disclosure is open) and its format selector is set to rpm.
-  function updateRpmNote() {
-    var note = $('dl-note-rpm');
-    if (!note) return;
-    var fmt = $('dl-lin-format');
-    var others = $('dl-others');
-    var open = !!(others && others.open);
-    var linuxReachable = primaryOS() === 'linux' || open;
-    note.hidden = !(linuxReachable && fmt && fmt.value === 'rpm');
   }
 
   function promote(os) {

@@ -1023,6 +1023,14 @@ code {
   border-color: var(--accent);
 }
 
+/* The dropdown popup: native <option>s would inherit the select's light text
+   on the near-transparent --surface, which renders unreadable. Force an opaque
+   light popup with dark text (same as the language switcher). */
+.dl-field select option {
+  color: #1a1a1a;
+  background: #f5f5f7;
+}
+
 .dl-card-btn {
   margin-top: auto;
   text-align: center;

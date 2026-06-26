@@ -80,11 +80,8 @@ stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe'      "Ambient-$VERSIO
 stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe.sig'  "Ambient-$VERSION-Windows-x86_64-setup.exe.sig"  windows_sig
 stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe'      "Ambient-$VERSION-Windows-aarch64-setup.exe"     windows_arm
 stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe.sig'  "Ambient-$VERSION-Windows-aarch64-setup.exe.sig" windows_arm_sig
-stage $SRC/ambient-ubuntu-22.04-x86_64       '*.deb'          "Ambient-$VERSION-Linux-x86_64.deb"           linux_deb
-stage $SRC/ambient-ubuntu-22.04-x86_64       '*.rpm'          "Ambient-$VERSION-Linux-x86_64.rpm"           linux_rpm
-stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.deb'          "Ambient-$VERSION-Linux-aarch64.deb"          linux_deb_arm
-stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.rpm'          "Ambient-$VERSION-Linux-aarch64.rpm"          linux_rpm_arm
-stage $SRC/ambient-arch-x86_64               '*.pkg.tar.zst'  "Ambient-$VERSION-Linux-x86_64.pkg.tar.zst"   linux_pacman
+stage $SRC/ambient-ubuntu-22.04-x86_64       '*.AppImage'     "Ambient-$VERSION-Linux-x86_64.AppImage"      linux_appimage
+stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.AppImage'     "Ambient-$VERSION-Linux-aarch64.AppImage"     linux_appimage_arm
 
 # Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
 echo "==> Building latest.json (merged with live)"
@@ -100,7 +97,7 @@ node scripts/extract-changelog.mjs --version "$VERSION" --output "$OUT/notes.md"
 echo "==> Uploading present artifacts + latest.json to R2"
 ct() { case "$1" in *.dmg) echo application/x-apple-diskimage;; *.app.tar.gz) echo application/gzip;;
   *-setup.exe) echo application/x-msdownload;; *.deb) echo application/vnd.debian.binary-package;;
-  *.rpm) echo application/x-rpm;; *.pkg.tar.zst) echo application/zstd;; *.json) echo application/json;;
+  *.AppImage) echo application/x-executable;; *.json) echo application/json;;
   *) echo application/octet-stream;; esac; }
 for f in "$OUT"/Ambient-* "$OUT/latest.json"; do
   [[ -f "$f" ]] || continue

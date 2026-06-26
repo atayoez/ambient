@@ -24,11 +24,8 @@ const n = {
   macos_up: `Ambient-${v}-macOS-aarch64.app.tar.gz`,
   msi: `Ambient-${v}-Windows-x86_64-setup.exe`,
   msi_arm: `Ambient-${v}-Windows-aarch64-setup.exe`,
-  deb: `Ambient-${v}-Linux-x86_64.deb`,
-  deb_arm: `Ambient-${v}-Linux-aarch64.deb`,
-  rpm: `Ambient-${v}-Linux-x86_64.rpm`,
-  rpm_arm: `Ambient-${v}-Linux-aarch64.rpm`,
-  pacman: `Ambient-${v}-Linux-x86_64.pkg.tar.zst`,
+  appimage: `Ambient-${v}-Linux-x86_64.AppImage`,
+  appimage_arm: `Ambient-${v}-Linux-aarch64.AppImage`,
 };
 const url = (name) => `${base}/${name}`;
 const sig = (k) => fs.readFileSync(have.get(k), 'utf8').trim();
@@ -44,16 +41,18 @@ const dl = [
   ['macos', 'macos', n.dmg],
   ['windows', 'windows', n.msi],
   ['windows_arm', 'windows-arm64', n.msi_arm],
-  ['linux_deb', 'linux-deb', n.deb],
-  ['linux_deb_arm', 'linux-deb-arm64', n.deb_arm],
-  ['linux_rpm', 'linux-rpm', n.rpm],
-  ['linux_rpm_arm', 'linux-rpm-arm64', n.rpm_arm],
-  ['linux_pacman', 'linux-pacman', n.pacman],
+  ['linux_appimage', 'linux-appimage', n.appimage],
+  ['linux_appimage_arm', 'linux-appimage-arm64', n.appimage_arm],
 ];
 const kept = [];
 for (const [haveKey, dlKey, name] of dl) {
   if (have.has(haveKey)) out.downloads[dlKey] = url(name);
   else kept.push(dlKey);
+}
+// Linux switched from deb/rpm/pacman to AppImage — drop any legacy keys the
+// live manifest still carries so the feed doesn't serve stale package links.
+for (const k of ['linux-deb', 'linux-deb-arm64', 'linux-rpm', 'linux-rpm-arm64', 'linux-pacman']) {
+  delete out.downloads[k];
 }
 // Updater platform entries (signature + url): only the signed ones.
 if (have.has('macos_sig')) out.platforms['darwin-aarch64'] = { signature: sig('macos_sig'), url: url(n.macos_up) };

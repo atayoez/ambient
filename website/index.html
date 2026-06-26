@@ -379,14 +379,7 @@
                 <path d="M12 1.5c-2.21 0-4 1.79-4 4 0 .82.25 1.58.67 2.21-.79.41-1.42 1.09-1.78 1.93l-.83 1.95C5.59 12.23 4.84 13.17 5 14c.27 1.43 1.42 2.5 2.84 2.83.74.18 1.45.51 2.01.99l.74.62v.06c-.07.13-.11.28-.11.43 0 .81.55 1.49 1.3 1.69-.05.1-.11.2-.17.3-.19.32-.43.61-.71.85-.04.04-.09.09-.13.13.3.12.62.18.95.18.55 0 1.07-.16 1.51-.44.31.27.74.44 1.2.44s.89-.17 1.2-.44c.44.28.96.44 1.51.44.33 0 .65-.06.95-.18-.04-.04-.09-.09-.13-.13-.28-.24-.52-.53-.71-.85-.06-.1-.12-.2-.17-.3.75-.2 1.3-.88 1.3-1.69 0-.15-.04-.3-.11-.43v-.06l.74-.62c.56-.48 1.27-.81 2.01-.99 1.42-.33 2.57-1.4 2.84-2.83.16-.83-.59-1.77-1.06-2.41l-.83-1.95c-.36-.84-.99-1.52-1.78-1.93.42-.63.67-1.39.67-2.21 0-2.21-1.79-4-4-4z" />
               </svg>
               <div class="dl-card-os">Linux</div>
-              <label class="dl-field">
-                <span data-i18n="download.distro">Distro / format</span>
-                <select id="dl-lin-format" aria-label="Linux package format">
-                  <option value="deb">Debian / Ubuntu · .deb</option>
-                  <option value="rpm">Fedora / RHEL / openSUSE · .rpm</option>
-                  <option value="pacman">Arch · .pkg.tar.zst</option>
-                </select>
-              </label>
+              <div class="dl-card-meta">AppImage · runs anywhere</div>
               <label class="dl-field">
                 <span data-i18n="download.arch">Architecture</span>
                 <select id="dl-lin-arch" aria-label="Linux architecture">
@@ -394,7 +387,7 @@
                   <option value="aarch64">ARM64</option>
                 </select>
               </label>
-              <a class="dl-card-btn" id="dl-linux" href="/downloads/latest/linux-deb">
+              <a class="dl-card-btn" id="dl-linux" href="/downloads/latest/linux-appimage">
                 <span data-i18n="download.cta">Download</span>
               </a>
             </div>
@@ -411,11 +404,6 @@
           takes. 🙂
         </p>
 
-        <p class="dl-note muted" id="dl-note-rpm" hidden data-i18n="download.noteRpm">
-          The .rpm isn't from a signed repository, so zypper/dnf flag it.
-          Trust the Ambient signing key once, then install normally:
-          sudo rpm --import https://ambient.oezcan.me/ambient.gpg
-        </p>
       </section>
 
       <section id="about" class="about">

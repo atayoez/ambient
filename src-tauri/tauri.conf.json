@@ -53,8 +53,7 @@
     "active": true,
     "targets": [
       "app",
-      "deb",
-      "rpm",
+      "appimage",
       "dmg",
       "nsis"
     ],
