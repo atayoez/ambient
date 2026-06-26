@@ -112,21 +112,26 @@ pub fn run() {
         )
         .try_init();
 
-    // Prefer native Wayland over XWayland on Linux. webkit2gtk picks up
-    // GDK_BACKEND from the env, so this must be set before the tauri builder
-    // initializes GTK. The ",x11" fallback keeps things working if the user
-    // later logs into an X session.
+    // Force native Wayland on a Wayland session — never XWayland.
+    //
+    // linuxdeploy-plugin-gtk's AppRun hook unconditionally exports
+    // GDK_BACKEND=x11 (a blanket guard against old WebKitGTK crashing on
+    // Wayland, tauri-apps/tauri#8541), which otherwise pins the AppImage to
+    // XWayland and clobbers anything the user set. We build against modern
+    // webkit2gtk (26.04), where Wayland is healthy, so override that hook and
+    // set the Wayland backend outright — no x11 fallback: on a Wayland
+    // session, Wayland is what we want, period. Must run before the tauri
+    // builder initializes GTK (webkit2gtk reads GDK_BACKEND at GTK init).
     #[cfg(target_os = "linux")]
     {
         let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
-        if session.eq_ignore_ascii_case("wayland") && std::env::var("GDK_BACKEND").is_err() {
-            // SAFETY: Rust 2024 made set_var unsafe because env mutation
-            // can race with concurrent readers in other threads. This
-            // call runs in `run()` before any tauri/tokio thread is
-            // spawned and before the GTK backend reads the variable,
-            // so there is no concurrent reader.
+        if session.eq_ignore_ascii_case("wayland") {
+            // SAFETY: Rust 2024 made set_var unsafe because env mutation can
+            // race with concurrent readers in other threads. This runs in
+            // `run()` before any tauri/tokio thread is spawned and before the
+            // GTK backend reads the variable, so there is no concurrent reader.
             unsafe {
-                std::env::set_var("GDK_BACKEND", "wayland,x11");
+                std::env::set_var("GDK_BACKEND", "wayland");
             }
         }
 
