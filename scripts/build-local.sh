@@ -40,6 +40,11 @@ UBUNTU="docker.io/library/ubuntu:26.04"
 command -v "$HOME/.cargo/bin/cargo-xwin" >/dev/null || { echo "cargo-xwin missing — cargo install cargo-xwin" >&2; exit 1; }
 command -v makensis >/dev/null || { echo "makensis missing — install NSIS (Arch: AUR 'nsis')" >&2; exit 1; }
 [ -e "$HOME/.cargo/bin/makensis.exe" ] || ln -sf "$(command -v makensis)" "$HOME/.cargo/bin/makensis.exe"
+# The arm64 AppImage builds in a container ON $ARM_HOST (native aarch64).
+# Verify ssh + podman there up front rather than failing after the x86_64
+# build has already run.
+ssh -o BatchMode=yes -o ConnectTimeout=8 "$ARM_HOST" 'command -v podman >/dev/null' 2>/dev/null \
+  || { echo "$ARM_HOST unreachable over ssh, or podman not installed there — needed for the arm64 AppImage. Set ARM_HOST=<host> or fix ssh/podman." >&2; exit 1; }
 
 # clang shim for the Windows arm64 cross-build (ring's .S; /imsvc -> -isystem).
 SHIM="$REPO_ROOT/.cache/xwin-shim"; mkdir -p "$SHIM"

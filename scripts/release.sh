@@ -63,6 +63,30 @@ if git rev-parse "v$VERSION" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Preflight the LOCAL build environment BEFORE we tag + push. The push
+# triggers CI and makes vX.Y.Z public, so a missing tool or an unreachable
+# orion must fail here — not after the tag is already out and the local
+# half bails mid-build. Mirrors build-local.sh's own checks; skipped with
+# --no-local. ARM_HOST defaults to orion (the native-arm64 AppImage box).
+if [[ "$RUN_LOCAL" -eq 1 ]]; then
+  echo "==> Preflighting the local build environment"
+  ARM_HOST="${ARM_HOST:-orion}"
+  fail=0
+  command -v "$HOME/.cargo/bin/cargo-xwin" >/dev/null || { echo "  ✗ cargo-xwin missing (cargo install cargo-xwin)" >&2; fail=1; }
+  command -v makensis >/dev/null || { echo "  ✗ makensis missing (Arch AUR 'nsis')" >&2; fail=1; }
+  [[ -f "$HOME/.config/ambient/updater-private.key" ]] || { echo "  ✗ updater key missing at ~/.config/ambient/updater-private.key" >&2; fail=1; }
+  if ssh -o BatchMode=yes -o ConnectTimeout=8 "$ARM_HOST" 'command -v podman >/dev/null' 2>/dev/null; then
+    echo "  ✓ $ARM_HOST reachable over ssh and has podman (arm64 AppImage build)"
+  else
+    echo "  ✗ $ARM_HOST unreachable over ssh, or podman not installed there." >&2
+    echo "    The arm64 AppImage builds in an ubuntu:26.04 container ON $ARM_HOST" >&2
+    echo "    (native aarch64). Fix ssh access / install podman, set ARM_HOST=<host>," >&2
+    echo "    or re-run with --no-local to tag + push for the macOS-only CI build." >&2
+    fail=1
+  fi
+  [[ "$fail" -eq 0 ]] || { echo "Preflight failed — nothing tagged or pushed." >&2; exit 1; }
+fi
+
 echo "==> Releasing v$VERSION (was $CURRENT_VERSION)"
 
 # --- 1. Promote CHANGELOG's [Unreleased] section --------------------

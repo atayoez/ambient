@@ -78,23 +78,26 @@ The Worker's `/downloads/latest/{macos,windows,windows-arm64,linux,linux-arm64}`
 bun run release 0.X.0
 ```
 
-Runs `scripts/release.sh`. Sequence:
+Local-first: every platform we can build off this box is built here, and CI
+builds only macOS (the one target that needs Apple's SDK + notarisation).
+`scripts/release.sh` sequence:
 
-1. Reads `CHANGELOG.md` `[Unreleased]` section, promotes it to `[0.X.0] - DATE`, saves the body as release notes
+1. Reads `CHANGELOG.md` `[Unreleased]`, promotes it to `[0.X.0] - DATE`, saves the body as release notes
 2. Bumps version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`
-3. Commits + pushes to main → triggers the cheap `check` CI job
-4. Dispatches `build.yml` via `gh workflow run` (workflow_dispatch-gated) and waits — 4-job matrix (macOS aarch64, Windows x86_64, Windows aarch64, Linux aarch64 on native ARM runner) takes ~10 min
-5. Downloads the 4 CI artifacts
-6. Builds Linux x86_64 locally against host webkit2gtk-4.1 (with the linuxdeploy fallback below)
-7. Signs all 5 artifacts with the Tauri updater key at `~/.config/ambient/updater-private.key` if present
-8. Uploads all 5 installers to R2 with the `Ambient-VERSION-Platform-Arch.ext` naming
-9. Writes a dual-shape `latest.json` (legacy `downloads.*` keys + plugin-format `platforms.*` block with minisign signatures)
-10. Tags `vX.Y.Z` and pushes the tag
-11. `gh release create` with notes + all 5 installers attached
+3. **Preflights the local build env** (tools below + ssh/podman on `$ARM_HOST`) — fails *before* tagging if anything's missing, so a public tag is never left stranded
+4. Commits "Release vX.Y.Z", tags `vX.Y.Z`, pushes main + tag → the tag-push trigger in `build.yml` builds **macOS only**
+5. Runs `scripts/build-local.sh` → into `build-out/`:
+   - Linux **x86_64** AppImage — ubuntu:26.04 container here (signed via the mounted updater key)
+   - Linux **aarch64** AppImage — ubuntu:26.04 container **on `$ARM_HOST` (default `orion`, native arm64) over ssh**: rsync source up, build there, scp the `.AppImage` back, sign here. Cross-bundling can't run `linuxdeploy`, and native Arch/Tumbleweed hit distro-specific AppImage bugs — the container normalises to an Ubuntu layout
+   - Windows **x86_64 + aarch64** — `cargo-xwin` + NSIS `setup.exe` (the `/imsvc` clang shim handles arm64 `ring`)
+6. Runs `scripts/publish-local.sh` — **partial-aware**: starts from the live `latest.json`, overrides only the platforms it has artifacts for (Linux + Windows now; macOS keeps its prior entry), uploads to R2, writes the dual-shape `latest.json` (legacy `downloads.*` + plugin-format `platforms.*` with minisign signatures), and cuts/updates the `gh release`
+7. Fold macOS in once CI finishes: `bun run publish:local 0.X.0 --ci-run <build.yml-run-id>` (or let the scheduled `publish-macos.yml` do it on the 1st of the month)
 
-**Prerequisites**: `gh` CLI authenticated, `wrangler` authenticated, working tree clean. Script refuses to run on a dirty tree.
+`--no-local` skips steps 5–6 (tag + push only — e.g. a macOS-only re-cut). `bun run build:local` / `publish:local` run the halves independently.
 
-**If something fails mid-flight**: the version-bump commit was already pushed in step 3. If R2 upload fails, re-run those steps by hand using the same versioned filenames — R2 is idempotent.
+**Prerequisites**: `gh` authenticated, `wrangler` (`bunx wrangler@4`) logged in with R2 scope, clean working tree, `~/.config/ambient/updater-private.key` present, `cargo-xwin` + `makensis` (Arch AUR `nsis`) installed, and **ssh access to `$ARM_HOST` with `podman` installed there** (the arm64 AppImage box — `orion` by default; override with `ARM_HOST=<host>`). The preflight in step 3 checks all of these.
+
+**If something fails mid-flight**: the version-bump commit + tag were pushed in step 4. The publish is partial-aware and idempotent — re-run `bun run publish:local 0.X.0` (R2 keys are versioned, `gh release upload --clobber`). If `$ARM_HOST` was the problem, fix it and re-run `build:local` then `publish:local`; the rest of the feed is untouched meanwhile.
 
 ## The gotchas that have actually bitten
 
@@ -123,7 +126,7 @@ NO_STRIP=true ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
   --appdir Ambient.AppDir --output appimage
 ```
 
-Produces `Ambient-x86_64.AppImage` in the same directory. The release script (`scripts/release.sh` step 6) handles this fallback automatically.
+Produces `Ambient-x86_64.AppImage` in the same directory. `build-local.sh` sidesteps this entirely by building the AppImage inside an ubuntu:26.04 container (`APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=true`) — the failure only bites a bare host `tauri build`, so this manual recovery is just for ad-hoc local builds outside the release scripts.
 
 ### 3. Bun not in `/bin/sh` PATH
 
