@@ -103,6 +103,13 @@
       base: '#06140e', colors: ['#34d399', '#10b981', '#a3e635', '#14b8a6', '#86efac'], p: [8, 0.55, 0.45] },
     { name: 'Tide', type: 'aurora', tint: [56, 189, 248], size: 80,
       base: '#04141d', colors: ['#38bdf8', '#22d3ee', '#67e8f9', '#2563eb', '#a5f3fc'], p: [7, 0.6, 0.5] },
+    // Emoji isn't a shader — rendered as a drifting tiled DOM layer (see
+    // buildEmoji / the #wp-emoji crossfade), so the live backdrop showcases
+    // the app's emoji walls too, not just the generative shaders.
+    { name: 'Blossom', type: 'emoji', tint: [244, 114, 182],
+      base: '#160a18', colors: ['#f472b6', '#a78bfa'], emojis: ['🌸', '🌷', '✨'] },
+    { name: 'Cosmos', type: 'emoji', tint: [124, 92, 255],
+      base: '#0a0a1f', colors: ['#7c5cff', '#5b8cff'], emojis: ['🌟', '🌙', '💫'] },
   ];
 
   function hexRgb(hex) {
@@ -134,6 +141,35 @@
     // Signal the static engine to stand down — the live canvas owns the
     // backdrop + the prev/next arrows now.
     window.__AMBIENT_LIVE__ = true;
+
+    // Emoji preset layer: emoji isn't a shader, so emoji presets render here
+    // (tiled emoji wall over colour blobs) and go() crossfades it with the GL
+    // canvas. Mirrors wallpapers.js's emoji() look.
+    var emojiLayer = document.createElement('div');
+    emojiLayer.id = 'wp-emoji';
+    emojiLayer.setAttribute('aria-hidden', 'true');
+    backdrop.appendChild(emojiLayer);
+
+    function rgba(hex, a) {
+      var h = hex.replace('#', '');
+      return 'rgba(' + parseInt(h.substr(0, 2), 16) + ',' + parseInt(h.substr(2, 2), 16) +
+        ',' + parseInt(h.substr(4, 2), 16) + ',' + a + ')';
+    }
+    function buildEmoji(wp) {
+      var e = wp.emojis || ['✨', '🌙', '💫'];
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">' +
+        '<text x="38" y="52" font-size="42" text-anchor="middle" transform="rotate(-12 38 42)">' + e[0] + '</text>' +
+        '<text x="112" y="64" font-size="40" text-anchor="middle" transform="rotate(10 112 54)">' + (e[1] || e[0]) + '</text>' +
+        '<text x="78" y="120" font-size="44" text-anchor="middle" transform="rotate(-6 78 110)">' + (e[2] || e[0]) + '</text>' +
+        '</svg>';
+      emojiLayer.style.backgroundColor = wp.base;
+      emojiLayer.style.backgroundImage = [
+        'url("data:image/svg+xml;utf8,' + encodeURIComponent(svg) + '")',
+        'radial-gradient(70% 70% at 28% 24%, ' + rgba(wp.colors[0], 0.55) + ' 0%, transparent 72%)',
+        'radial-gradient(70% 70% at 82% 84%, ' + rgba(wp.colors[1] || wp.colors[0], 0.5) + ' 0%, transparent 72%)',
+      ].join(', ');
+      emojiLayer.style.backgroundSize = '168px 168px, auto, auto';
+    }
 
     var MAX_DIM = 2200; // cap internal resolution for fill-rate
     var MIN_FRAME_MS = 1000 / 32; // ~32fps is plenty for a background
@@ -209,21 +245,26 @@
       index = ((i % PRESETS.length) + PRESETS.length) % PRESETS.length;
       var wp = PRESETS[index];
       seed = 7 + index * 13;
-      try {
-        if (wp.type !== activeType) buildProgram(wp.type);
-      } catch (e) {
-        return;
+      if (wp.type === 'emoji') {
+        buildEmoji(wp);
+        current = wp;
+      } else {
+        try {
+          if (wp.type !== activeType) buildProgram(wp.type);
+        } catch (e) {
+          return;
+        }
+        var list = [wp.base].concat(wp.colors);
+        var last = list[list.length - 1];
+        for (var k = 0; k < 8; k++) {
+          var c = hexRgb(list[k] || last);
+          colorBuf[k * 3] = c[0];
+          colorBuf[k * 3 + 1] = c[1];
+          colorBuf[k * 3 + 2] = c[2];
+        }
+        current = wp;
+        current._count = list.length;
       }
-      var list = [wp.base].concat(wp.colors);
-      var last = list[list.length - 1];
-      for (var k = 0; k < 8; k++) {
-        var c = hexRgb(list[k] || last);
-        colorBuf[k * 3] = c[0];
-        colorBuf[k * 3 + 1] = c[1];
-        colorBuf[k * 3 + 2] = c[2];
-      }
-      current = wp;
-      current._count = list.length;
       if (publishTint !== false) {
         var root = document.documentElement;
         root.style.setProperty('--tint-r', wp.tint[0]);
@@ -237,7 +278,8 @@
     var current = null;
 
     function render(timeSec) {
-      if (!program || !current) return;
+      if (!current || current.type === 'emoji') return; // emoji = DOM layer, not GL
+      if (!program) return;
       resize();
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(program);
@@ -272,11 +314,16 @@
     var fadeTimer = 0;
     function go(i) {
       canvas.style.opacity = '0';
+      emojiLayer.style.opacity = '0';
       clearTimeout(fadeTimer);
       fadeTimer = setTimeout(function () {
         applyPreset(i, true);
-        render(lastMs > 0 ? (lastMs - startMs) / 1000 : 0);
-        canvas.style.opacity = '1';
+        if (current && current.type === 'emoji') {
+          emojiLayer.style.opacity = '1';
+        } else {
+          render(lastMs > 0 ? (lastMs - startMs) / 1000 : 0);
+          canvas.style.opacity = '1';
+        }
       }, 420);
     }
 

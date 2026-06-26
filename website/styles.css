@@ -96,6 +96,31 @@ body {
   will-change: opacity;
 }
 
+/* Emoji preset layer (live-shader.js). Emoji isn't a shader, so when the
+ * rotation lands on an emoji preset we crossfade to this DOM layer instead of
+ * the GL canvas: a tiled emoji wall over soft colour blobs, drifting slowly. */
+#wp-backdrop #wp-emoji {
+  position: absolute;
+  inset: -4%;
+  width: 108%;
+  height: 108%;
+  opacity: 0;
+  filter: blur(1px) saturate(116%);
+  transition: opacity 380ms ease;
+  background-repeat: repeat, no-repeat, no-repeat;
+  animation: wp-emoji-drift 70s linear infinite;
+  will-change: opacity;
+}
+
+@keyframes wp-emoji-drift {
+  from { background-position: 0 0, center, center; }
+  to { background-position: 336px 168px, center, center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #wp-backdrop #wp-emoji { animation: none; }
+}
+
 /* Readability scrim over the wallpaper — keeps headline + glass legible
  * no matter how bright the active palette is. Darkens toward the bottom
  * where the dense feature/pricing content lives. */
