@@ -15,6 +15,14 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.2.1] — 2026-06-26
+
+### Added
+
 - In-app updates for the Linux AppImage. The update banner and Settings →
   Updates now offer **Install & restart**: Ambient downloads the new
   AppImage, replaces itself in place, and relaunches — no trip to the
