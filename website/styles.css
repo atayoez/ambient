@@ -1049,6 +1049,18 @@ code {
   line-height: 1.55;
 }
 
+/* Classic yellow warning callout for the unsigned Mac/Windows note. The
+   ⚠️ badge leads the text (kept in the copy so i18n's textContent swap
+   doesn't drop it). */
+.dl-warn {
+  padding: 13px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(240, 191, 64, 0.45);
+  background: rgba(240, 191, 64, 0.12);
+  color: var(--warn-text, #f4ead0);
+  text-align: left;
+}
+
 .muted {
   color: var(--muted);
 }

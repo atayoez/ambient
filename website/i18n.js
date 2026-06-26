@@ -67,7 +67,7 @@
         others: 'Other platforms',
         arch: 'Architecture',
         distro: 'Distro / format',
-        note: "The macOS and Windows builds aren't signed yet, so they complain about an unknown app the first time. On Mac, right-click the app and pick Open. On Windows, click 'More info' then 'Run anyway'.",
+        note: "⚠️ Quick heads up, and nothing to worry about. The Mac and Windows builds aren't code-signed yet. Signing certificates cost real money every year, so I'll grab them the moment Ambient earns enough to pay for itself. The app is completely safe, your computer just doesn't recognise the signature yet. On Mac, right-click the app and pick Open. On Windows, click 'More info' then 'Run anyway'. That's all it takes. 🙂",
         noteRpm: "The .rpm isn't from a signed repository, so zypper/dnf flag it. Trust the Ambient signing key once, then install normally: sudo rpm --import https://ambient.oezcan.me/ambient.gpg",
       },
       about: {
@@ -225,7 +225,7 @@
         others: 'Andere Plattformen',
         arch: 'Architektur',
         distro: 'Distro / Format',
-        note: 'Die macOS- und Windows-Builds sind noch nicht signiert, deshalb meckern sie beim ersten Öffnen über eine unbekannte App. Am Mac: Rechtsklick auf die App, dann „Öffnen". Auf Windows: „Weitere Informationen" und dann „Trotzdem ausführen".',
+        note: '⚠️ Kurzer Hinweis, und keine Sorge. Die Mac- und Windows-Builds sind noch nicht signiert. Signaturzertifikate kosten jedes Jahr echtes Geld, also hole ich sie, sobald Ambient genug einbringt, um sich selbst zu tragen. Die App ist völlig sicher, dein Computer kennt die Signatur nur noch nicht. Am Mac: Rechtsklick auf die App, dann „Öffnen". Auf Windows: „Weitere Informationen" und dann „Trotzdem ausführen". Mehr ist es nicht. 🙂',
         noteRpm: 'Das .rpm kommt nicht aus einem signierten Repository, deshalb meckern zypper/dnf. Importiere einmalig den Ambient-Signaturschlüssel, dann läuft die Installation normal: sudo rpm --import https://ambient.oezcan.me/ambient.gpg',
       },
       about: {
@@ -383,7 +383,7 @@
         others: 'Diğer platformlar',
         arch: 'Mimari',
         distro: 'Dağıtım / format',
-        note: 'macOS ve Windows sürümleri henüz imzasız, o yüzden ilk açılışta bilinmeyen uygulama diye uyarıyorlar. Mac\'te uygulamaya sağ tık atıp „Aç" diyorsun. Windows\'ta „Daha fazla bilgi" ve sonra „Yine de çalıştır".',
+        note: '⚠️ Ufak bir not, hiç merak etme. Mac ve Windows sürümleri henüz imzalı değil. İmza sertifikaları her yıl gerçek para tutuyor, o yüzden Ambient kendini çıkaracak kadar kazanır kazanmaz alacağım. Uygulama tamamen güvenli, bilgisayarın imzayı henüz tanımıyor sadece. Mac\'te uygulamaya sağ tıklayıp „Aç" de. Windows\'ta „Daha fazla bilgi" sonra „Yine de çalıştır". Hepsi bu kadar. 🙂',
         noteRpm: '.rpm imzalı bir depodan gelmiyor, o yüzden zypper/dnf uyarıyor. Ambient imza anahtarını bir kez içe aktar, sonra normal şekilde kur: sudo rpm --import https://ambient.oezcan.me/ambient.gpg',
       },
       about: {
