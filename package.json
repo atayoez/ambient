@@ -14,7 +14,10 @@
     "gen:shaders": "bun run scripts/gen-shaders.ts",
     "check:shaders": "bun run scripts/gen-shaders.ts --check",
     "test": "vitest run",
-    "release": "./scripts/release.sh"
+    "release": "./scripts/release.sh",
+    "build:local": "bash scripts/build-local.sh",
+    "publish:local": "bash scripts/publish-local.sh",
+    "release:local": "bun run build:local && bun run publish:local"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

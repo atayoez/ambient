@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# scripts/publish-local.sh — publish a release from this machine: sign, build
+# latest.json, upload to R2, cut the GitHub release. The local counterpart to
+# the old CI `release` job, but PARTIAL-AWARE: it publishes whatever artifacts
+# are present and leaves every other platform pointing at the previous release
+# in latest.json, so a Mac/ARM build that isn't ready never breaks the feed.
+#
+# Expects (whatever exists) under dist/, same layout as ci-publish.sh:
+#   dist/ambient-ubuntu-22.04-x86_64/      *.deb *.rpm     (scripts/build-local.sh)
+#   dist/ambient-arch-x86_64/              *.pkg.tar.zst   (scripts/build-local.sh)
+#   dist/ambient-windows-latest-x86_64/    *.msi           (Windows VM; auto-pulled
+#                                                            from ~/vms/share if absent)
+#   dist/ambient-ubuntu-22.04-arm-aarch64/ *.deb *.rpm     (build-local --arm64, or CI)
+#   dist/ambient-macos-latest-aarch64/     *.dmg *.app.tar.gz(.sig)  (CI only)
+#   dist/ambient-windows-11-arm-aarch64/   *.msi *.msi.sig (CI only)
+#
+# Pull the CI-built macOS/ARM artifacts first with:  --ci-run <run-id>
+# (downloads `ambient-*` artifacts from that build.yml run into dist/).
+#
+# Usage:  scripts/publish-local.sh <version> [--ci-run <run-id>]
+# Env:    CLOUDFLARE_ACCOUNT_ID (default below); wrangler must be logged in.
+#         RPM_GPG_PRIVATE_KEY/RPM_GPG_PASSPHRASE optional (else rpm ships unsigned).
+
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO_ROOT"
+
+# Version defaults to package.json; a numeric positional arg overrides it.
+VERSION="$(node -e "console.log(require('./package.json').version)")"
+CI_RUN=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ci-run) CI_RUN="${2:?--ci-run needs a run id}"; shift 2;;
+    [0-9]*)   VERSION="$1"; shift;;
+    *) echo "unknown arg: $1" >&2; shift;;
+  esac
+done
+
+export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-848c6419822ef3e91b6f66d69ebe63eb}"
+KEY="$HOME/.config/ambient/updater-private.key"
+SHARE="$HOME/vms/share"
+OUT="dist/renamed"; mkdir -p "$OUT"
+WRANGLER="bunx wrangler@4"
+
+if [[ -n "$CI_RUN" ]]; then
+  echo "==> Downloading CI artifacts from run $CI_RUN"
+  gh run download "$CI_RUN" --dir dist --pattern 'ambient-*' || echo "   (no CI artifacts; continuing partial)"
+fi
+
+# Pull the Windows MSI from the VM share if it isn't staged yet.
+if ! find dist/ambient-windows-latest-x86_64 -name '*.msi' 2>/dev/null | grep -q .; then
+  msi=$(ls "$SHARE"/*1.2*.msi "$SHARE"/Ambient_"$VERSION"*.msi 2>/dev/null | grep -vi '1.0.3' | head -1 || true)
+  if [[ -n "$msi" ]]; then
+    mkdir -p dist/ambient-windows-latest-x86_64
+    cp -v "$msi" dist/ambient-windows-latest-x86_64/
+  fi
+fi
+
+# Sign the Windows MSI here (keeps the updater key off the VM). Tauri writes
+# <file>.sig; its content is what latest.json's signature field carries.
+msi_x64=$(find dist/ambient-windows-latest-x86_64 -name '*.msi' 2>/dev/null | head -1 || true)
+if [[ -n "$msi_x64" && ! -f "$msi_x64.sig" ]]; then
+  echo "==> Signing $msi_x64"
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD= bun x tauri signer sign -f "$KEY" -p "" "$msi_x64"
+fi
+
+# Sign rpms only if the *correct* packaging key is provided (the one whose
+# public half is on the site). It isn't in the local keyring, so by default
+# rpms ship unsigned (dnf/zypper warn but install) rather than mis-signed.
+if [[ -n "${RPM_GPG_PRIVATE_KEY:-}" ]]; then
+  for rpm in $(find dist -name '*.rpm' 2>/dev/null); do
+    "${CONTAINER:-podman}" --storage-driver vfs --root /tmp/ambient-pbuild run --rm \
+      -v "$REPO_ROOT/$(dirname "$rpm")":/out -v "$REPO_ROOT/scripts":/scripts:ro \
+      -e RPM_GPG_PRIVATE_KEY -e RPM_GPG_PASSPHRASE \
+      docker.io/library/almalinux:9 bash /scripts/sign-rpms.sh "/out/$(basename "$rpm")"
+  done
+else
+  echo "==> RPM_GPG_PRIVATE_KEY not set — rpms ship UNSIGNED"
+fi
+
+# Rename present artifacts to the release convention + remember which we have.
+declare -A HAVE
+stage() { # <glob-dir> <glob> <release-name> <download-key>
+  local f; f=$(find "$1" -name "$2" 2>/dev/null | head -1 || true)
+  [[ -n "$f" && -f "$f" ]] || return 0
+  cp "$f" "$OUT/$3"; HAVE[$4]="$OUT/$3"; echo "   have $4 -> $3"
+}
+echo "==> Staging present artifacts"
+stage dist/ambient-macos-latest-aarch64      '*.dmg'          "Ambient-$VERSION-macOS-aarch64.dmg"          macos
+stage dist/ambient-macos-latest-aarch64      '*.app.tar.gz'   "Ambient-$VERSION-macOS-aarch64.app.tar.gz"   macos_up
+stage dist/ambient-macos-latest-aarch64      '*.app.tar.gz.sig' "Ambient-$VERSION-macOS-aarch64.app.tar.gz.sig" macos_sig
+stage dist/ambient-windows-latest-x86_64     '*.msi'          "Ambient-$VERSION-Windows-x86_64.msi"         windows
+stage dist/ambient-windows-latest-x86_64     '*.msi.sig'      "Ambient-$VERSION-Windows-x86_64.msi.sig"     windows_sig
+stage dist/ambient-windows-11-arm-aarch64    '*.msi'          "Ambient-$VERSION-Windows-aarch64.msi"        windows_arm
+stage dist/ambient-windows-11-arm-aarch64    '*.msi.sig'      "Ambient-$VERSION-Windows-aarch64.msi.sig"    windows_arm_sig
+stage dist/ambient-ubuntu-22.04-x86_64       '*.deb'          "Ambient-$VERSION-Linux-x86_64.deb"           linux_deb
+stage dist/ambient-ubuntu-22.04-x86_64       '*.rpm'          "Ambient-$VERSION-Linux-x86_64.rpm"           linux_rpm
+stage dist/ambient-ubuntu-22.04-arm-aarch64  '*.deb'          "Ambient-$VERSION-Linux-aarch64.deb"          linux_deb_arm
+stage dist/ambient-ubuntu-22.04-arm-aarch64  '*.rpm'          "Ambient-$VERSION-Linux-aarch64.rpm"          linux_rpm_arm
+stage dist/ambient-arch-x86_64               '*.pkg.tar.zst'  "Ambient-$VERSION-Linux-x86_64.pkg.tar.zst"   linux_pacman
+
+# Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
+echo "==> Building latest.json (merged with live)"
+curl -fsS https://ambient.oezcan.me/downloads/latest.json -o "$OUT/live.json"
+HAVE_JSON=$(for k in "${!HAVE[@]}"; do printf '%s\t%s\n' "$k" "${HAVE[$k]}"; done)
+PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" RELEASED="$(date -u +%Y-%m-%d)" \
+VERSION="$VERSION" HAVE_JSON="$HAVE_JSON" node scripts/merge-latest-json.mjs \
+  "$OUT/live.json" "$OUT/latest.json"
+
+echo "==> Release notes"
+node scripts/extract-changelog.mjs --version "$VERSION" --output "$OUT/notes.md" || echo "Release v$VERSION" > "$OUT/notes.md"
+
+echo "==> Uploading present artifacts + latest.json to R2"
+ct() { case "$1" in *.dmg) echo application/x-apple-diskimage;; *.app.tar.gz) echo application/gzip;;
+  *.msi) echo application/x-msi;; *.deb) echo application/vnd.debian.binary-package;;
+  *.rpm) echo application/x-rpm;; *.pkg.tar.zst) echo application/zstd;; *.json) echo application/json;;
+  *) echo application/octet-stream;; esac; }
+for f in "$OUT"/Ambient-* "$OUT/latest.json"; do
+  [[ -f "$f" ]] || continue
+  $WRANGLER r2 object put "ambient-releases/$(basename "$f")" --file="$f" --content-type="$(ct "$f")" --remote
+done
+
+echo "==> GitHub release v$VERSION"
+ASSETS=(); for f in "$OUT"/Ambient-*; do [[ "$f" == *.sig ]] || ASSETS+=("$f"); done
+if gh release view "v$VERSION" >/dev/null 2>&1; then
+  gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
+  gh release edit "v$VERSION" --draft=false --latest
+else
+  gh release create "v$VERSION" --latest --title "v$VERSION" --notes-file "$OUT/notes.md" "${ASSETS[@]}"
+fi
+echo; echo "✓ v$VERSION published (partial-aware). Live: https://ambient.oezcan.me/downloads/latest.json"

@@ -117,19 +117,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # CI builds ONLY the targets that aren't convenient to build on the
+          # dev machine: macOS (impossible off a Mac) and the two ARM variants
+          # (slow under local emulation / need extra VM setup). The x86_64
+          # Linux + Windows builds and the Arch package are produced locally by
+          # scripts/build-local.sh; publishing is local too (scripts/
+          # publish-local.sh downloads these CI artifacts and combines them).
           - platform: macos-latest
             arch: aarch64
-            # .dmg is the installer download; the signed updater
-            # artifact is the .app.tar.gz (Tauri never signs the .dmg).
+            # .dmg is the installer download; the signed updater artifact is
+            # the .app.tar.gz (Tauri never signs the .dmg).
             artifact-glob: |
               src-tauri/target/release/bundle/dmg/*.dmg
               src-tauri/target/release/bundle/macos/*.app.tar.gz
               src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
-          - platform: windows-latest
-            arch: x86_64
-            artifact-glob: |
-              src-tauri/target/release/bundle/msi/*.msi
-              src-tauri/target/release/bundle/msi/*.msi.sig
           - platform: windows-11-arm
             arch: aarch64
             artifact-glob: |
@@ -137,11 +138,6 @@ jobs:
               src-tauri/target/release/bundle/msi/*.msi.sig
           - platform: ubuntu-22.04-arm
             arch: aarch64
-            artifact-glob: |
-              src-tauri/target/release/bundle/deb/*.deb
-              src-tauri/target/release/bundle/rpm/*.rpm
-          - platform: ubuntu-22.04
-            arch: x86_64
             artifact-glob: |
               src-tauri/target/release/bundle/deb/*.deb
               src-tauri/target/release/bundle/rpm/*.rpm
@@ -209,81 +205,10 @@ jobs:
           # mid-publish). A week keeps the rescue window without the pile-up.
           retention-days: 7
 
-  # Native Arch package. Tauri v2 has no pacman bundler, so we repackage
-  # the x86_64 .deb (built by build-tauri) into a .pkg.tar.zst via makepkg.
-  # makepkg only runs on Arch and refuses to run as root, so we do the
-  # packaging inside an `archlinux` container via `docker run` — the job
-  # itself stays on ubuntu so the JS actions (checkout/download/upload)
-  # have the node the runner provides (an archlinux *container* wouldn't).
-  build-arch:
-    name: Build Arch package (x86_64)
-    needs: build-tauri
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - name: Download x86_64 Linux artifacts (.deb)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: ambient-ubuntu-22.04-x86_64
-          path: linux-x64
-      - name: Repackage .deb → .pkg.tar.zst (makepkg in archlinux)
-        run: |
-          set -euo pipefail
-          docker run --rm -v "$PWD":/work -w /work archlinux:latest bash -c '
-            set -euo pipefail
-            pacman -Sy --noconfirm --needed base-devel >/dev/null
-            useradd -m builder
-            chown -R builder:builder /work
-            DEB=$(find linux-x64 -name "*.deb" | head -1)
-            base=$(basename "$DEB"); tmp=${base#Ambient_}; VERSION=${tmp%_amd64.deb}
-            echo "Building Arch package for version $VERSION from $DEB"
-            runuser -u builder -- ./scripts/build-arch-pkg.sh "$VERSION" "$DEB" /work/arch-out
-          '
-      - name: Upload arch artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: ambient-arch-x86_64
-          path: arch-out/*.pkg.tar.*
-          retention-days: 7
-
-  release:
-    name: Publish release
-    needs: [build-tauri, build-arch]
-    # Tag push only. Manual dispatch builds without publishing — useful
-    # for testing the matrix on a feature branch without cutting a
-    # release.
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write  # for gh release create
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.3.14  # pinned for reproducibility; Renovate bumps it
-
-      - name: Extract version from tag
-        id: ver
-        shell: bash
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          path: dist
-          pattern: ambient-*
-
-      - name: Publish to R2 + GitHub Releases
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # Hardcoded so the token doesn't need /memberships access;
-          # same ID we use in deploy-site.yml. Not a secret.
-          CLOUDFLARE_ACCOUNT_ID: '848c6419822ef3e91b6f66d69ebe63eb'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GPG key for signing the rpms (see ci-publish.sh "Signing RPMs").
-          RPM_GPG_PRIVATE_KEY: ${{ secrets.RPM_GPG_PRIVATE_KEY }}
-          RPM_GPG_PASSPHRASE: ${{ secrets.RPM_GPG_PASSPHRASE }}
-        run: ./scripts/ci-publish.sh "${{ steps.ver.outputs.version }}"
+  # No build-arch or release job here anymore. The Arch package is built
+  # locally (scripts/build-local.sh, makepkg) and publishing is local too
+  # (scripts/publish-local.sh signs, builds latest.json, uploads to R2, and
+  # cuts the GitHub release). It downloads the macOS / ARM artifacts uploaded
+  # by build-tauri above and combines them with the locally-built x86_64 +
+  # Windows packages. CI's only remaining job is to produce the bundles the
+  # dev machine can't: macOS (no off-Mac build) and the ARM variants.
