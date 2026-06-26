@@ -70,6 +70,11 @@ mkdir -p /out && cp -v src-tauri/target/release/bundle/appimage/*.AppImage* /out
 
 build_windows() { # <triple> <out-dir>
   local triple="$1" out="$2"; rm -rf "$out"; mkdir -p "$out"
+  # Clear the bundle dir first: it lives in the persistent host target/ and
+  # keeps a PREVIOUS release's Ambient_<oldver>_*-setup.exe, which the cp
+  # glob below would otherwise sweep up alongside the new one (and publish's
+  # `find | head -1` could then stage the wrong version under the new name).
+  rm -rf "src-tauri/target/$triple/release/bundle/nsis"
   env PATH="$SHIM:$HOME/.cargo/bin:$PATH" RUSTC_WRAPPER= CARGO_INCREMENTAL=0 \
     TAURI_SIGNING_PRIVATE_KEY="$KEY" TAURI_SIGNING_PRIVATE_KEY_PASSWORD= \
     bun x tauri build --runner cargo-xwin --target "$triple" --bundles nsis
