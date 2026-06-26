@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# scripts/release.sh — prep + tag + push. CI handles the rest.
+# scripts/release.sh — prep + tag + push, then build & publish locally.
 #
-# Usage: bun run release <version>   (e.g. bun run release 0.7.0)
+# Usage: bun run release <version>   (e.g. bun run release 1.3.0)
 #
 # What it does:
 #   1. Validates the version arg + clean working tree
@@ -12,22 +12,29 @@
 #   4. Commits "Release v<VERSION>"
 #   5. Tags v<VERSION>
 #   6. Pushes commit + tag — the tag-push trigger in
-#      .github/workflows/build.yml kicks off the 5-platform build
-#      matrix, then the release job uploads artifacts to R2 + writes
-#      latest.json + creates the GitHub release.
+#      .github/workflows/build.yml builds ONLY macOS (the one target
+#      that needs Apple's SDK/notarisation and can't be cross-built here)
+#   7. Builds every OTHER platform locally (Linux x86_64/aarch64 AppImage
+#      + Windows x86_64/aarch64) via build-local.sh, then publishes them
+#      with publish-local.sh — partial-aware, so the feed goes live with
+#      Linux+Windows immediately and macOS folds in once CI finishes
+#      (the scheduled publish-macos run, or `publish-local.sh --ci-run`).
 #
-# Watch CI after: gh run watch (use the latest build.yml run).
+# Skip the local half (tag/push only, e.g. macOS-only re-cut):
+#   bun run release <version> --no-local
 #
-# Pre-0.7 this script ran the whole release locally (downloading CI
-# artifacts, building Linux x86_64 on the host, signing, uploading to
-# R2, cutting the GH release). That was ~430 lines of bash. CI now
-# owns all of that — this is just prep + tag + push.
+# Pre-0.7 a ~430-line bash script ran the whole release locally; 0.7–1.2
+# pushed everything to a 5-platform CI matrix. CI hit Actions budget
+# limits, so the split above is the durable arrangement: local owns the
+# cross-buildable platforms, CI owns only macOS.
 
 set -euo pipefail
 
 VERSION="${1:-}"
-if [[ -z "$VERSION" ]]; then
-  echo "Usage: $0 <version>   (e.g. $0 0.7.0)" >&2
+RUN_LOCAL=1
+for arg in "$@"; do [[ "$arg" == "--no-local" ]] && RUN_LOCAL=0; done
+if [[ -z "$VERSION" || "$VERSION" == "--"* ]]; then
+  echo "Usage: $0 <version> [--no-local]   (e.g. $0 1.3.0)" >&2
   exit 1
 fi
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -129,19 +136,40 @@ git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock \
 git commit -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "Release v$VERSION"
 
-echo "==> Pushing main + tag — CI takes over"
+echo "==> Pushing main + tag — CI builds macOS only"
 git push origin main "v$VERSION"
+
+if [[ "$RUN_LOCAL" -eq 0 ]]; then
+  cat <<EOF
+
+✓ Tagged v$VERSION and pushed (--no-local: skipped local build/publish).
+  Run the local half yourself when ready:
+    bun run release:local
+EOF
+  exit 0
+fi
+
+# --- 4. Build + publish the non-macOS platforms locally -------------
+# build-local.sh stages into build-out/; publish-local.sh is partial-
+# aware, so this goes live with Linux+Windows and leaves macOS pointing
+# at the previous release until CI's macOS build is folded in (the
+# scheduled publish-macos run, or `publish-local.sh $VERSION --ci-run <id>`).
+
+echo "==> Building local platforms (Linux + Windows)"
+bash "$REPO_ROOT/scripts/build-local.sh"
+
+echo "==> Publishing (partial-aware: Linux + Windows now, macOS later)"
+bash "$REPO_ROOT/scripts/publish-local.sh" "$VERSION"
 
 cat <<EOF
 
-✓ Tagged v$VERSION and pushed.
+✓ v$VERSION tagged, pushed, and published (Linux + Windows live now).
 
-  CI is now building all 5 platforms and publishing. Watch:
-    https://github.com/atayozcan/ambient/actions
+  macOS is still building on CI. Fold it in once that run finishes:
+    gh run watch                              # find the build.yml run id
+    bun run publish:local $VERSION --ci-run <run-id>
+  (Or let the scheduled publish-macos routine do it.)
 
-  Release will appear at:
-    https://github.com/atayozcan/ambient/releases/tag/v$VERSION
-
-  Manifest will land at:
-    https://ambient.oezcan.me/downloads/latest.json
+  Release:  https://github.com/atayozcan/ambient/releases/tag/v$VERSION
+  Manifest: https://ambient.oezcan.me/downloads/latest.json
 EOF
