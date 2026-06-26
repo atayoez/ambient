@@ -22,8 +22,8 @@ for (const line of (process.env.HAVE_JSON || '').split('\n')) {
 const n = {
   dmg: `Ambient-${v}-macOS-aarch64.dmg`,
   macos_up: `Ambient-${v}-macOS-aarch64.app.tar.gz`,
-  msi: `Ambient-${v}-Windows-x86_64-setup.exe`,
-  msi_arm: `Ambient-${v}-Windows-aarch64-setup.exe`,
+  win: `Ambient-${v}-Windows-x86_64-setup.exe`,
+  win_arm: `Ambient-${v}-Windows-aarch64-setup.exe`,
   appimage: `Ambient-${v}-Linux-x86_64.AppImage`,
   appimage_arm: `Ambient-${v}-Linux-aarch64.AppImage`,
 };
@@ -39,8 +39,8 @@ out.platforms = out.platforms || {};
 
 const dl = [
   ['macos', 'macos', n.dmg],
-  ['windows', 'windows', n.msi],
-  ['windows_arm', 'windows-arm64', n.msi_arm],
+  ['windows', 'windows', n.win],
+  ['windows_arm', 'windows-arm64', n.win_arm],
   ['linux_appimage', 'linux-appimage', n.appimage],
   ['linux_appimage_arm', 'linux-appimage-arm64', n.appimage_arm],
 ];
@@ -58,8 +58,8 @@ for (const k of ['linux-deb', 'linux-deb-arm64', 'linux-rpm', 'linux-rpm-arm64',
 // is the one Linux format tauri-plugin-updater can self-update (it replaces
 // $APPIMAGE in place), so unlike deb/rpm, Linux now gets platform entries.
 if (have.has('macos_sig')) out.platforms['darwin-aarch64'] = { signature: sig('macos_sig'), url: url(n.macos_up) };
-if (have.has('windows_sig')) out.platforms['windows-x86_64'] = { signature: sig('windows_sig'), url: url(n.msi) };
-if (have.has('windows_arm_sig')) out.platforms['windows-aarch64'] = { signature: sig('windows_arm_sig'), url: url(n.msi_arm) };
+if (have.has('windows_sig')) out.platforms['windows-x86_64'] = { signature: sig('windows_sig'), url: url(n.win) };
+if (have.has('windows_arm_sig')) out.platforms['windows-aarch64'] = { signature: sig('windows_arm_sig'), url: url(n.win_arm) };
 if (have.has('linux_appimage_sig')) out.platforms['linux-x86_64'] = { signature: sig('linux_appimage_sig'), url: url(n.appimage) };
 if (have.has('linux_appimage_arm_sig')) out.platforms['linux-aarch64'] = { signature: sig('linux_appimage_arm_sig'), url: url(n.appimage_arm) };
 

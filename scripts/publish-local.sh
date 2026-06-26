@@ -17,7 +17,6 @@
 #
 # Usage:  scripts/publish-local.sh <version> [--ci-run <run-id>]
 # Env:    CLOUDFLARE_ACCOUNT_ID (default below); wrangler must be logged in.
-#         RPM_GPG_PRIVATE_KEY/RPM_GPG_PASSPHRASE optional (else rpm ships unsigned).
 
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO_ROOT"
@@ -49,23 +48,9 @@ if [[ -n "$CI_RUN" ]]; then
   gh run download "$CI_RUN" --dir "$SRC" --pattern 'ambient-*' || echo "   (no CI artifacts; continuing partial)"
 fi
 
-# Windows: scripts/build-local.sh cross-compiles a signed NSIS setup.exe (+ a
-# .sig) for x86_64; the arm64 setup.exe comes from CI (--ci-run). Both are
-# updater-signed at build time, so there's nothing to sign here.
-
-# Sign rpms only if the *correct* packaging key is provided (the one whose
-# public half is on the site). It isn't in the local keyring, so by default
-# rpms ship unsigned (dnf/zypper warn but install) rather than mis-signed.
-if [[ -n "${RPM_GPG_PRIVATE_KEY:-}" ]]; then
-  for rpm in $(find "$SRC" -name '*.rpm' 2>/dev/null); do
-    "${CONTAINER:-podman}" --storage-driver vfs --root /tmp/ambient-pbuild run --rm \
-      -v "$REPO_ROOT/$(dirname "$rpm")":/out -v "$REPO_ROOT/scripts":/scripts:ro \
-      -e RPM_GPG_PRIVATE_KEY -e RPM_GPG_PASSPHRASE \
-      docker.io/library/almalinux:9 bash /scripts/sign-rpms.sh "/out/$(basename "$rpm")"
-  done
-else
-  echo "==> RPM_GPG_PRIVATE_KEY not set — rpms ship UNSIGNED"
-fi
+# Nothing to sign here: build-local.sh cross-compiles updater-signed NSIS
+# setup.exe (+ .sig) for both Windows arches, and the AppImages are signed at
+# build time too. macOS arrives pre-signed from CI via --ci-run.
 
 # Rename present artifacts to the release convention + remember which we have.
 declare -A HAVE
@@ -100,9 +85,8 @@ node scripts/extract-changelog.mjs --version "$VERSION" --output "$OUT/notes.md"
 
 echo "==> Uploading present artifacts + latest.json to R2"
 ct() { case "$1" in *.dmg) echo application/x-apple-diskimage;; *.app.tar.gz) echo application/gzip;;
-  *-setup.exe) echo application/x-msdownload;; *.deb) echo application/vnd.debian.binary-package;;
-  *.AppImage) echo application/x-executable;; *.json) echo application/json;;
-  *) echo application/octet-stream;; esac; }
+  *-setup.exe) echo application/x-msdownload;; *.AppImage) echo application/x-executable;;
+  *.json) echo application/json;; *) echo application/octet-stream;; esac; }
 for f in "$OUT"/Ambient-* "$OUT/latest.json"; do
   [[ -f "$f" ]] || continue
   $WRANGLER r2 object put "ambient-releases/$(basename "$f")" --file="$f" --content-type="$(ct "$f")" --remote

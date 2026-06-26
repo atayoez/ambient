@@ -1,30 +1,18 @@
-# Cross-platform CI for Ambient.
+# CI for Ambient — macOS build + cheap checks only. Everything else is local.
 #
-# - check: fast TypeScript + Biome + cargo tests on Ubuntu. Gates every
-#   downstream job. Runs on push, PR, dispatch, and tag-push.
-# - build-tauri: arch matrix —
-#     macOS aarch64 (.dmg + signed .app.tar.gz for the updater)
-#     Windows x86_64 (.msi + .msi.sig)
-#     Windows aarch64 (.msi + .msi.sig)
-#     Linux aarch64 (.deb + .rpm)                  ← native ARM runner
-#     Linux x86_64 (.deb + .rpm)
-#   Gated to tag pushes (`refs/tags/v*`) and manual dispatch so plain
-#   main pushes only spend the cheap `check` minutes — macOS runners
-#   are ~10× priced on the free tier.
-# - build-arch: repackages the x86_64 .deb into a native Arch
-#   .pkg.tar.zst via makepkg in an archlinux container.
-# - release: depends on build-tauri + build-arch, runs only on tag push.
-#   Renames artifacts to the release filename convention, uploads them
-#   to R2, generates latest.json (`downloads.*` aliases for the worker +
-#   signed `platforms.*` for tauri-plugin-updater — macOS/Windows only;
-#   Linux native packages update via the system package manager), and
-#   cuts the GitHub release with everything attached + CHANGELOG notes.
-#   Linux ships native packages only — no AppImage (its bundled GPU libs
-#   blank-screened on some hosts; native packages use system WebKitGTK).
+# - check: fast TypeScript + Biome + cargo tests on Ubuntu. Gates the build.
+#   Runs on push, PR, dispatch, and tag-push.
+# - build-tauri: macOS aarch64 ONLY (.dmg + signed .app.tar.gz for the
+#   updater) — Apple's SDK + bundler are Mac-locked, so it's the one target
+#   CI builds. Gated to tag pushes (`refs/tags/v*`) and manual dispatch so
+#   plain main pushes only spend the cheap `check` minutes (macOS runners are
+#   ~10× priced). The artifact is uploaded for the local publisher to fold in.
 #
-# Release flow from the developer's side: `bun run release X.Y.Z`,
-# which is now just version-bump + commit + tag + push. The tag-push
-# trigger here is what actually publishes.
+# Linux (x86_64 + aarch64 AppImage) and Windows (x86_64 + aarch64 NSIS) are
+# built locally by scripts/build-local.sh, and publishing is local too
+# (scripts/publish-local.sh, partial-aware): `bun run release X.Y.Z` does
+# version-bump + tag + push (triggers this macOS build), then runs the local
+# build + publish. Fold macOS in with `publish-local.sh X.Y.Z --ci-run <id>`.
 
 name: Build
 
@@ -173,11 +161,9 @@ jobs:
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri auto-signs the updater bundles when this is set: the
-          # macOS .app.tar.gz and the Windows .msi (.sig files land next to
-          # them and drive latest.json). Linux ships native packages
-          # (deb/rpm/pacman) which update via the system package manager,
-          # so there's no Linux updater artifact to sign.
+          # Tauri auto-signs the updater bundle when this is set: the macOS
+          # .app.tar.gz (its .sig lands next to it and drives latest.json).
+          # This job only builds macOS; Linux/Windows are signed locally.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
@@ -187,17 +173,14 @@ jobs:
           name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: warn
-          # These are an intermediate hop: the release job downloads them
-          # within the same run, and finish-release.yml's rescue path reuses
-          # them for a few days. 90-day default piled up GB of installers and
-          # blew the account artifact-storage quota (which failed a release
-          # mid-publish). A week keeps the rescue window without the pile-up.
+          # The local publisher pulls these via `publish-local.sh --ci-run
+          # <id>` to fold the macOS build into the release. Short retention:
+          # the 90-day default piled up GB of installers and blew the account
+          # artifact-storage quota (which failed a release mid-publish).
           retention-days: 7
 
-  # No build-arch or release job here anymore. The Arch package is built
-  # locally (scripts/build-local.sh, makepkg) and publishing is local too
-  # (scripts/publish-local.sh signs, builds latest.json, uploads to R2, and
-  # cuts the GitHub release). It downloads the macOS / ARM artifacts uploaded
-  # by build-tauri above and combines them with the locally-built x86_64 +
-  # Windows packages. CI's only remaining job is to produce the bundles the
-  # dev machine can't: macOS (no off-Mac build) and the ARM variants.
+  # No release job here. Publishing is local (scripts/publish-local.sh:
+  # signs, builds latest.json, uploads to R2, cuts the GitHub release),
+  # pulling this macOS artifact via --ci-run and combining it with the
+  # locally-built Linux + Windows bundles. CI's only job is the one bundle
+  # the dev machine can't make: macOS (no off-Mac build).

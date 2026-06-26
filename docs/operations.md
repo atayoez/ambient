@@ -63,8 +63,8 @@ DNS zone      oezcan.me  (zone ID 07bcaf6bb2065f0bab0e2f99984bb9ff)
 R2 file scheme (since 0.4):
 ```
 Ambient-<VERSION>-macOS-aarch64.dmg
-Ambient-<VERSION>-Windows-x86_64.msi
-Ambient-<VERSION>-Windows-aarch64.msi
+Ambient-<VERSION>-Windows-x86_64-setup.exe
+Ambient-<VERSION>-Windows-aarch64-setup.exe
 Ambient-<VERSION>-Linux-x86_64.AppImage
 Ambient-<VERSION>-Linux-aarch64.AppImage
 latest.json
