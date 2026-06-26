@@ -5,13 +5,12 @@
 # are present and leaves every other platform pointing at the previous release
 # in latest.json, so a Mac/ARM build that isn't ready never breaks the feed.
 #
-# Expects (whatever exists) under dist/, same layout as ci-publish.sh:
-#   $SRC/ambient-ubuntu-22.04-x86_64/      *.deb *.rpm     (scripts/build-local.sh)
-#   $SRC/ambient-arch-x86_64/              *.pkg.tar.zst   (scripts/build-local.sh)
-#   $SRC/ambient-windows-latest-x86_64/    *-setup.exe(.sig)  (build-local.sh, signed)
-#   $SRC/ambient-ubuntu-22.04-arm-aarch64/ *.deb *.rpm        (build-local --arm64, or CI)
-#   $SRC/ambient-macos-latest-aarch64/     *.dmg *.app.tar.gz(.sig)  (CI only)
-#   $SRC/ambient-windows-11-arm-aarch64/   *-setup.exe(.sig)  (CI only — arm64 ring/xwin issue)
+# Expects (whatever exists) under $SRC, in build-local.sh's layout:
+#   $SRC/ambient-linux-x86_64/          *.AppImage(.sig)   (build-local.sh)
+#   $SRC/ambient-linux-arm-aarch64/     *.AppImage(.sig)   (build-local.sh, on $ARM_HOST)
+#   $SRC/ambient-windows-latest-x86_64/ *-setup.exe(.sig)  (build-local.sh, signed)
+#   $SRC/ambient-windows-11-arm-aarch64/ *-setup.exe(.sig) (build-local.sh, signed)
+#   $SRC/ambient-macos-latest-aarch64/  *.dmg *.app.tar.gz(.sig)  (CI only, via --ci-run)
 #
 # Pull the CI-built macOS/ARM artifacts first with:  --ci-run <run-id>
 # (downloads `ambient-*` artifacts from that build.yml run into dist/).
@@ -83,10 +82,10 @@ stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe'      "Ambient-$VERSIO
 stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe.sig'  "Ambient-$VERSION-Windows-x86_64-setup.exe.sig"  windows_sig
 stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe'      "Ambient-$VERSION-Windows-aarch64-setup.exe"     windows_arm
 stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe.sig'  "Ambient-$VERSION-Windows-aarch64-setup.exe.sig" windows_arm_sig
-stage $SRC/ambient-ubuntu-22.04-x86_64       '*.AppImage'      "Ambient-$VERSION-Linux-x86_64.AppImage"       linux_appimage
-stage $SRC/ambient-ubuntu-22.04-x86_64       '*.AppImage.sig'  "Ambient-$VERSION-Linux-x86_64.AppImage.sig"   linux_appimage_sig
-stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.AppImage'      "Ambient-$VERSION-Linux-aarch64.AppImage"      linux_appimage_arm
-stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.AppImage.sig'  "Ambient-$VERSION-Linux-aarch64.AppImage.sig"  linux_appimage_arm_sig
+stage $SRC/ambient-linux-x86_64       '*.AppImage'      "Ambient-$VERSION-Linux-x86_64.AppImage"       linux_appimage
+stage $SRC/ambient-linux-x86_64       '*.AppImage.sig'  "Ambient-$VERSION-Linux-x86_64.AppImage.sig"   linux_appimage_sig
+stage $SRC/ambient-linux-arm-aarch64  '*.AppImage'      "Ambient-$VERSION-Linux-aarch64.AppImage"      linux_appimage_arm
+stage $SRC/ambient-linux-arm-aarch64  '*.AppImage.sig'  "Ambient-$VERSION-Linux-aarch64.AppImage.sig"  linux_appimage_arm_sig
 
 # Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
 echo "==> Building latest.json (merged with live)"

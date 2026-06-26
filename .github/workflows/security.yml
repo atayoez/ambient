@@ -47,7 +47,7 @@ permissions:
 jobs:
   cargo-audit:
     name: cargo audit (Rust dep CVEs)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./src-tauri
@@ -70,7 +70,7 @@ jobs:
 
   gitleaks:
     name: gitleaks (secrets scan)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:

@@ -49,7 +49,7 @@ jobs:
   publish-mac:
     name: Merge macOS into the live release
     needs: build-mac
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write # for gh release upload
     steps:

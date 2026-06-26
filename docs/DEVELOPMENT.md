@@ -83,9 +83,10 @@ automatically.
 
 ### Linux aarch64
 
-Built in CI on the native `ubuntu-22.04-arm` runner — no local
-toolchain needed. The release script downloads the artifact alongside
-the macOS / Windows ones.
+Built locally by `release.sh` → `build-local.sh`: a `ubuntu:rolling`
+container run natively on `$ARM_HOST` (default `orion`) over ssh, since
+cross-bundling an AppImage can't run linuxdeploy. Signed back on the dev
+box. Not a CI target.
 
 ## Releasing
 
@@ -179,7 +180,7 @@ Library view.
 
 - **`check`** — runs on every push + PR. tsc, biome, vitest, cargo
   test --lib. Fast; ~1-2 min total. Gates the matrix.
-- **`build-tauri`** — `workflow_dispatch` only. 4-arch matrix
-  (macos-latest aarch64, windows-latest x86_64, windows-11-arm
-  aarch64, ubuntu-22.04-arm aarch64). Linux x86_64 still builds
-  locally during `release.sh`.
+- **`build-tauri`** — tag-push / `workflow_dispatch` only, and now
+  **macOS only** (`macos-latest` aarch64) — Apple's SDK + bundler are
+  Mac-locked. Linux (x86_64 + aarch64) and Windows (x86_64 + aarch64)
+  all build locally via `release.sh` → `build-local.sh`.

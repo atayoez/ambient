@@ -5,8 +5,8 @@
 # only target CI still handles (Apple SDK + bundler are Mac-locked).
 #
 # Builds:
-#   Linux x86_64 .AppImage   — ubuntu:26.04 container here (signed).
-#   Linux aarch64 .AppImage  — ubuntu:26.04 container ON the arm host ($ARM_HOST,
+#   Linux x86_64 .AppImage   — ubuntu:rolling container here (signed).
+#   Linux aarch64 .AppImage  — ubuntu:rolling container ON the arm host ($ARM_HOST,
 #                              default orion) via ssh: runs NATIVE arm64 there,
 #                              so linuxdeploy works (cross-bundling can't; native
 #                              Tumbleweed/Arch hit distro-specific AppImage bugs).
@@ -15,8 +15,9 @@
 #
 # Why a container for the AppImages: linuxdeploy/-plugin-gtk assume an Ubuntu
 # layout (Arch self-copies GLib schemas; openSUSE puts appindicator in lib64).
-# An ubuntu:26.04 container is the clean, modern (gcc-15/glibc-2.43) build env;
-# for a lib-bundling AppImage, container vs native doesn't change the output.
+# We use ubuntu:rolling (always the latest Ubuntu release) + `--pull=newer` so
+# the build base never goes stale; for a lib-bundling AppImage, container vs
+# native doesn't change the output.
 # Rootless podman: vfs driver (overlay EOVERFLOWs on dpkg chown) + on the arm
 # host, --security-opt label=disable (SELinux) and an inlined script (a bind-
 # mounted script hit EPERM).
@@ -35,7 +36,9 @@ VERSION="$(node -e "console.log(require('./package.json').version)")"
 KEY="$HOME/.config/ambient/updater-private.key"
 ARM_HOST="${ARM_HOST:-orion}"   # arm64 build box (native aarch64, ssh-reachable)
 PODMAN=(podman --storage-driver vfs --root /tmp/ambient-pbuild)
-UBUNTU="docker.io/library/ubuntu:26.04"
+# ubuntu:rolling = the latest Ubuntu release, always. Paired with `--pull=newer`
+# on each run so the cached image is refreshed when upstream moves.
+UBUNTU="docker.io/library/ubuntu:rolling"
 
 command -v "$HOME/.cargo/bin/cargo-xwin" >/dev/null || { echo "cargo-xwin missing — cargo install cargo-xwin" >&2; exit 1; }
 command -v makensis >/dev/null || { echo "makensis missing — install NSIS (Arch: AUR 'nsis')" >&2; exit 1; }
@@ -88,19 +91,19 @@ sign_appimage() { # <dir> — sign any .AppImage missing a .sig (updater signatu
     TAURI_SIGNING_PRIVATE_KEY_PASSWORD= bun x tauri signer sign -f "$KEY" -p "" "$f" >/dev/null || true
 }
 
-echo "==> Linux x86_64 AppImage (ubuntu:26.04 container, signed)"
-rm -rf build-out/ambient-ubuntu-22.04-x86_64; mkdir -p build-out/ambient-ubuntu-22.04-x86_64
-"${PODMAN[@]}" run --rm \
-  -v "$REPO_ROOT":/src:ro -v "$REPO_ROOT/build-out/ambient-ubuntu-22.04-x86_64":/out -v "$KEY":/key:ro \
+echo "==> Linux x86_64 AppImage (ubuntu:rolling container, signed)"
+rm -rf build-out/ambient-linux-x86_64; mkdir -p build-out/ambient-linux-x86_64
+"${PODMAN[@]}" run --rm --pull=newer \
+  -v "$REPO_ROOT":/src:ro -v "$REPO_ROOT/build-out/ambient-linux-x86_64":/out -v "$KEY":/key:ro \
   -e TAURI_SIGNING_PRIVATE_KEY=/key -e TAURI_SIGNING_PRIVATE_KEY_PASSWORD= \
   "$UBUNTU" bash -c "$CONTAINER_APPIMAGE"
 
-echo "==> Linux aarch64 AppImage (ubuntu:26.04 container on $ARM_HOST, native arm64)"
-out=build-out/ambient-ubuntu-22.04-arm-aarch64; rm -rf "$out"; mkdir -p "$out"
+echo "==> Linux aarch64 AppImage (ubuntu:rolling container on $ARM_HOST, native arm64)"
+out=build-out/ambient-linux-arm-aarch64; rm -rf "$out"; mkdir -p "$out"
 rsync -az --delete --exclude='/src-tauri/target' --exclude='node_modules' \
   --exclude='/build-out' --exclude='/dist' --exclude='/.cache' ./ "$ARM_HOST:/tmp/ambient-src/"
 ssh "$ARM_HOST" "mkdir -p \$HOME/ambient-out && rm -f \$HOME/ambient-out/*.AppImage*
-podman --storage-driver vfs --root \$HOME/orion-pbuild run --rm --security-opt label=disable \
+podman --storage-driver vfs --root \$HOME/orion-pbuild run --rm --pull=newer --security-opt label=disable \
   -v /tmp/ambient-src:/src:ro -v \$HOME/ambient-out:/out \
   $UBUNTU bash -c $(printf '%q' "$CONTAINER_APPIMAGE")"
 scp -q "$ARM_HOST:\$HOME/ambient-out/*.AppImage" "$out/" 2>/dev/null || \
