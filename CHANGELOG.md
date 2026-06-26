@@ -15,9 +15,20 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- In-app updates for the Linux AppImage. The update banner and Settings →
+  Updates now offer **Install & restart**: Ambient downloads the new
+  AppImage, replaces itself in place, and relaunches — no trip to the
+  download page. macOS and Windows still link to the site (those builds
+  aren't OS-code-signed, so the OS install prompt is handled deliberately).
+
 ### Changed
 
 ### Fixed
+
+- Glass panel text was unreadable in OS light mode — the frosted control
+  panels and tab bar are deliberately dark, but light mode flipped the text
+  to black, sinking every label into the dark glass. Text on those surfaces
+  now stays light regardless of the OS colour scheme.
 
 ## [1.2.0] — 2026-06-26
 
