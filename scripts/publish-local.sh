@@ -39,7 +39,10 @@ export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-848c6419822ef3e91b6f66d69
 # local build-local.sh stages there, kept clear of vite's dist/), else dist/
 # (CI download-artifact path, e.g. publish-macos.yml).
 SRC="${AMBIENT_STAGE:-$([ -d build-out ] && echo build-out || echo dist)}"
-OUT="$SRC/renamed"; mkdir -p "$OUT"
+# Start the rename staging dir EMPTY: the upload + GH-release globs match
+# `Ambient-*`, so a previous release's renamed artifacts left here would be
+# re-uploaded and attached to this version's release. Wipe, don't merge.
+OUT="$SRC/renamed"; rm -rf "$OUT"; mkdir -p "$OUT"
 WRANGLER="bunx wrangler@4"
 
 if [[ -n "$CI_RUN" ]]; then
