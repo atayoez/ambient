@@ -72,6 +72,17 @@ fn set_autostart(enabled: bool) -> Result<(), String> {
     integrate::set_autostart(enabled)
 }
 
+/// Whether this process can update itself in place. True only for the
+/// Linux AppImage ($APPIMAGE set) — that's the one desktop format
+/// tauri-plugin-updater replaces on disk without an OS installer prompt.
+/// On macOS/Windows the bundles aren't OS-code-signed, so an in-app
+/// install would trip Gatekeeper/SmartScreen mid-update; those keep the
+/// "open the download page" path instead. Always false off Linux.
+#[tauri::command]
+fn running_as_appimage() -> bool {
+    cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_some()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Headless uninstall path: `Ambient.AppImage --uninstall` (also what
@@ -225,7 +236,9 @@ pub fn run() {
     // APK installs, and tauri-plugin-updater has no mobile support (the
     // crate is a desktop-gated target dep in Cargo.toml).
     #[cfg(desktop)]
-    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
 
     builder
         .invoke_handler(tauri::generate_handler![
@@ -260,6 +273,7 @@ pub fn run() {
             uninstall_self,
             get_autostart,
             set_autostart,
+            running_as_appimage,
         ])
         .setup(|app| {
             // Self-integrate when launched from an AppImage on Linux —

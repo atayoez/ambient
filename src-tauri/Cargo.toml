@@ -63,6 +63,8 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["e
 # mobile support, so it must not even build there.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+# Relaunch after an in-app update (the Linux AppImage self-update path).
+tauri-plugin-process = "2"
 
 # Mobile wallpaper-set bridge (Android WallpaperManager). Registered in
 # lib.rs setup and routed into ambient_core::desktop::set_os_setter.

@@ -1749,6 +1749,50 @@ button.primary.icon-btn {
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
+/* Dark-film glass surfaces — .tabs, .gen-panel, .pat-actions — present a
+   near-black frost to whatever sits ON them, NO MATTER the OS colour
+   scheme. That dark film is deliberate: it's what gives the controls
+   reliable contrast over an arbitrarily bright wallpaper preview behind
+   the glass. So the panel INTERIOR must always render with the dark-scheme
+   ink + surface tokens; otherwise OS light mode flips --text to black and
+   every label/glyph sinks into the dark glass (the "bad contrast" bug).
+   We scope-override the tokens on just these containers — NOT globally:
+   the solid, scheme-following surfaces in the other tabs (Sources,
+   Library, Settings sit over --bg-base) must keep their light-mode values.
+   This is "text contrast follows what's behind the glass": here, the thing
+   behind the text is the dark film, so the ink is always light. */
+.tabs,
+.gen-panel,
+.pat-actions {
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.55);
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.08);
+  --surface-3: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --highlight-edge: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+
+/* The ONE exception: in reduced-transparency + light mode the tabs pill
+   loses its frost and becomes an opaque WHITE pill (see the rule above),
+   so its glyphs flip back to dark ink. .gen-panel / .pat-actions keep
+   their dark film in every mode, so they're untouched here. This rule
+   must follow the override above to win on source order. */
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: light) {
+  .tabs {
+    --text: #000000;
+    --muted: rgba(0, 0, 0, 0.55);
+    --surface: rgba(0, 0, 0, 0.04);
+    --surface-2: rgba(0, 0, 0, 0.07);
+    --surface-3: rgba(0, 0, 0, 0.12);
+    --border: rgba(0, 0, 0, 0.1);
+    --border-strong: rgba(0, 0, 0, 0.18);
+    --highlight-edge: rgba(0, 0, 0, 0.04);
+  }
+}
+
 .gen-empty-hint {
   position: absolute;
   z-index: 1;

@@ -18,7 +18,12 @@ import {
   type LiveQuality,
   type RotationSource,
 } from '../lib/types';
-import { checkForUpdateManual } from '../lib/updater';
+import {
+  canSelfUpdate,
+  checkForUpdateManual,
+  type InstallProgress,
+  installUpdate,
+} from '../lib/updater';
 import { clearThumbnailCache, deleteLocalWallpapers } from '../lib/wallpaper';
 import { OptionScroller } from '../ui';
 import { RefreshIcon } from './Icons';
@@ -48,7 +53,15 @@ type UpdateState =
   | { kind: 'checking' }
   | { kind: 'uptodate' }
   | { kind: 'available'; version: string }
+  | { kind: 'installing'; progress: InstallProgress }
   | { kind: 'error' };
+
+function installLabel(p: InstallProgress): string {
+  if (p.phase === 'installing') return 'Installing…';
+  if (p.phase === 'relaunching') return 'Restarting…';
+  if (p.total) return `Downloading… ${Math.round((p.downloaded / p.total) * 100)}%`;
+  return 'Downloading…';
+}
 
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -64,6 +77,7 @@ export default function Settings() {
   );
   const [version, setVersion] = useState('');
   const [update, setUpdate] = useState<UpdateState>({ kind: 'idle' });
+  const [selfUpdate, setSelfUpdate] = useState(false);
 
   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
   const [purgeData, setPurgeData] = useState(false);
@@ -83,6 +97,7 @@ export default function Settings() {
       .then(setAutostart)
       .catch(() => {});
     void getVersion().then(setVersion);
+    void canSelfUpdate().then(setSelfUpdate);
   }, []);
 
   async function patch(p: Partial<AppSettings>) {
@@ -131,10 +146,23 @@ export default function Settings() {
     else setUpdate({ kind: 'error' });
   }
 
-  // We don't install in-app — open the download page so the user grabs
-  // the new build / native package themselves (see UpdateBanner for why).
-  function openDownload() {
-    void openUrl(DOWNLOAD_URL);
+  // On the AppImage (selfUpdate) we install in place + relaunch; everywhere
+  // else open the download page so the user handles the OS prompt themselves
+  // (see ../lib/updater for why the split).
+  async function applyUpdate() {
+    if (!selfUpdate) {
+      void openUrl(DOWNLOAD_URL);
+      return;
+    }
+    try {
+      // installUpdate relaunches on success, so this only returns on failure.
+      await installUpdate((progress) => setUpdate({ kind: 'installing', progress }));
+      setUpdate({ kind: 'installing', progress: { phase: 'relaunching' } });
+    } catch {
+      // Self-install failed — fall back to the download page.
+      setUpdate({ kind: 'error' });
+      void openUrl(DOWNLOAD_URL);
+    }
   }
 
   async function doUninstall() {
@@ -323,11 +351,15 @@ export default function Settings() {
             <button
               type="button"
               className="set-btn"
-              onClick={update.kind === 'available' ? openDownload : checkUpdates}
-              disabled={update.kind === 'checking'}
+              onClick={update.kind === 'available' ? applyUpdate : checkUpdates}
+              disabled={update.kind === 'checking' || update.kind === 'installing'}
             >
               {update.kind === 'available' ? (
-                <span>Download {update.version}</span>
+                <span>
+                  {selfUpdate ? 'Install & restart' : `Download ${update.version}`}
+                </span>
+              ) : update.kind === 'installing' ? (
+                <span>{installLabel(update.progress)}</span>
               ) : (
                 <>
                   <RefreshIcon size={13} />

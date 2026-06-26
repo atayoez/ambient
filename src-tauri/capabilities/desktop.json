@@ -4,5 +4,5 @@
   "description": "Desktop-only grants for the Ambient main window — the updater plugin is a desktop-gated dependency, so its permission must not be referenced in a capability that applies to mobile (the android build fails capability resolution otherwise).",
   "windows": ["main"],
   "platforms": ["linux", "macOS", "windows"],
-  "permissions": ["updater:default"]
+  "permissions": ["updater:default", "process:allow-restart"]
 }

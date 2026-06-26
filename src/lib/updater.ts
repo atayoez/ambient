@@ -5,16 +5,78 @@
 // reports whether a newer version exists for this platform. We keep the 6h
 // throttle + per-version dismiss UX on top.
 //
-// The UpdateBanner + Settings link to the website download page rather than
-// installing in-app (the Mac/Windows builds aren't code-signed, so the user
-// handles the OS prompt). check() reports on the platforms present in
-// latest.json's `platforms` block — macOS, Windows, and now Linux: since
-// Linux ships an AppImage (which tauri-plugin-updater CAN self-update),
-// merge-latest-json emits linux-x86_64/linux-aarch64 entries, so Linux users
-// get the update banner too. (Full in-app download-and-install for the
-// AppImage — replacing itself + relaunch via plugin-process — is a follow-up.)
+// check() reports on the platforms present in latest.json's `platforms`
+// block — macOS, Windows, and Linux (the AppImage). Whether we offer an
+// in-app install or just link to the website depends on the platform:
+//
+//   Linux AppImage — installs IN-APP. tauri-plugin-updater replaces the
+//     running $APPIMAGE on disk and we relaunch via plugin-process. No OS
+//     installer, no code-sign gate — the cleanest self-update we have.
+//   macOS / Windows — link to the website. Those bundles aren't OS-code-
+//     signed, so a download-and-install would trip Gatekeeper/SmartScreen
+//     mid-update; better to send the user to the page and let them handle
+//     the one OS prompt deliberately.
+//
+// `canSelfUpdate()` asks the Rust side which case we're in (it checks
+// $APPIMAGE), so the UI picks "Install & restart" vs "Download".
 
+import { invoke } from '@tauri-apps/api/core';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { check } from '@tauri-apps/plugin-updater';
+
+/** True only when running as the Linux AppImage, which tauri-plugin-updater
+ *  can replace in place. Cached after the first call (it never changes for
+ *  the life of the process). Falls back to false if the command is missing
+ *  (e.g. a dev build of the web UI without the Rust backend). */
+let _selfUpdate: boolean | null = null;
+export async function canSelfUpdate(): Promise<boolean> {
+  if (_selfUpdate === null) {
+    try {
+      _selfUpdate = await invoke<boolean>('running_as_appimage');
+    } catch {
+      _selfUpdate = false;
+    }
+  }
+  return _selfUpdate;
+}
+
+export type InstallProgress =
+  | { phase: 'downloading'; downloaded: number; total: number | null }
+  | { phase: 'installing' }
+  | { phase: 'relaunching' };
+
+/** Download + install the available update in place, then relaunch. Only
+ *  valid where canSelfUpdate() is true (the AppImage). Throws on any
+ *  failure — no update available, network error, signature mismatch — so
+ *  the caller can show an error and fall back to the download page. Does
+ *  not return on success (the process is replaced by relaunch()). */
+export async function installUpdate(
+  onProgress?: (p: InstallProgress) => void,
+): Promise<void> {
+  const update = await check();
+  if (!update?.available) throw new Error('No update available');
+
+  let downloaded = 0;
+  let total: number | null = null;
+  await update.downloadAndInstall((event) => {
+    switch (event.event) {
+      case 'Started':
+        total = event.data.contentLength ?? null;
+        onProgress?.({ phase: 'downloading', downloaded: 0, total });
+        break;
+      case 'Progress':
+        downloaded += event.data.chunkLength;
+        onProgress?.({ phase: 'downloading', downloaded, total });
+        break;
+      case 'Finished':
+        onProgress?.({ phase: 'installing' });
+        break;
+    }
+  });
+
+  onProgress?.({ phase: 'relaunching' });
+  await relaunch();
+}
 
 // Don't hit the manifest more than once every 6h. The check is cheap
 // but pointless to repeat — releases happen at most weekly.
