@@ -6,12 +6,12 @@
 # in latest.json, so a Mac/ARM build that isn't ready never breaks the feed.
 #
 # Expects (whatever exists) under dist/, same layout as ci-publish.sh:
-#   dist/ambient-ubuntu-22.04-x86_64/      *.deb *.rpm     (scripts/build-local.sh)
-#   dist/ambient-arch-x86_64/              *.pkg.tar.zst   (scripts/build-local.sh)
-#   dist/ambient-windows-latest-x86_64/    *-setup.exe(.sig)  (build-local.sh, signed)
-#   dist/ambient-ubuntu-22.04-arm-aarch64/ *.deb *.rpm        (build-local --arm64, or CI)
-#   dist/ambient-macos-latest-aarch64/     *.dmg *.app.tar.gz(.sig)  (CI only)
-#   dist/ambient-windows-11-arm-aarch64/   *-setup.exe(.sig)  (CI only — arm64 ring/xwin issue)
+#   $SRC/ambient-ubuntu-22.04-x86_64/      *.deb *.rpm     (scripts/build-local.sh)
+#   $SRC/ambient-arch-x86_64/              *.pkg.tar.zst   (scripts/build-local.sh)
+#   $SRC/ambient-windows-latest-x86_64/    *-setup.exe(.sig)  (build-local.sh, signed)
+#   $SRC/ambient-ubuntu-22.04-arm-aarch64/ *.deb *.rpm        (build-local --arm64, or CI)
+#   $SRC/ambient-macos-latest-aarch64/     *.dmg *.app.tar.gz(.sig)  (CI only)
+#   $SRC/ambient-windows-11-arm-aarch64/   *-setup.exe(.sig)  (CI only — arm64 ring/xwin issue)
 #
 # Pull the CI-built macOS/ARM artifacts first with:  --ci-run <run-id>
 # (downloads `ambient-*` artifacts from that build.yml run into dist/).
@@ -35,12 +35,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-848c6419822ef3e91b6f66d69ebe63eb}"
-OUT="dist/renamed"; mkdir -p "$OUT"
+# Source dir for the ambient-* artifact subdirs: build-out/ when present (the
+# local build-local.sh stages there, kept clear of vite's dist/), else dist/
+# (CI download-artifact path, e.g. publish-macos.yml).
+SRC="${AMBIENT_STAGE:-$([ -d build-out ] && echo build-out || echo dist)}"
+OUT="$SRC/renamed"; mkdir -p "$OUT"
 WRANGLER="bunx wrangler@4"
 
 if [[ -n "$CI_RUN" ]]; then
   echo "==> Downloading CI artifacts from run $CI_RUN"
-  gh run download "$CI_RUN" --dir dist --pattern 'ambient-*' || echo "   (no CI artifacts; continuing partial)"
+  gh run download "$CI_RUN" --dir "$SRC" --pattern 'ambient-*' || echo "   (no CI artifacts; continuing partial)"
 fi
 
 # Windows: scripts/build-local.sh cross-compiles a signed NSIS setup.exe (+ a
@@ -51,7 +55,7 @@ fi
 # public half is on the site). It isn't in the local keyring, so by default
 # rpms ship unsigned (dnf/zypper warn but install) rather than mis-signed.
 if [[ -n "${RPM_GPG_PRIVATE_KEY:-}" ]]; then
-  for rpm in $(find dist -name '*.rpm' 2>/dev/null); do
+  for rpm in $(find "$SRC" -name '*.rpm' 2>/dev/null); do
     "${CONTAINER:-podman}" --storage-driver vfs --root /tmp/ambient-pbuild run --rm \
       -v "$REPO_ROOT/$(dirname "$rpm")":/out -v "$REPO_ROOT/scripts":/scripts:ro \
       -e RPM_GPG_PRIVATE_KEY -e RPM_GPG_PASSPHRASE \
@@ -69,18 +73,18 @@ stage() { # <glob-dir> <glob> <release-name> <download-key>
   cp "$f" "$OUT/$3"; HAVE[$4]="$OUT/$3"; echo "   have $4 -> $3"
 }
 echo "==> Staging present artifacts"
-stage dist/ambient-macos-latest-aarch64      '*.dmg'          "Ambient-$VERSION-macOS-aarch64.dmg"          macos
-stage dist/ambient-macos-latest-aarch64      '*.app.tar.gz'   "Ambient-$VERSION-macOS-aarch64.app.tar.gz"   macos_up
-stage dist/ambient-macos-latest-aarch64      '*.app.tar.gz.sig' "Ambient-$VERSION-macOS-aarch64.app.tar.gz.sig" macos_sig
-stage dist/ambient-windows-latest-x86_64     '*-setup.exe'      "Ambient-$VERSION-Windows-x86_64-setup.exe"      windows
-stage dist/ambient-windows-latest-x86_64     '*-setup.exe.sig'  "Ambient-$VERSION-Windows-x86_64-setup.exe.sig"  windows_sig
-stage dist/ambient-windows-11-arm-aarch64    '*-setup.exe'      "Ambient-$VERSION-Windows-aarch64-setup.exe"     windows_arm
-stage dist/ambient-windows-11-arm-aarch64    '*-setup.exe.sig'  "Ambient-$VERSION-Windows-aarch64-setup.exe.sig" windows_arm_sig
-stage dist/ambient-ubuntu-22.04-x86_64       '*.deb'          "Ambient-$VERSION-Linux-x86_64.deb"           linux_deb
-stage dist/ambient-ubuntu-22.04-x86_64       '*.rpm'          "Ambient-$VERSION-Linux-x86_64.rpm"           linux_rpm
-stage dist/ambient-ubuntu-22.04-arm-aarch64  '*.deb'          "Ambient-$VERSION-Linux-aarch64.deb"          linux_deb_arm
-stage dist/ambient-ubuntu-22.04-arm-aarch64  '*.rpm'          "Ambient-$VERSION-Linux-aarch64.rpm"          linux_rpm_arm
-stage dist/ambient-arch-x86_64               '*.pkg.tar.zst'  "Ambient-$VERSION-Linux-x86_64.pkg.tar.zst"   linux_pacman
+stage $SRC/ambient-macos-latest-aarch64      '*.dmg'          "Ambient-$VERSION-macOS-aarch64.dmg"          macos
+stage $SRC/ambient-macos-latest-aarch64      '*.app.tar.gz'   "Ambient-$VERSION-macOS-aarch64.app.tar.gz"   macos_up
+stage $SRC/ambient-macos-latest-aarch64      '*.app.tar.gz.sig' "Ambient-$VERSION-macOS-aarch64.app.tar.gz.sig" macos_sig
+stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe'      "Ambient-$VERSION-Windows-x86_64-setup.exe"      windows
+stage $SRC/ambient-windows-latest-x86_64     '*-setup.exe.sig'  "Ambient-$VERSION-Windows-x86_64-setup.exe.sig"  windows_sig
+stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe'      "Ambient-$VERSION-Windows-aarch64-setup.exe"     windows_arm
+stage $SRC/ambient-windows-11-arm-aarch64    '*-setup.exe.sig'  "Ambient-$VERSION-Windows-aarch64-setup.exe.sig" windows_arm_sig
+stage $SRC/ambient-ubuntu-22.04-x86_64       '*.deb'          "Ambient-$VERSION-Linux-x86_64.deb"           linux_deb
+stage $SRC/ambient-ubuntu-22.04-x86_64       '*.rpm'          "Ambient-$VERSION-Linux-x86_64.rpm"           linux_rpm
+stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.deb'          "Ambient-$VERSION-Linux-aarch64.deb"          linux_deb_arm
+stage $SRC/ambient-ubuntu-22.04-arm-aarch64  '*.rpm'          "Ambient-$VERSION-Linux-aarch64.rpm"          linux_rpm_arm
+stage $SRC/ambient-arch-x86_64               '*.pkg.tar.zst'  "Ambient-$VERSION-Linux-x86_64.pkg.tar.zst"   linux_pacman
 
 # Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
 echo "==> Building latest.json (merged with live)"

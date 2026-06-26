@@ -3,6 +3,7 @@ dist
 dist-ssr
 *.local
 .cache
+build-out
 
 .vscode/*
 !.vscode/extensions.json

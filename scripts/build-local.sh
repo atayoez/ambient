@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # scripts/build-local.sh — build every Ambient artifact except macOS on this
-# machine, into dist/ in the layout scripts/publish-local.sh expects. macOS is
+# machine, into build-out/ in the layout scripts/publish-local.sh expects
+# (NOT dist/ — that's vite's frontend output, which the host Windows builds'
+# `tauri build` wipes via beforeBuildCommand). macOS is
 # the only target CI still handles (Apple SDK + bundler are Mac-locked).
 #
 # Builds (all by default, ~30-40 min):
@@ -111,24 +113,24 @@ mkdir -p /out && cp -v src-tauri/target/aarch64-unknown-linux-gnu/release/bundle
   src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/rpm/*.rpm /out/'
 
 echo "==> Linux x86_64 (.deb + .rpm)"
-run_container "dist/ambient-ubuntu-22.04-x86_64" "$LINUX_X64"
+run_container "build-out/ambient-ubuntu-22.04-x86_64" "$LINUX_X64"
 
 echo "==> Linux aarch64 (.deb + .rpm) — cross-compiled (arm64 multiarch)"
-run_container "dist/ambient-ubuntu-22.04-arm-aarch64" "$LINUX_ARM"
+run_container "build-out/ambient-ubuntu-22.04-arm-aarch64" "$LINUX_ARM"
 
 echo "==> Arch x86_64 (.pkg.tar.zst) via makepkg"
-mkdir -p dist/ambient-arch-x86_64
+mkdir -p build-out/ambient-arch-x86_64
 scripts/build-arch-pkg.sh "$VERSION" \
-  "$(find dist/ambient-ubuntu-22.04-x86_64 -name '*.deb' -print -quit)" dist/ambient-arch-x86_64
+  "$(find build-out/ambient-ubuntu-22.04-x86_64 -name '*.deb' -print -quit)" build-out/ambient-arch-x86_64
 
 echo "==> Windows x86_64 (NSIS setup.exe)"
-build_windows x86_64-pc-windows-msvc dist/ambient-windows-latest-x86_64
+build_windows x86_64-pc-windows-msvc build-out/ambient-windows-latest-x86_64
 
 echo "==> Windows aarch64 (NSIS setup.exe)"
-build_windows aarch64-pc-windows-msvc dist/ambient-windows-11-arm-aarch64
+build_windows aarch64-pc-windows-msvc build-out/ambient-windows-11-arm-aarch64
 
 echo
 echo "✓ Local build done (v$VERSION) — everything but macOS:"
-find dist -maxdepth 2 -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*-setup.exe' \) -printf '   %p\n'
+find build-out -maxdepth 2 -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*-setup.exe' \) -printf '   %p\n'
 echo
 echo "Then: scripts/publish-local.sh $VERSION --ci-run <id>   (--ci-run folds in the CI macOS build)"
