@@ -73,6 +73,11 @@ jobs:
       - name: Biome check
         run: bun run lint
 
+      # Fails if the committed Plasma .frag shaders drifted from their single
+      # source (src/lib/shaders.ts). Text-only diff — no Qt/qsb needed here.
+      - name: Plasma shaders in sync
+        run: bun run check:shaders
+
       - name: Vitest (JS unit tests)
         run: bun run test
 
