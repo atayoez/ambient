@@ -22,8 +22,8 @@ for (const line of (process.env.HAVE_JSON || '').split('\n')) {
 const n = {
   dmg: `Ambient-${v}-macOS-aarch64.dmg`,
   macos_up: `Ambient-${v}-macOS-aarch64.app.tar.gz`,
-  msi: `Ambient-${v}-Windows-x86_64.msi`,
-  msi_arm: `Ambient-${v}-Windows-aarch64.msi`,
+  msi: `Ambient-${v}-Windows-x86_64-setup.exe`,
+  msi_arm: `Ambient-${v}-Windows-aarch64-setup.exe`,
   deb: `Ambient-${v}-Linux-x86_64.deb`,
   deb_arm: `Ambient-${v}-Linux-aarch64.deb`,
   rpm: `Ambient-${v}-Linux-x86_64.rpm`,
