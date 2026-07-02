@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { dispatch, listen } from '../lib/events';
+import { listen } from '../lib/events';
 import {
   loadLibrary,
   loadSettings,
@@ -179,9 +179,10 @@ export default function Library() {
   // when eligible, else the first in the pool), for instant feedback.
   const onChangeThemeMode = useCallback(
     async (mode: ThemeMode) => {
+      // patchSettings → Rust emits `settings-changed` (bridged in
+      // App.tsx), so no manual dispatch is needed here.
       const next = await patchSettings({ themeMode: mode });
       setSettings(next);
-      dispatch('settings-changed');
 
       const dark =
         mode === 'dark' ||

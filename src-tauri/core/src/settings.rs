@@ -52,7 +52,10 @@ impl SettingsState {
     pub async fn patch(&self, patch: serde_json::Value) -> Result<Settings, String> {
         let mut guard = self.inner.write().await;
         let updated = apply_patch(&guard, patch)?;
-        write_atomic(&self.path, &updated)?;
+        // Blocking fs write while holding the lock (ordering matters);
+        // block_in_place keeps it from stalling the multithread runtime's
+        // worker.
+        tokio::task::block_in_place(|| write_atomic(&self.path, &updated))?;
         *guard = updated.clone();
         drop(guard);
         let _ = self.tx.send(updated.clone());

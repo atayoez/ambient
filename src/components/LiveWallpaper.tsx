@@ -2,7 +2,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { type LiveShaderHandle, startLiveShader } from '../lib/liveShader';
-import type { PatternConfig, PatternType } from '../lib/patterns';
+import { ANIMATABLE, type PatternConfig, type PatternType } from '../lib/patterns';
 import EmojiField from './EmojiField';
 
 // Fullscreen wallpaper renderer for the Windows live-wallpaper window
@@ -15,17 +15,9 @@ import EmojiField from './EmojiField';
 // shell's init-script before mount (first apply, no IPC race), and pushed
 // over the `live-spec` event on every re-apply.
 
-const SHADER_TYPES = new Set<PatternType>([
-  'flow',
-  'waves',
-  'aurora',
-  'dots',
-  'bokeh',
-  'stripes',
-  'geometric',
-  'flower',
-  'mesh',
-]);
+// The shader-backed subset — ANIMATABLE is derived from FRAG_SHADERS in
+// lib/shaders.ts, so this Set always matches the shaders that actually exist.
+const SHADER_TYPES = new Set<PatternType>(ANIMATABLE);
 
 // The spec is a PatternConfig plus the quality caps the shell stamps in and,
 // for non-shader patterns, the path to the pre-rendered still.

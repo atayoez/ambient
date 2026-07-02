@@ -112,120 +112,16 @@ pub fn run() {
         )
         .try_init();
 
-    // Force native Wayland on a Wayland session — never XWayland.
-    //
-    // linuxdeploy-plugin-gtk's AppRun hook unconditionally exports
-    // GDK_BACKEND=x11 (a blanket guard against old WebKitGTK crashing on
-    // Wayland, tauri-apps/tauri#8541), which otherwise pins the AppImage to
-    // XWayland and clobbers anything the user set. We build against modern
-    // webkit2gtk (26.04), where Wayland is healthy, so override that hook and
-    // set the Wayland backend outright — no x11 fallback: on a Wayland
-    // session, Wayland is what we want, period. Must run before the tauri
-    // builder initializes GTK (webkit2gtk reads GDK_BACKEND at GTK init).
+    // Linux session/GPU environment steering — Wayland-only gate,
+    // GDK_BACKEND, WebKit DMABUF (AppImage), NVIDIA explicit-sync, and
+    // EGL vendor selection. Must run before the tauri builder initializes
+    // GTK (webkit2gtk reads these variables at GTK init).
     #[cfg(target_os = "linux")]
-    {
-        let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
-        if session.eq_ignore_ascii_case("wayland") {
-            // SAFETY: Rust 2024 made set_var unsafe because env mutation can
-            // race with concurrent readers in other threads. This runs in
-            // `run()` before any tauri/tokio thread is spawned and before the
-            // GTK backend reads the variable, so there is no concurrent reader.
-            unsafe {
-                std::env::set_var("GDK_BACKEND", "wayland");
-            }
-        }
-
-        // The proprietary NVIDIA driver is detected once here and reused for
-        // the EGL-vendor steering further down. `/sys/module/nvidia` exists
-        // iff the kernel module is loaded — i.e. NVIDIA's EGL/GBM stack is the
-        // one actually in play.
-        let nvidia_loaded = std::path::Path::new("/sys/module/nvidia").exists();
-
-        // Disable WebKitGTK's DMABUF renderer where it is known to break:
-        //
-        //   1. Inside the bundled AppImage: the bundled WebKit + the host Mesa
-        //      disagree on EGL ("Could not create surfaceless EGL display:
-        //      EGL_BAD_ALLOC. Aborting...") and WebKit's GPU process abort()s,
-        //      SIGABRTing the whole app on launch.
-        //
-        //   2. On the proprietary NVIDIA driver: WebKit's DMABUF buffers and
-        //      NVIDIA's EGL/GBM stack hit a Wayland protocol error — GTK
-        //      aborts with "Error 71 (Protocol error) dispatching to Wayland
-        //      display" ~1s after the webview loads. Reproduced on aarch64 +
-        //      NVIDIA + Wayland; forcing Mesa EGL or disabling the DMABUF
-        //      renderer both fix it, and disabling DMABUF keeps us on the real
-        //      GPU rather than dropping to llvmpipe.
-        //
-        // The fallback also disables GPU compositing, which kills every
-        // backdrop-filter blur in the UI — so we only force it where the
-        // alternative is a hard crash, and leave the glass intact everywhere
-        // else (Mesa/Intel/AMD native packages + `tauri dev`). An explicit
-        // user override always wins.
-        let in_appimage = std::env::var_os("APPIMAGE").is_some();
-        if (in_appimage || nvidia_loaded)
-            && std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err()
-        {
-            // SAFETY: same as above — set before any GTK/WebKit thread spawns.
-            unsafe {
-                std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-            }
-        }
-
-        // Steer EGL away from a stuck NVIDIA vendor. libglvnd's EGL loader
-        // scans /usr/share/glvnd/egl_vendor.d in filename order, and
-        // `10_nvidia.json` (installed by nvidia-utils) sorts ahead of
-        // `50_mesa.json`. On a machine with no NVIDIA GPU — e.g. an
-        // AMD/Intel laptop where `nvidia-utils` was pulled in transitively
-        // (Steam depends on it) — WebKit's web process still dlopens
-        // libEGL_nvidia first. With no device to bind to it never really
-        // initializes, but it registers teardown handlers that segfault on
-        // process exit (SIGSEGV in posix_memalign during the webview's
-        // destroy), spamming 90 MB coredumps. Detect that exact case —
-        // an NVIDIA EGL vendor present while the kernel module is NOT
-        // loaded — and point our own processes at the remaining (Mesa /
-        // other) vendors only. A real NVIDIA system (module loaded) or an
-        // explicit user override is left untouched.
-        let egl_dir = std::path::Path::new("/usr/share/glvnd/egl_vendor.d");
-        if !nvidia_loaded && std::env::var_os("__EGL_VENDOR_LIBRARY_FILENAMES").is_none() {
-            if let Ok(entries) = std::fs::read_dir(egl_dir) {
-                let mut jsons: Vec<std::path::PathBuf> = entries
-                    .flatten()
-                    .map(|e| e.path())
-                    .filter(|p| p.extension().is_some_and(|x| x == "json"))
-                    .collect();
-                let is_nvidia = |p: &std::path::Path| {
-                    p.file_name()
-                        .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("nvidia"))
-                };
-                // Only intervene if there's actually an NVIDIA vendor to skip
-                // and at least one non-NVIDIA vendor left to fall back to.
-                if jsons.iter().any(|p| is_nvidia(p)) {
-                    jsons.retain(|p| !is_nvidia(p));
-                    if !jsons.is_empty() {
-                        jsons.sort();
-                        let joined = jsons
-                            .iter()
-                            .map(|p| p.to_string_lossy().into_owned())
-                            .collect::<Vec<_>>()
-                            .join(":");
-                        // SAFETY: same as above — set before any GTK/WebKit
-                        // thread spawns and before glvnd reads the variable.
-                        unsafe {
-                            std::env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", joined);
-                        }
-                        tracing::info!(
-                            vendors = %std::env::var("__EGL_VENDOR_LIBRARY_FILENAMES").unwrap_or_default(),
-                            "steered EGL away from an inactive NVIDIA vendor"
-                        );
-                    }
-                }
-            }
-        }
-    }
+    configure_linux_session_env();
 
     // "New launch wins" solo-instance handoff. Reads the previous
-    // instance's PID file, SIGTERMs it if it's still alive and is
-    // really an `ambient` process, waits up to 1.5s for it to exit,
+    // instance's PID file, SIGKILLs it if it's still alive and is
+    // really an `ambient` process, waits up to ~0.8s for it to vanish,
     // then writes our own PID. Runs BEFORE the tauri::Builder so we
     // never have two webviews / two trays competing for the shared
     // settings/library/license files. Desktop-only — Android's activity
@@ -256,7 +152,8 @@ pub fn run() {
             commands::get_library,
             commands::patch_library,
             commands::get_startup_license,
-            commands::activate_license,
+            commands::request_login_code,
+            commands::login_with_code,
             commands::clear_license,
             commands::get_primary_monitor_pixels,
             commands::get_system_accent,
@@ -270,6 +167,7 @@ pub fn run() {
             commands::pollinations_models,
             commands::apply_pattern,
             commands::render_preview,
+            commands::export_emoji_pngs,
             commands::apply_live_pattern,
             commands::clear_live_wallpaper,
             commands::get_live_wallpaper,
@@ -388,6 +286,13 @@ pub fn run() {
                 });
             }
 
+            // Trial keys expire mid-session (the app lives in the tray for
+            // days); this watcher revalidates at the key's expiry instant
+            // so a lapsed trial gates immediately, not at the next launch.
+            tauri::async_runtime::spawn(async {
+                ambient_core::license::watch_expiry().await;
+            });
+
             // Background rotation + theme-follow tasks. Both survive
             // webview destroy/rebuild (the whole reason these moved
             // out of JS in Phase 4 — pre-Phase-4 the rotation timer
@@ -396,18 +301,15 @@ pub fn run() {
 
             #[cfg(desktop)]
             {
-                let next_i = MenuItem::with_id(
-                    app,
-                    "next",
-                    "Next wallpaper",
-                    true,
-                    None::<&str>,
-                )?;
-                let sep = PredefinedMenuItem::separator(app)?;
-                let show_i =
-                    MenuItem::with_id(app, "show", "Open Ambient", true, None::<&str>)?;
-                let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&next_i, &sep, &show_i, &quit_i])?;
+                // "Next wallpaper" only makes sense while rotation is on;
+                // with rotation off the slot becomes "Random wallpaper",
+                // which re-rolls the current pattern's arrangement. The
+                // watcher below swaps the menu live when the setting flips.
+                let rotation_on = !matches!(
+                    ambient_core::state::settings().subscribe().borrow().rotation_source,
+                    ambient_core::types::RotationSource::Off
+                );
+                let menu = tray_menu(app.handle(), rotation_on)?;
 
                 let mut tray = TrayIconBuilder::with_id("main")
                     .menu(&menu)
@@ -421,6 +323,24 @@ pub fn run() {
                             let app = app.clone();
                             tauri::async_runtime::spawn(async move {
                                 let _ = rotation::trigger_once(&app).await;
+                            });
+                        }
+                        "random" => {
+                            // Full re-roll of the current pattern (live or
+                            // static): seed + knobs + palette. When the
+                            // desktop isn't showing a pattern, fall back to
+                            // the library-shuffle path "next" uses with
+                            // rotation off.
+                            let app = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let cfg = ambient_core::state::settings().get().await;
+                                let dark = rotation::effective_dark(&cfg);
+                                if ambient_core::renderer::randomize_current(dark)
+                                    .await
+                                    .is_err()
+                                {
+                                    let _ = rotation::trigger_once(&app).await;
+                                }
                             });
                         }
                         "show" => show_main_window(app),
@@ -451,6 +371,40 @@ pub fn run() {
                     .icon_as_template(true);
 
                 let _ = tray.build(app)?;
+
+                // Keep the action item in step with the rotation setting:
+                // rotation toggled on → "Next wallpaper", off → "Random
+                // wallpaper". Rebuild only on an actual flip. The baseline
+                // is the same value the initial menu was built from — the
+                // task must not re-read it, or a flip landing between menu
+                // build and subscribe would be folded into the baseline
+                // and never reflected.
+                let menu_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut rx = ambient_core::state::settings().subscribe();
+                    let mut rotation_on = rotation_on;
+                    loop {
+                        // First iteration catches a flip that landed between
+                        // the initial menu build and this subscribe (a new
+                        // watch receiver treats the current value as seen,
+                        // so changed() alone would miss it).
+                        let on = !matches!(
+                            rx.borrow().rotation_source,
+                            ambient_core::types::RotationSource::Off
+                        );
+                        if on != rotation_on {
+                            rotation_on = on;
+                            if let Some(tray) = menu_handle.tray_by_id("main") {
+                                if let Ok(menu) = tray_menu(&menu_handle, on) {
+                                    let _ = tray.set_menu(Some(menu));
+                                }
+                            }
+                        }
+                        if rx.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                });
             }
             Ok(())
         })
@@ -464,8 +418,13 @@ pub fn run() {
             // icon stays alive via the prevent_exit handler below, and
             // the next "Open Ambient" rebuilds a fresh webview from
             // tauri.conf.json's window definition.
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let _ = window.destroy();
+            // Main window only: the desktop-layer "wallpaper" window
+            // (macOS/Windows live mode) must never be destroyed by a stray
+            // close request — it's owned by the live-wallpaper lifecycle.
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    let _ = window.destroy();
+                }
             }
         })
         .build(tauri::generate_context!())
@@ -487,6 +446,156 @@ pub fn run() {
             RunEvent::Exit => solo_instance::cleanup(),
             _ => {}
         });
+}
+
+// Wayland-only: force the native Wayland backend, never X11/XWayland.
+//
+// linuxdeploy-plugin-gtk's AppRun hook unconditionally exports
+// GDK_BACKEND=x11 (a blanket guard against old WebKitGTK crashing on
+// Wayland, tauri-apps/tauri#8541), which otherwise pins the AppImage to
+// XWayland and clobbers anything the user set. We build against modern
+// webkit2gtk (26.04), where Wayland is healthy, so override that hook and
+// set the Wayland backend outright. Must run before the tauri builder
+// initializes GTK (webkit2gtk reads GDK_BACKEND at GTK init).
+#[cfg(target_os = "linux")]
+fn configure_linux_session_env() {
+    // Wayland-only on Linux: no X11/XWayland support. A Wayland
+    // compositor is required — bail out with a clear message instead of
+    // letting GTK limp along on X11 where the wallpaper plugin, blur and
+    // GPU paths are untested.
+    let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+    if !session.eq_ignore_ascii_case("wayland")
+        && std::env::var_os("WAYLAND_DISPLAY").is_none()
+    {
+        eprintln!(
+            "Ambient requires a Wayland session (X11 is not supported). \
+             Detected session type: {}.",
+            if session.is_empty() { "unknown" } else { &session }
+        );
+        std::process::exit(1);
+    }
+    // SAFETY: Rust 2024 made set_var unsafe because env mutation can
+    // race with concurrent readers in other threads. This runs in
+    // `run()` before any tauri/tokio thread is spawned and before the
+    // GTK backend reads the variable, so there is no concurrent reader.
+    unsafe {
+        std::env::set_var("GDK_BACKEND", "wayland");
+    }
+
+    // The proprietary NVIDIA driver is detected once here and reused for
+    // the EGL-vendor steering further down. `/sys/module/nvidia` exists
+    // iff the kernel module is loaded — i.e. NVIDIA's EGL/GBM stack is the
+    // one actually in play.
+    let nvidia_loaded = std::path::Path::new("/sys/module/nvidia").exists();
+
+    // Disable WebKitGTK's DMABUF renderer where it is known to break —
+    // inside the bundled AppImage: the bundled WebKit + the host Mesa
+    // disagree on EGL ("Could not create surfaceless EGL display:
+    // EGL_BAD_ALLOC. Aborting...") and WebKit's GPU process abort()s,
+    // SIGABRTing the whole app on launch.
+    let in_appimage = std::env::var_os("APPIMAGE").is_some();
+    if in_appimage && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: same as above — set before any GTK/WebKit thread spawns.
+        unsafe {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
+    // NVIDIA + Wayland: don't kill the DMABUF renderer, kill explicit
+    // sync. The old crash — "Error 71 (Protocol error) dispatching to
+    // Wayland display" ~1s after the webview loads — is NVIDIA's EGL
+    // registering wp_linux_drm_syncobj on the surface while GTK3 then
+    // commits buffers without an acquire point, so the compositor
+    // terminates the connection ("explicit sync is used, but no acquire
+    // point is set"). We previously set WEBKIT_DISABLE_DMABUF_RENDERER=1
+    // here, which avoided the crash but also disabled GPU compositing —
+    // and with it every backdrop-filter blur in the UI (the glass look).
+    // Opting the NVIDIA driver out of explicit sync instead keeps the
+    // full DMABUF/GPU path AND the blur, at worst costing NVIDIA's
+    // explicit-sync frame pacing (pre-555 implicit-sync behaviour).
+    // Verified on the box that reproduces the crash (aarch64, RTX 5060
+    // Ti, driver 595.80, Plasma 6 Wayland, webkit2gtk 2.52): with
+    // explicit sync disabled the app is stable and the glass renders;
+    // with DMABUF disabled the panels lose all blur. An explicit user
+    // override of either variable always wins.
+    if nvidia_loaded
+        && !in_appimage
+        && std::env::var_os("__NV_DISABLE_EXPLICIT_SYNC").is_none()
+        && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+    {
+        // SAFETY: same as above — set before any GTK/WebKit thread spawns.
+        unsafe {
+            std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
+        }
+    }
+
+    // Steer EGL away from a stuck NVIDIA vendor. libglvnd's EGL loader
+    // scans /usr/share/glvnd/egl_vendor.d in filename order, and
+    // `10_nvidia.json` (installed by nvidia-utils) sorts ahead of
+    // `50_mesa.json`. On a machine with no NVIDIA GPU — e.g. an
+    // AMD/Intel laptop where `nvidia-utils` was pulled in transitively
+    // (Steam depends on it) — WebKit's web process still dlopens
+    // libEGL_nvidia first. With no device to bind to it never really
+    // initializes, but it registers teardown handlers that segfault on
+    // process exit (SIGSEGV in posix_memalign during the webview's
+    // destroy), spamming 90 MB coredumps. Detect that exact case —
+    // an NVIDIA EGL vendor present while the kernel module is NOT
+    // loaded — and point our own processes at the remaining (Mesa /
+    // other) vendors only. A real NVIDIA system (module loaded) or an
+    // explicit user override is left untouched.
+    let egl_dir = std::path::Path::new("/usr/share/glvnd/egl_vendor.d");
+    if !nvidia_loaded && std::env::var_os("__EGL_VENDOR_LIBRARY_FILENAMES").is_none() {
+        if let Ok(entries) = std::fs::read_dir(egl_dir) {
+            let mut jsons: Vec<std::path::PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "json"))
+                .collect();
+            let is_nvidia = |p: &std::path::Path| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().contains("nvidia"))
+            };
+            // Only intervene if there's actually an NVIDIA vendor to skip
+            // and at least one non-NVIDIA vendor left to fall back to.
+            if jsons.iter().any(|p| is_nvidia(p)) {
+                jsons.retain(|p| !is_nvidia(p));
+                if !jsons.is_empty() {
+                    jsons.sort();
+                    let joined = jsons
+                        .iter()
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join(":");
+                    // SAFETY: same as above — set before any GTK/WebKit
+                    // thread spawns and before glvnd reads the variable.
+                    unsafe {
+                        std::env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", joined);
+                    }
+                    tracing::info!(
+                        vendors = %std::env::var("__EGL_VENDOR_LIBRARY_FILENAMES").unwrap_or_default(),
+                        "steered EGL away from an inactive NVIDIA vendor"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The tray menu. The first slot depends on the rotation setting: rotation
+/// on → "Next wallpaper" (advance the rotation out of band); rotation off →
+/// "Random wallpaper" (re-roll the current pattern's seed). A settings
+/// watcher in setup() rebuilds the menu when the setting flips.
+#[cfg(desktop)]
+fn tray_menu(app: &AppHandle, rotation_on: bool) -> tauri::Result<Menu<tauri::Wry>> {
+    let action = if rotation_on {
+        MenuItem::with_id(app, "next", "Next wallpaper", true, None::<&str>)?
+    } else {
+        MenuItem::with_id(app, "random", "Random wallpaper", true, None::<&str>)?
+    };
+    let sep = PredefinedMenuItem::separator(app)?;
+    let show_i = MenuItem::with_id(app, "show", "Open Ambient", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    Menu::with_items(app, &[&action, &sep, &show_i, &quit_i])
 }
 
 /// Show the main window, creating it on demand if a prior close destroyed it.

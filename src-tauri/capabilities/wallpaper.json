@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "wallpaper-window",
+  "description": "Grants for the chromeless desktop-layer live-wallpaper window (macOS/Windows). Without a capability of its own the window can't call plugin:event|listen, so the 'live-spec' pushes from live_mac/live_win were silently dropped after the first apply.",
+  "windows": ["wallpaper"],
+  "platforms": ["macOS", "windows"],
+  "permissions": ["core:default", "core:event:allow-listen"]
+}

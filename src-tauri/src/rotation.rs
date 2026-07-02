@@ -136,7 +136,8 @@ async fn fetch_and_apply_source(app: &AppHandle) -> Result<Wallpaper, String> {
 
 /// The system-theme darkness the rotation pools should target: the
 /// locked Light/Dark mode if set, otherwise the live system theme.
-fn effective_dark(cfg: &Settings) -> bool {
+/// Also used by the tray "Random wallpaper" action to pick the palette pole.
+pub fn effective_dark(cfg: &Settings) -> bool {
     match cfg.theme_mode {
         ThemeMode::Light => false,
         ThemeMode::Dark => true,

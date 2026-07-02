@@ -1,8 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { generateWallpaper, pollinationsModels } from '../lib/aigen';
-import { dispatch } from '../lib/events';
-import { useDebouncedCallback, useDraftState, useKeydown } from '../lib/hooks';
+import { useDebouncedSettingsPatch, useDraftState, useKeydown } from '../lib/hooks';
 import { loadSettings, patchSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
@@ -34,7 +33,9 @@ const FALLBACK_MODELS = ['flux'];
 
 const DEFAULT_PROMPT = 'a calm misty mountain valley at dawn, painterly, soft light';
 
-export default function Generate() {
+// `active` — whether this is the visible tab; gates the window-level
+// Cmd+Enter shortcut (tabs stay mounted after their first visit).
+export default function Generate({ active = true }: { active?: boolean }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [models, setModels] = useState<string[]>(FALLBACK_MODELS);
   // generate.prompt + generate.lastResult are draft state: typing into
@@ -71,8 +72,6 @@ export default function Generate() {
     ? settings.pollinationsModel
     : (models[0] ?? 'flux');
 
-  const pendingPatchRef = useRef<Partial<Settings>>({});
-
   // Persist the reconciliation: when the live list lands and the stored
   // model isn't in it, write the first real one back so generation uses
   // what the scroller shows (the Rust side reads settings, not activeModel).
@@ -84,18 +83,13 @@ export default function Generate() {
     }
   }, [models, settings.pollinationsModel]);
 
-  const debouncedFlush = useDebouncedCallback(() => {
-    const patch = pendingPatchRef.current;
-    pendingPatchRef.current = {};
-    void patchSettings(patch).then(() => {
-      dispatch('settings-changed');
-    });
-  }, 400);
+  // Coalesced 400ms settings writes; the Rust-emitted settings-changed
+  // event (bridged in App.tsx) notifies every other consumer.
+  const queuePatch = useDebouncedSettingsPatch();
 
   function update(patch: Partial<Settings>) {
     setSettings((s) => ({ ...s, ...patch }));
-    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
-    debouncedFlush();
+    queuePatch(patch);
   }
 
   async function go() {
@@ -123,8 +117,9 @@ export default function Generate() {
     }
   }
 
-  // Cmd/Ctrl+Enter kicks off a generation from anywhere in the tab.
-  useKeydown('Enter', () => void go(), { cmdOrCtrl: true });
+  // Cmd/Ctrl+Enter kicks off a generation from anywhere in the tab —
+  // but only while this is the visible tab.
+  useKeydown('Enter', () => void go(), { cmdOrCtrl: true, enabled: active });
 
   return (
     <div className="generate">

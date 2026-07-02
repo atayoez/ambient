@@ -56,7 +56,10 @@ impl LibraryState {
     pub async fn patch(&self, op: LibraryOp) -> Result<Vec<Wallpaper>, String> {
         let mut guard = self.inner.write().await;
         let updated = apply_op(&guard, op);
-        write_atomic(&self.path, &updated)?;
+        // Blocking fs write while holding the lock (ordering matters);
+        // block_in_place keeps it from stalling the multithread runtime's
+        // worker.
+        tokio::task::block_in_place(|| write_atomic(&self.path, &updated))?;
         *guard = updated.clone();
         drop(guard);
         crate::events::emit("library-changed", &updated);

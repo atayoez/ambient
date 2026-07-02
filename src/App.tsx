@@ -146,9 +146,12 @@ export default function App() {
                   style={tab === t.id ? { display: 'contents' } : { display: 'none' }}
                 >
                   <ErrorBoundary>
-                    {t.id === 'patterns' && <Patterns />}
-                    {t.id === 'sources' && <Sources />}
-                    {t.id === 'generate' && <Generate />}
+                    {/* `active` gates each tab's window-level shortcuts
+                        (Cmd+Enter / Cmd+Shift+R): hidden-but-mounted tabs
+                        must not respond to one keypress in parallel. */}
+                    {t.id === 'patterns' && <Patterns active={tab === t.id} />}
+                    {t.id === 'sources' && <Sources active={tab === t.id} />}
+                    {t.id === 'generate' && <Generate active={tab === t.id} />}
                     {t.id === 'library' && <Library />}
                     {t.id === 'settings' && <Settings />}
                   </ErrorBoundary>

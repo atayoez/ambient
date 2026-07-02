@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use image::codecs::jpeg::JpegEncoder;
 use image::ExtendedColorType;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tiny_skia::{
     Color, FillRule, FilterQuality, GradientStop, LineJoin, LinearGradient, Paint, PathBuilder,
     Pixmap, PixmapPaint, Point, RadialGradient, Rect, SpreadMode, Stroke, Transform,
@@ -31,11 +31,13 @@ use crate::util::ms_since_epoch;
 // frame budget bounded during rapid slider drags on big monitors.
 const PREVIEW_MIN_DIM: u32 = 64;
 // Previews are 1× (no SSAA) and only need to look crisp at the on-screen
-// stage size, so cap them well below monitor resolution — keeps each
-// preview render cheap (cost scales with pixel count) and its pixmap
-// small (~1280×820 ≈ 4 MB) so rapid edits can't pile up into an OOM.
-const PREVIEW_MAX_W: u32 = 1280;
-const PREVIEW_MAX_H: u32 = 820;
+// stage size, so cap them at a sane ceiling — keeps each preview render
+// bounded (cost scales with pixel count) so rapid edits can't pile up
+// into an OOM. Sized for a maximized window on an ultrawide (the window
+// is resizable now); the frontend debounce means only settled configs
+// render at full size.
+const PREVIEW_MAX_W: u32 = 3840;
+const PREVIEW_MAX_H: u32 = 2160;
 
 // Monotonic generation for preview renders. Each render_preview call
 // claims the next generation; if a newer call has since claimed a higher
@@ -45,7 +47,7 @@ const PREVIEW_MAX_H: u32 = 820;
 // participate, so committing a wallpaper is never cancelled.
 static PREVIEW_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternConfig {
     #[serde(rename = "type")]
@@ -111,9 +113,26 @@ pub struct PatternConfig {
     pub aurora_spread: Option<f32>,
     #[serde(default)]
     pub aurora_amplitude: Option<f32>,
+    // Matrix: density = column count; trail length + fall speed (0-1).
+    #[serde(default)]
+    pub matrix_trail: Option<f32>,
+    #[serde(default)]
+    pub matrix_speed: Option<f32>,
+    /// Optional custom rain text (≤15 chars from MATRIX_CHARSET); empty →
+    /// random glyphs from the whole charset.
+    #[serde(default)]
+    pub matrix_text: Option<String>,
+    // CRT test pattern: scanline strength, tube curvature, noise (all 0-1).
+    // Renders the broadcast-standard bar colours, not the palette.
+    #[serde(default)]
+    pub crt_scanlines: Option<f32>,
+    #[serde(default)]
+    pub crt_curvature: Option<f32>,
+    #[serde(default)]
+    pub crt_noise: Option<f32>,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum PatternType {
     Mesh,
@@ -127,9 +146,11 @@ pub enum PatternType {
     Waves,
     Aurora,
     Bokeh,
+    Matrix,
+    Crt,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum GeometricShape {
     Circles,
@@ -141,7 +162,7 @@ pub enum GeometricShape {
     Mix,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum GeometricFill {
     Solid,
@@ -183,6 +204,47 @@ fn remap(t: f32, min: f32, max: f32) -> f32 {
     min + t * (max - min)
 }
 
+// Per-type knob defaults, shared by the GPU uniform path
+// (gpu_render::knobs) and the CPU tiny-skia renderers so the two can't
+// drift apart. (mesh_bubbles is intentionally NOT here: the GPU shader
+// defaults to 16 while the CPU renderer derives its layer count from the
+// palette size — a pre-existing difference we preserve.)
+mod defaults {
+    pub const FLOW_LINES: u32 = 28;
+    pub const FLOW_AMPLITUDE: f32 = 0.5;
+    pub const FLOW_FREQUENCY: f32 = 0.4;
+    pub const WAVES_LAYERS: u32 = 7;
+    pub const WAVES_AMPLITUDE: f32 = 0.5;
+    pub const WAVES_FREQUENCY: f32 = 0.4;
+    pub const AURORA_BANDS: u32 = 5;
+    pub const AURORA_SPREAD: f32 = 0.5;
+    pub const AURORA_AMPLITUDE: f32 = 0.5;
+    pub const DOTS_JITTER: f32 = 0.5;
+    pub const DOTS_SIZE_VAR: f32 = 0.7;
+    pub const STRIPES_ANGLE: f32 = 30.0;
+    pub const STRIPES_WIDTH_VAR: f32 = 0.5;
+    pub const FLOWER_PETALS: u32 = 12;
+    pub const FLOWER_TWIST: f32 = 0.5;
+    pub const MESH_SOFTNESS: f32 = 0.5;
+    pub const MATRIX_COLUMNS: f32 = 48.0;
+    pub const MATRIX_TRAIL: f32 = 0.5;
+    pub const MATRIX_SPEED: f32 = 0.5;
+    pub const CRT_SCANLINES: f32 = 0.6;
+    pub const CRT_CURVATURE: f32 = 0.4;
+    pub const CRT_NOISE: f32 = 0.25;
+}
+
+/// Foreground palette: `colors[1..]` when a separate background color
+/// exists, otherwise the whole list. Empty in → empty out — callers must
+/// guard on empty before indexing.
+fn foreground(cfg: &PatternConfig) -> Vec<&String> {
+    if cfg.colors.len() > 1 {
+        cfg.colors[1..].iter().collect()
+    } else {
+        cfg.colors.iter().collect()
+    }
+}
+
 fn hex_to_color(hex: &str, alpha: f32) -> Color {
     let h = hex.trim_start_matches('#');
     if h.len() != 6 {
@@ -200,8 +262,43 @@ fn hex_to_color(hex: &str, alpha: f32) -> Color {
 // match. Resolves a PatternConfig into the shader's uniforms; emoji has no
 // shader (real glyph images), so it stays on tiny-skia. Desktop-only.
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+// The Matrix glyph charset — index order IS the wire contract with the
+// baked FONT bitmaps (generated from Noto Sans CJK at 5x7 via ImageMagick;
+// regenerate together). Mirrored in src/lib/shaders.ts (MATRIX_CHARSET)
+// and main.qml (matrixCharset).
+const MATRIX_CHARSET: &str =
+    "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:<>*+=-";
+
+// GENERATED 5x7 bitmaps for MATRIX_CHARSET: rows 0-5 packed 5 bits each
+// into .0, row 6 in .1 (bit = col). Same data as the GLSL FONT array.
+const MATRIX_FONT: [(u32, u32); 88] = [(71447071, 2), (102672, 0), (285788132, 6), (138547359, 31), (312882120, 12), (623530948, 25), (142479812, 4), (142920644, 2), (138718146, 2), (554189343, 31), (277162314, 4), (143148034, 2), (616702238, 17), (69564994, 28), (142887473, 2), (143051716, 2), (138547342, 2), (142886564, 2), (138574862, 2), (35030049, 1), (4357252, 2), (14, 31), (751184414, 3), (141697476, 4), (138682896, 3), (587802954, 17), (34649121, 31), (142885407, 2), (538224838, 16), (726798788, 4), (138748447, 8), (101059086, 8), (1009059844, 17), (616966416, 1), (139432078, 28), (138829634, 4), (277094670, 31), (554648095, 31), (277380110, 6), (285787697, 4), (191043782, 13), (177767457, 3), (588826175, 17), (277366335, 6), (142622785, 3), (588826158, 14), (138547334, 31), (209994254, 31), (554058254, 31), (301279624, 8), (554186830, 15), (589136958, 14), (138551583, 4), (588728878, 30), (558679598, 15), (585443460, 17), (588752431, 15), (34636862, 30), (588826159, 15), (35095615, 31), (35095615, 1), (589071422, 30), (589284913, 17), (1073741823, 31), (554189328, 31), (311661881, 17), (34636833, 31), (725478961, 17), (865783409, 17), (588826158, 14), (35112511, 1), (488162862, 24), (307742255, 17), (554044462, 31), (138547359, 4), (588826161, 14), (145031729, 4), (344512165, 10), (346175825, 17), (138553361, 4), (69345566, 31), (414, 30), (408983952, 16), (214446273, 1), (350745732, 10), (139432068, 4), (31, 31), (1073741823, 31)];
+
+/// Encode `matrix_text` into the shader's 16 text slots: up to 15 glyph
+/// indices (uppercased, unknown chars dropped) + the count in slot 15.
+fn matrix_text_slots(text: Option<&str>) -> [[f32; 4]; 4] {
+    let mut flat = [0.0_f32; 16];
+    let mut n = 0usize;
+    if let Some(text) = text {
+        for ch in text.to_uppercase().chars() {
+            if n >= 15 {
+                break;
+            }
+            if let Some(idx) = MATRIX_CHARSET.chars().position(|c| c == ch) {
+                flat[n] = idx as f32;
+                n += 1;
+            }
+        }
+    }
+    flat[15] = n as f32;
+    let mut out = [[0.0_f32; 4]; 4];
+    for (i, v) in flat.iter().enumerate() {
+        out[i / 4][i % 4] = *v;
+    }
+    out
+}
+
 mod gpu_render {
-    use super::{GeometricFill, GeometricShape, PatternConfig, PatternType};
+    use super::{defaults, GeometricFill, GeometricShape, PatternConfig, PatternType};
     use crate::gpu::ShaderUniforms;
 
     macro_rules! frag {
@@ -225,6 +322,8 @@ mod gpu_render {
             PatternType::Geometric => frag!("geometric.frag"),
             PatternType::Flower => frag!("flower.frag"),
             PatternType::Mesh => frag!("mesh.frag"),
+            PatternType::Matrix => frag!("matrix.frag"),
+            PatternType::Crt => frag!("crt.frag"),
             PatternType::Emoji => return None,
         })
     }
@@ -234,29 +333,29 @@ mod gpu_render {
     fn knobs(cfg: &PatternConfig) -> (f32, f32, f32) {
         match cfg.pattern_type {
             PatternType::Flow => (
-                cfg.flow_lines.unwrap_or(28) as f32,
-                cfg.flow_amplitude.unwrap_or(0.5),
-                cfg.flow_frequency.unwrap_or(0.4),
+                cfg.flow_lines.unwrap_or(defaults::FLOW_LINES) as f32,
+                cfg.flow_amplitude.unwrap_or(defaults::FLOW_AMPLITUDE),
+                cfg.flow_frequency.unwrap_or(defaults::FLOW_FREQUENCY),
             ),
             PatternType::Waves => (
-                cfg.waves_layers.unwrap_or(7) as f32,
-                cfg.waves_amplitude.unwrap_or(0.5),
-                cfg.waves_frequency.unwrap_or(0.4),
+                cfg.waves_layers.unwrap_or(defaults::WAVES_LAYERS) as f32,
+                cfg.waves_amplitude.unwrap_or(defaults::WAVES_AMPLITUDE),
+                cfg.waves_frequency.unwrap_or(defaults::WAVES_FREQUENCY),
             ),
             PatternType::Aurora => (
-                cfg.aurora_bands.unwrap_or(5) as f32,
-                cfg.aurora_amplitude.unwrap_or(0.5),
-                cfg.aurora_spread.unwrap_or(0.5),
+                cfg.aurora_bands.unwrap_or(defaults::AURORA_BANDS) as f32,
+                cfg.aurora_amplitude.unwrap_or(defaults::AURORA_AMPLITUDE),
+                cfg.aurora_spread.unwrap_or(defaults::AURORA_SPREAD),
             ),
             PatternType::Dots => (
                 cfg.density,
-                cfg.dots_jitter.unwrap_or(0.5),
-                cfg.dots_size_var.unwrap_or(0.7),
+                cfg.dots_jitter.unwrap_or(defaults::DOTS_JITTER),
+                cfg.dots_size_var.unwrap_or(defaults::DOTS_SIZE_VAR),
             ),
             PatternType::Bokeh => (cfg.density, 0.0, 0.0),
             PatternType::Stripes => (
-                cfg.stripes_angle.unwrap_or(30.0),
-                cfg.stripes_width_var.unwrap_or(0.5),
+                cfg.stripes_angle.unwrap_or(defaults::STRIPES_ANGLE),
+                cfg.stripes_width_var.unwrap_or(defaults::STRIPES_WIDTH_VAR),
                 0.0,
             ),
             PatternType::Geometric => (
@@ -265,14 +364,24 @@ mod gpu_render {
                 fill_code(cfg.geometric_fill),
             ),
             PatternType::Flower => (
-                cfg.flower_petals.unwrap_or(12) as f32,
-                cfg.flower_twist.unwrap_or(0.5),
+                cfg.flower_petals.unwrap_or(defaults::FLOWER_PETALS) as f32,
+                cfg.flower_twist.unwrap_or(defaults::FLOWER_TWIST),
                 0.0,
             ),
             PatternType::Mesh => (
                 cfg.mesh_bubbles.unwrap_or(16) as f32,
-                cfg.mesh_softness.unwrap_or(0.5),
+                cfg.mesh_softness.unwrap_or(defaults::MESH_SOFTNESS),
                 0.0,
+            ),
+            PatternType::Matrix => (
+                if cfg.density > 0.0 { cfg.density } else { defaults::MATRIX_COLUMNS },
+                cfg.matrix_trail.unwrap_or(defaults::MATRIX_TRAIL),
+                cfg.matrix_speed.unwrap_or(defaults::MATRIX_SPEED),
+            ),
+            PatternType::Crt => (
+                cfg.crt_scanlines.unwrap_or(defaults::CRT_SCANLINES),
+                cfg.crt_curvature.unwrap_or(defaults::CRT_CURVATURE),
+                cfg.crt_noise.unwrap_or(defaults::CRT_NOISE),
             ),
             PatternType::Emoji => (1.0, 0.5, 0.5),
         }
@@ -318,6 +427,11 @@ mod gpu_render {
             p1,
             p2,
             p3,
+            text: super::matrix_text_slots(
+                (cfg.pattern_type == PatternType::Matrix)
+                    .then(|| cfg.matrix_text.as_deref())
+                    .flatten(),
+            ),
         }
     }
 }
@@ -348,7 +462,20 @@ pub fn render(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
 
 /// tiny-skia (CPU) renderer — the fallback path, and the only path for emoji.
 fn render_cpu(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
-    let mut pix = Pixmap::new(w, h).expect("alloc pixmap");
+    // Pixmap::new returns None for zero or absurdly large dimensions
+    // (the backing buffer would exceed tiny-skia's limits). Halve until
+    // the allocation succeeds instead of panicking — 1×1 always does.
+    let (mut pw, mut ph) = (w.max(1), h.max(1));
+    let mut pix = loop {
+        match Pixmap::new(pw, ph) {
+            Some(p) => break p,
+            None => {
+                tracing::warn!("pixmap alloc failed at {pw}x{ph}; halving");
+                pw = (pw / 2).max(1);
+                ph = (ph / 2).max(1);
+            }
+        }
+    };
     match config.pattern_type {
         PatternType::Mesh => render_mesh(&mut pix, config),
         PatternType::Geometric => render_geometric(&mut pix, config),
@@ -360,6 +487,8 @@ fn render_cpu(config: &PatternConfig, w: u32, h: u32) -> Pixmap {
         PatternType::Waves => render_waves(&mut pix, config),
         PatternType::Aurora => render_aurora(&mut pix, config),
         PatternType::Bokeh => render_bokeh(&mut pix, config),
+        PatternType::Matrix => render_matrix(&mut pix, config),
+        PatternType::Crt => render_crt(&mut pix, config),
     }
     pix
 }
@@ -378,6 +507,10 @@ fn render_mesh(pix: &mut Pixmap, cfg: &PatternConfig) {
     let mut rng = SeededRng::new(cfg.seed);
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    // The layer loop indexes cfg.colors directly — modulo-by-zero guard.
+    if cfg.colors.is_empty() {
+        return;
     }
 
     let layers = cfg
@@ -427,7 +560,7 @@ fn render_mesh(pix: &mut Pixmap, cfg: &PatternConfig) {
     // Gaussian blur via the image crate — tiny-skia has no native blur.
     // Pixmap data is premultiplied RGBA; blurring premultiplied bytes
     // is approximately correct (per-channel blur, alpha co-blurred).
-    let softness = cfg.mesh_softness.unwrap_or(0.5);
+    let softness = cfg.mesh_softness.unwrap_or(defaults::MESH_SOFTNESS);
     let blur_px = (max_dim * (0.005 + softness * 0.025)).round();
     if blur_px > 0.5 {
         apply_blur(pix, blur_px);
@@ -459,11 +592,7 @@ fn render_geometric(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
@@ -667,19 +796,15 @@ fn render_dots(pix: &mut Pixmap, cfg: &PatternConfig) {
 
     let w_f = pix.width() as f32;
     let h_f = pix.height() as f32;
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
     let spacing = w_f.max(h_f) / cfg.density.max(8.0);
     let scale = w_f.max(h_f) / 1920.0;
     let base_radius = cfg.size * scale * 0.45;
-    let jitter = cfg.dots_jitter.unwrap_or(0.5);
-    let size_var = cfg.dots_size_var.unwrap_or(0.7);
+    let jitter = cfg.dots_jitter.unwrap_or(defaults::DOTS_JITTER);
+    let size_var = cfg.dots_size_var.unwrap_or(defaults::DOTS_SIZE_VAR);
 
     let mut row = 0;
     let mut y = spacing / 2.0;
@@ -728,16 +853,18 @@ fn render_stripes(pix: &mut Pixmap, cfg: &PatternConfig) {
     // Stripe bands draw from the foreground palette (colors[1..]); the
     // background is colors[0] (filled above) — same background/foreground
     // split as the other pattern types.
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
-    let angle_deg = cfg.stripes_angle.unwrap_or(30.0).clamp(0.0, 90.0);
+    let palette = foreground(cfg);
+    if palette.is_empty() {
+        return;
+    }
+    let angle_deg = cfg
+        .stripes_angle
+        .unwrap_or(defaults::STRIPES_ANGLE)
+        .clamp(0.0, 90.0);
     let diag = ((w_f * w_f + h_f * h_f).sqrt() * 1.1).max(1.0);
     let scale = w_f.max(h_f) / 1920.0;
     let base_width = cfg.size * scale * 1.5;
-    let width_var = cfg.stripes_width_var.unwrap_or(0.5);
+    let width_var = cfg.stripes_width_var.unwrap_or(defaults::STRIPES_WIDTH_VAR);
 
     let transform = Transform::from_translate(w_f / 2.0, h_f / 2.0).pre_rotate(angle_deg);
 
@@ -774,11 +901,7 @@ fn render_flower(pix: &mut Pixmap, cfg: &PatternConfig) {
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
     }
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
@@ -792,8 +915,11 @@ fn render_flower(pix: &mut Pixmap, cfg: &PatternConfig) {
     let h_f = pix.height() as f32;
     let min_dim = w_f.min(h_f);
 
-    let petals = cfg.flower_petals.unwrap_or(12).clamp(2, 64);
-    let twist = cfg.flower_twist.unwrap_or(0.5).clamp(0.0, 1.0);
+    let petals = cfg.flower_petals.unwrap_or(defaults::FLOWER_PETALS).clamp(2, 64);
+    let twist = cfg
+        .flower_twist
+        .unwrap_or(defaults::FLOWER_TWIST)
+        .clamp(0.0, 1.0);
     let two_pi = std::f32::consts::PI * 2.0;
 
     // Centre, slightly seed-jittered off the middle for an organic
@@ -1014,11 +1140,7 @@ fn render_flow(pix: &mut Pixmap, cfg: &PatternConfig) {
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
     }
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
@@ -1028,9 +1150,15 @@ fn render_flow(pix: &mut Pixmap, cfg: &PatternConfig) {
     let scale = w_f.max(h_f) / 1920.0;
     let two_pi = std::f32::consts::PI * 2.0;
 
-    let lines = cfg.flow_lines.unwrap_or(28).clamp(2, 220);
-    let amp = cfg.flow_amplitude.unwrap_or(0.5).clamp(0.0, 1.0);
-    let freq = cfg.flow_frequency.unwrap_or(0.4).clamp(0.0, 1.0);
+    let lines = cfg.flow_lines.unwrap_or(defaults::FLOW_LINES).clamp(2, 220);
+    let amp = cfg
+        .flow_amplitude
+        .unwrap_or(defaults::FLOW_AMPLITUDE)
+        .clamp(0.0, 1.0);
+    let freq = cfg
+        .flow_frequency
+        .unwrap_or(defaults::FLOW_FREQUENCY)
+        .clamp(0.0, 1.0);
 
     let thickness = (cfg.size * scale * 0.12).max(1.0);
     let cycles = remap(freq, 0.5, 3.0); // wave cycles across the width
@@ -1111,11 +1239,7 @@ fn render_waves(pix: &mut Pixmap, cfg: &PatternConfig) {
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
     }
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
@@ -1124,9 +1248,15 @@ fn render_waves(pix: &mut Pixmap, cfg: &PatternConfig) {
     let h_f = pix.height() as f32;
     let two_pi = std::f32::consts::PI * 2.0;
 
-    let layers = cfg.waves_layers.unwrap_or(7).clamp(2, 24);
-    let amp = cfg.waves_amplitude.unwrap_or(0.5).clamp(0.0, 1.0);
-    let freq = cfg.waves_frequency.unwrap_or(0.4).clamp(0.0, 1.0);
+    let layers = cfg.waves_layers.unwrap_or(defaults::WAVES_LAYERS).clamp(2, 24);
+    let amp = cfg
+        .waves_amplitude
+        .unwrap_or(defaults::WAVES_AMPLITUDE)
+        .clamp(0.0, 1.0);
+    let freq = cfg
+        .waves_frequency
+        .unwrap_or(defaults::WAVES_FREQUENCY)
+        .clamp(0.0, 1.0);
     let cycles = remap(freq, 0.5, 3.0);
     let amp_px = amp * h_f * 0.11;
     // Sample ~every 4px so the wave edge stays a smooth curve rather
@@ -1206,11 +1336,7 @@ fn render_aurora(pix: &mut Pixmap, cfg: &PatternConfig) {
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
     }
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
@@ -1219,9 +1345,15 @@ fn render_aurora(pix: &mut Pixmap, cfg: &PatternConfig) {
     let h_f = pix.height() as f32;
     let two_pi = std::f32::consts::PI * 2.0;
 
-    let bands = cfg.aurora_bands.unwrap_or(5).clamp(2, 16);
-    let spread = cfg.aurora_spread.unwrap_or(0.5).clamp(0.0, 1.0);
-    let amp = cfg.aurora_amplitude.unwrap_or(0.5).clamp(0.0, 1.0);
+    let bands = cfg.aurora_bands.unwrap_or(defaults::AURORA_BANDS).clamp(2, 16);
+    let spread = cfg
+        .aurora_spread
+        .unwrap_or(defaults::AURORA_SPREAD)
+        .clamp(0.0, 1.0);
+    let amp = cfg
+        .aurora_amplitude
+        .unwrap_or(defaults::AURORA_AMPLITUDE)
+        .clamp(0.0, 1.0);
     let curtain_w = w_f * remap(spread, 0.05, 0.2);
     let sway = amp * w_f * 0.1;
     let samples = 80usize;
@@ -1294,11 +1426,7 @@ fn render_bokeh(pix: &mut Pixmap, cfg: &PatternConfig) {
     if let Some(base) = cfg.colors.first() {
         fill_rect_color(pix, hex_to_color(base, 1.0));
     }
-    let palette: Vec<&String> = if cfg.colors.len() > 1 {
-        cfg.colors[1..].iter().collect()
-    } else {
-        cfg.colors.iter().collect()
-    };
+    let palette = foreground(cfg);
     if palette.is_empty() {
         return;
     }
@@ -1348,6 +1476,214 @@ fn render_bokeh(pix: &mut Pixmap, cfg: &PatternConfig) {
         }
     }
 }
+
+/// CPU fallback for the Matrix rain — one frozen frame of the shader's
+/// cell math (same hashes, quadratic trail fade) drawing the same baked
+/// 5×7 glyphs, so mobile / GPU-fail stills read like a paused instant of
+/// the live rain. Custom text rains down each column in sequence, exactly
+/// like the shader.
+fn render_matrix(pix: &mut Pixmap, cfg: &PatternConfig) {
+    if let Some(base) = cfg.colors.first() {
+        fill_rect_color(pix, hex_to_color(base, 1.0));
+    }
+    let palette = foreground(cfg);
+    if palette.is_empty() {
+        return;
+    }
+
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let cols = if cfg.density > 0.0 {
+        cfg.density.max(8.0)
+    } else {
+        defaults::MATRIX_COLUMNS
+    };
+    let trail = 5.0
+        + cfg
+            .matrix_trail
+            .unwrap_or(defaults::MATRIX_TRAIL)
+            .clamp(0.0, 1.0)
+            * 25.0;
+    let cell_w = w_f / cols;
+    let cell_h = cell_w * 1.5;
+    let rows = (h_f / cell_h).ceil().max(1.0) as i32;
+
+    // Same hashes as the shader, keyed on the seed, so still and live
+    // frames come from one distribution.
+    let seed = cfg.seed as f32;
+    let hash1 = |n: f32| ((n * 12.9898 + seed * 0.013).sin() * 43758.5453_f32).fract().abs();
+    let hash2 = |x: f32, y: f32| {
+        ((x * 127.1 + y * 311.7 + seed * 0.013).sin() * 43758.5453_f32)
+            .fract()
+            .abs()
+    };
+
+    // Custom text as glyph indices (sequential down the column); empty →
+    // random full-charset glyphs.
+    let text_indices: Vec<usize> = cfg
+        .matrix_text
+        .as_deref()
+        .unwrap_or("")
+        .to_uppercase()
+        .chars()
+        .filter_map(|ch| MATRIX_CHARSET.chars().position(|c| c == ch))
+        .take(15)
+        .collect();
+
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+    let cycle = rows as f32 + trail;
+
+    for cx in 0..(cols.ceil() as i32) {
+        let col_r = hash1(cx as f32 * 7.31);
+        let offset = hash1(cx as f32 * 13.7);
+        let head = offset * cycle;
+        let color = hex_to_color(palette[(col_r * 101.0) as usize % palette.len()], 1.0);
+        for cy in 0..rows {
+            let age = head - cy as f32;
+            if age < 0.0 {
+                continue;
+            }
+            let mut bright = (1.0 - age / trail).clamp(0.0, 1.0);
+            bright *= bright; // phosphor-decay ease
+            if bright <= 0.02 {
+                continue;
+            }
+            let glow = if age <= 1.0 { 0.75 } else { 0.0 };
+            let (r, g, b) = (
+                color.red() + (1.0 - color.red()) * glow,
+                color.green() + (1.0 - color.green()) * glow,
+                color.blue() + (1.0 - color.blue()) * glow,
+            );
+            let Some(c) = Color::from_rgba(r, g, b, bright) else {
+                continue;
+            };
+            paint.set_color(c);
+
+            let glyph_idx = if text_indices.is_empty() {
+                (hash2(cx as f32 * 3.17, cy as f32 * 3.17) * MATRIX_FONT.len() as f32)
+                    as usize
+                    % MATRIX_FONT.len()
+            } else {
+                text_indices
+                    [((cy as f32 + (offset * 977.0).floor()) as usize) % text_indices.len()]
+            };
+            let (lo, hi) = MATRIX_FONT[glyph_idx % MATRIX_FONT.len()];
+
+            // 5×7 glyph inside a 6×8 sub-grid (one sub-cell of padding).
+            let (bx, by) = (cx as f32 * cell_w, cy as f32 * cell_h);
+            let (sw, sh) = (cell_w / 6.0, cell_h / 8.0);
+            for row in 0..7u32 {
+                let bits = if row < 6 { lo >> (row * 5) } else { hi };
+                for col in 0..5u32 {
+                    if (bits >> col) & 1 == 0 {
+                        continue;
+                    }
+                    if let Some(rect) = Rect::from_xywh(
+                        bx + col as f32 * sw,
+                        by + row as f32 * sh,
+                        sw.max(1.0),
+                        sh.max(1.0),
+                    ) {
+                        pix.fill_rect(rect, &paint, Transform::identity(), None);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// CPU fallback for the CRT test pattern: the SMPTE bar layout + scanlines.
+/// Curvature/noise/roll are shader-only flourishes — the GPU path is the
+/// primary look; this keeps mobile / GPU-fail stills recognisably the same
+/// test card. Broadcast-standard colours by design (the palette is not
+/// consulted — a test card isn't a test card in pastel).
+fn render_crt(pix: &mut Pixmap, cfg: &PatternConfig) {
+    const BARS: [(f32, f32, f32); 7] = [
+        (0.75, 0.75, 0.75),
+        (0.75, 0.75, 0.0),
+        (0.0, 0.75, 0.75),
+        (0.0, 0.75, 0.0),
+        (0.75, 0.0, 0.75),
+        (0.75, 0.0, 0.0),
+        (0.0, 0.0, 0.75),
+    ];
+    const CASTELLATION: [(f32, f32, f32); 7] = [
+        (0.0, 0.0, 0.75),
+        (0.0, 0.0, 0.0),
+        (0.75, 0.0, 0.75),
+        (0.0, 0.0, 0.0),
+        (0.0, 0.75, 0.75),
+        (0.0, 0.0, 0.0),
+        (0.75, 0.75, 0.75),
+    ];
+    // (right edge as fraction of width, colour) — -I, white, +Q, black,
+    // PLUGE steps, black.
+    const BOTTOM: [(f32, (f32, f32, f32)); 8] = [
+        (0.125, (0.0, 0.129, 0.298)),
+        (0.25, (1.0, 1.0, 1.0)),
+        (0.375, (0.192, 0.0, 0.42)),
+        (0.625, (0.0, 0.0, 0.0)),
+        (0.708, (0.015, 0.015, 0.015)),
+        (0.791, (0.045, 0.045, 0.045)),
+        (0.875, (0.09, 0.09, 0.09)),
+        (1.0, (0.0, 0.0, 0.0)),
+    ];
+
+    fill_rect_color(pix, Color::from_rgba8(0, 0, 0, 255));
+    let w_f = pix.width() as f32;
+    let h_f = pix.height() as f32;
+    let mut paint = Paint::default();
+    paint.anti_alias = false;
+
+    let mut fill = |x: f32, y: f32, w: f32, h: f32, (r, g, b): (f32, f32, f32), pix: &mut Pixmap| {
+        if let (Some(rect), Some(c)) = (Rect::from_xywh(x, y, w, h), Color::from_rgba(r, g, b, 1.0)) {
+            paint.set_color(c);
+            pix.fill_rect(rect, &paint, Transform::identity(), None);
+        }
+    };
+
+    let bar_w = w_f / 7.0;
+    for (i, &c) in BARS.iter().enumerate() {
+        fill(i as f32 * bar_w, 0.0, bar_w + 1.0, h_f * 0.67, c, pix);
+    }
+    for (i, &c) in CASTELLATION.iter().enumerate() {
+        fill(i as f32 * bar_w, h_f * 0.67, bar_w + 1.0, h_f * 0.08, c, pix);
+    }
+    let mut left = 0.0_f32;
+    for &(right, c) in BOTTOM.iter() {
+        fill(
+            left * w_f,
+            h_f * 0.75,
+            (right - left) * w_f + 1.0,
+            h_f * 0.25,
+            c,
+            pix,
+        );
+        left = right;
+    }
+
+    // Scanlines: darken every other row-band, scaled so ~540 bands cover
+    // any resolution (band height grows with the pixmap).
+    let strength = cfg
+        .crt_scanlines
+        .unwrap_or(defaults::CRT_SCANLINES)
+        .clamp(0.0, 1.0);
+    if strength > 0.0 {
+        let band = (h_f / 1080.0).max(1.0);
+        if let Some(dark) = Color::from_rgba(0.0, 0.0, 0.0, strength * 0.3) {
+            paint.set_color(dark);
+            let mut y = 0.0;
+            while y < h_f {
+                if let Some(rect) = Rect::from_xywh(0.0, y, w_f, band) {
+                    pix.fill_rect(rect, &paint, Transform::identity(), None);
+                }
+                y += band * 2.0;
+            }
+        }
+    }
+}
+
 
 fn render_emoji(pix: &mut Pixmap, cfg: &PatternConfig) {
     let mut rng = SeededRng::new(cfg.seed);
@@ -1642,7 +1978,235 @@ pub async fn apply_pattern(config: PatternConfig) -> Result<Wallpaper, String> {
         mode: crate::types::WallpaperMode::Both,
     };
     let _ = prepend_entry(entry.clone()).await;
+
+    // Remember the committed config so the tray "Random wallpaper" action
+    // can re-roll it later without the webview running.
+    if let Ok(cfg_json) = serde_json::to_value(&config) {
+        let _ = crate::state::settings()
+            .patch(serde_json::json!({ "lastPattern": cfg_json }))
+            .await;
+    }
     Ok(entry)
+}
+
+/// Tiny xorshift64* RNG for tray-triggered randomization — cosmetic
+/// shuffling only, so no rand dependency; seeded from the clock.
+struct TrayRng(u64);
+
+impl TrayRng {
+    fn new() -> Self {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0x9e37_79b9_7f4a_7c15);
+        Self(nanos | 1)
+    }
+
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    /// Uniform in [0, 1).
+    fn unit(&mut self) -> f64 {
+        (self.next() >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    fn range(&mut self, a: f64, b: f64) -> f64 {
+        a + self.unit() * (b - a)
+    }
+
+    fn pick<'a>(&mut self, opts: &[&'a str]) -> &'a str {
+        opts[(self.next() % opts.len() as u64) as usize]
+    }
+}
+
+// The curated color presets — the SAME file the frontend imports
+// (src/lib/colorPresets.json), so the tray "Random wallpaper" rolls from
+// the identical palette + emoji sets the in-app preset picker offers.
+// Each entry: { id, name, emojis: [..], dark: [5 hex], light: [5 hex] }.
+static COLOR_PRESETS: std::sync::LazyLock<Vec<serde_json::Value>> =
+    std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("../../../src/lib/colorPresets.json"))
+            .expect("colorPresets.json parses")
+    });
+
+/// Mirror of the frontend's randomizedModifiers (src/lib/patterns.ts):
+/// re-roll every knob the pattern type exposes across its full slider
+/// range, plus the enum knobs. Keep these tables in lockstep with
+/// MODIFIER_RANGES / MODIFIER_CHOICES in src/lib/patterns.ts.
+fn randomize_modifiers(
+    obj: &mut serde_json::Map<String, serde_json::Value>,
+    rng: &mut TrayRng,
+) {
+    let ty = obj
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("mesh")
+        .to_string();
+
+    // (key, min, max, integer)
+    let ranges: &[(&str, f64, f64, bool)] = match ty.as_str() {
+        "mesh" => &[("meshBubbles", 6.0, 40.0, true), ("meshSoftness", 0.0, 1.0, false)],
+        "geometric" => &[("density", 10.0, 200.0, true), ("size", 12.0, 120.0, true)],
+        "dots" => &[
+            ("density", 8.0, 60.0, true),
+            ("size", 6.0, 80.0, true),
+            ("dotsJitter", 0.0, 1.0, false),
+            ("dotsSizeVar", 0.0, 1.0, false),
+        ],
+        "stripes" => &[
+            ("size", 10.0, 140.0, true),
+            ("stripesAngle", 0.0, 90.0, true),
+            ("stripesWidthVar", 0.0, 1.0, false),
+        ],
+        "emoji" => &[
+            ("size", 40.0, 140.0, true),
+            ("emojiSpacing", 50.0, 300.0, true),
+            ("emojiRotationMax", 0.0, 90.0, true),
+            ("emojiSizeVar", 0.0, 1.0, false),
+        ],
+        "flower" | "bloom" => &[
+            ("size", 40.0, 160.0, true),
+            ("flowerPetals", 5.0, 40.0, true),
+            ("flowerTwist", 0.0, 1.0, false),
+        ],
+        "flow" => &[
+            ("size", 6.0, 120.0, true),
+            ("flowLines", 6.0, 120.0, true),
+            ("flowAmplitude", 0.0, 1.0, false),
+            ("flowFrequency", 0.0, 1.0, false),
+        ],
+        "waves" => &[
+            ("wavesLayers", 3.0, 20.0, true),
+            ("wavesAmplitude", 0.0, 1.0, false),
+            ("wavesFrequency", 0.0, 1.0, false),
+        ],
+        "aurora" => &[
+            ("auroraBands", 3.0, 14.0, true),
+            ("auroraSpread", 0.0, 1.0, false),
+            ("auroraAmplitude", 0.0, 1.0, false),
+        ],
+        "bokeh" => &[("density", 8.0, 60.0, true), ("size", 10.0, 120.0, true)],
+        "matrix" => &[
+            ("density", 16.0, 96.0, true),
+            ("matrixTrail", 0.0, 1.0, false),
+            ("matrixSpeed", 0.0, 1.0, false),
+        ],
+        "crt" => &[
+            ("crtScanlines", 0.0, 1.0, false),
+            ("crtCurvature", 0.0, 1.0, false),
+            ("crtNoise", 0.0, 1.0, false),
+        ],
+        _ => &[],
+    };
+    for &(key, min, max, int) in ranges {
+        let v = rng.range(min, max);
+        let value = if int {
+            serde_json::json!(v.round() as i64)
+        } else {
+            serde_json::json!(v)
+        };
+        obj.insert(key.to_string(), value);
+    }
+
+    if ty == "geometric" {
+        obj.insert(
+            "geometricShape".to_string(),
+            serde_json::json!(rng.pick(&[
+                "mix", "circles", "triangles", "squares", "hexagons", "stars", "plus"
+            ])),
+        );
+        obj.insert(
+            "geometricFill".to_string(),
+            serde_json::json!(rng.pick(&["solid", "outline", "mix"])),
+        );
+    }
+}
+
+/// Full tray re-roll of a pattern config: fresh seed, every modifier
+/// re-rolled, and a random CURATED preset applied — its theme-matching
+/// palette variant plus its emoji set, exactly as if the user had picked
+/// that preset in the app (colorPresetId stamped so the UI shows it).
+fn reroll_config(value: &mut serde_json::Value, dark: bool) {
+    let mut rng = TrayRng::new();
+    if let Some(obj) = value.as_object_mut() {
+        randomize_modifiers(obj, &mut rng);
+        obj.insert(
+            "seed".to_string(),
+            serde_json::json!((rng.next() % 1_000_000) as u32),
+        );
+
+        let presets = &*COLOR_PRESETS;
+        if !presets.is_empty() {
+            // Avoid re-rolling into the preset that's already applied —
+            // on patterns where only the background is visible (emoji),
+            // a same-preset roll would look like nothing happened.
+            let current = obj
+                .get("colorPresetId")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned);
+            let preset = {
+                let mut pick =
+                    &presets[(rng.next() % presets.len() as u64) as usize];
+                if presets.len() > 1 {
+                    while pick.get("id").and_then(|v| v.as_str())
+                        == current.as_deref()
+                    {
+                        pick = &presets[(rng.next() % presets.len() as u64) as usize];
+                    }
+                }
+                pick
+            };
+            let variant = if dark { "dark" } else { "light" };
+            if let (Some(colors), Some(emojis), Some(id)) = (
+                preset.get(variant),
+                preset.get("emojis"),
+                preset.get("id"),
+            ) {
+                obj.insert("colors".to_string(), colors.clone());
+                obj.insert("emojis".to_string(), emojis.clone());
+                obj.insert("colorPresetId".to_string(), id.clone());
+            }
+        }
+    }
+}
+
+/// Tray "Random wallpaper": re-roll the pattern that currently owns the
+/// desktop — new seed, new knob values, new palette (the frontend's
+/// Shuffle + Colors buttons in one) — and re-apply it. Live wallpaper →
+/// through the live pipeline; last committed static pattern (only while it
+/// is still the applied wallpaper) → re-render + set. Err when the current
+/// wallpaper isn't a pattern, so the caller can fall back to a library
+/// shuffle. `dark` picks the palette pole (caller resolves ThemeMode).
+pub async fn randomize_current(dark: bool) -> Result<(), String> {
+    let cfg = crate::state::settings().get().await;
+
+    if let Some(mut live) = cfg.live_wallpaper {
+        reroll_config(&mut live, dark);
+        return crate::live::apply_live_pattern(live).await;
+    }
+
+    // Only randomize the stored pattern while it's still on the desktop —
+    // pattern renders are content-addressed `pattern-*` files, so the
+    // filename of lastApplied tells us whether a photo replaced it since.
+    let pattern_on_desktop = cfg.last_applied.as_deref().is_some_and(|p| {
+        std::path::Path::new(p)
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("pattern-"))
+    });
+    let Some(mut value) = cfg.last_pattern.filter(|_| pattern_on_desktop) else {
+        return Err("current wallpaper is not a pattern".to_string());
+    };
+    reroll_config(&mut value, dark);
+    let parsed: PatternConfig =
+        serde_json::from_value(value).map_err(|e| format!("parse last pattern: {e}"))?;
+    let wallpaper = apply_pattern(parsed).await?;
+    crate::desktop::apply_wallpaper(&wallpaper.path).await
 }
 
 fn pattern_type_slug(t: PatternType) -> &'static str {
@@ -1657,6 +2221,8 @@ fn pattern_type_slug(t: PatternType) -> &'static str {
         PatternType::Waves => "waves",
         PatternType::Aurora => "aurora",
         PatternType::Bokeh => "bokeh",
+        PatternType::Matrix => "matrix",
+        PatternType::Crt => "crt",
     }
 }
 
@@ -1672,6 +2238,8 @@ fn pattern_type_label(t: PatternType) -> &'static str {
         PatternType::Waves => "Waves",
         PatternType::Aurora => "Aurora",
         PatternType::Bokeh => "Bokeh",
+        PatternType::Matrix => "Matrix",
+        PatternType::Crt => "CRT Test",
     }
 }
 
@@ -1680,14 +2248,28 @@ fn downscale(src: &Pixmap, w: u32, h: u32) -> Pixmap {
         match image::RgbaImage::from_raw(src.width(), src.height(), src.data().to_vec())
         {
             Some(i) => i,
-            None => return Pixmap::new(w, h).expect("alloc pixmap"),
+            None => {
+                // Source buffer/dimension mismatch — shouldn't happen, but
+                // returning the (correctly sized) source beats panicking.
+                tracing::warn!("downscale: source pixmap not convertible; skipping");
+                return src.clone();
+            }
         };
     // Lanczos3 is the canonical high-quality downscale filter for
     // pattern art — smooth without ringing.
     let down = image::imageops::resize(&img, w, h, image::imageops::FilterType::Lanczos3);
-    let mut out = Pixmap::new(w, h).expect("alloc pixmap");
-    out.data_mut().copy_from_slice(down.as_raw());
-    out
+    match Pixmap::new(w, h) {
+        Some(mut out) => {
+            out.data_mut().copy_from_slice(down.as_raw());
+            out
+        }
+        None => {
+            // Target too large (or zero) for tiny-skia — keep the
+            // unscaled source rather than panicking.
+            tracing::warn!("downscale: target alloc {w}x{h} failed; keeping source size");
+            src.clone()
+        }
+    }
 }
 
 /// Pick the SSAA factor for an apply render. We deliberately cap the
@@ -1780,6 +2362,59 @@ mod tests {
         let first = rng.next();
         // Allow for f32 precision difference
         assert!((first - 0.2569963).abs() < 1e-4, "got {}", first);
+    }
+
+    #[test]
+    fn tray_reroll_applies_a_different_curated_preset() {
+        let mut value = serde_json::json!({
+            "type": "geometric",
+            "colors": ["#000000"],
+            "density": 40,
+            "size": 80,
+            "emojis": [],
+            "seed": 1,
+            "colorPresetId": "cosmic"
+        });
+        reroll_config(&mut value, true);
+        let obj = value.as_object().unwrap();
+
+        // A curated preset was applied: id stamped (never the one we
+        // started on), its dark palette + emoji set copied over.
+        let preset_id = obj["colorPresetId"].as_str().unwrap();
+        assert_ne!(preset_id, "cosmic");
+        let preset = COLOR_PRESETS
+            .iter()
+            .find(|p| p["id"].as_str() == Some(preset_id))
+            .expect("stamped id exists in colorPresets.json");
+        assert_eq!(&obj["colors"], preset.get("dark").unwrap());
+        assert_eq!(&obj["emojis"], preset.get("emojis").unwrap());
+
+        // Knobs rerolled within the frontend slider ranges.
+        let density = obj["density"].as_i64().unwrap();
+        assert!((10..=200).contains(&density));
+        assert!(obj.contains_key("geometricShape"));
+        assert!(obj.contains_key("geometricFill"));
+
+        // The rerolled JSON still parses as a renderer config.
+        let parsed: PatternConfig = serde_json::from_value(value).unwrap();
+        assert!(matches!(parsed.pattern_type, PatternType::Geometric));
+    }
+
+    #[test]
+    fn color_presets_json_is_well_formed() {
+        assert!(COLOR_PRESETS.len() >= 10);
+        for p in COLOR_PRESETS.iter() {
+            assert!(p["id"].is_string());
+            for variant in ["dark", "light"] {
+                let colors = p[variant].as_array().expect("variant array");
+                assert_eq!(colors.len(), 5, "{}: 5 colors", p["id"]);
+                for c in colors {
+                    let s = c.as_str().unwrap();
+                    assert!(s.starts_with('#') && s.len() == 7, "bad hex {s}");
+                }
+            }
+            assert!(!p["emojis"].as_array().expect("emojis").is_empty());
+        }
     }
 
     #[test]
@@ -1884,6 +2519,12 @@ mod tests {
             aurora_bands: None,
             aurora_spread: None,
             aurora_amplitude: None,
+            matrix_trail: None,
+            matrix_speed: None,
+            matrix_text: None,
+            crt_scanlines: None,
+            crt_curvature: None,
+            crt_noise: None,
         };
         let pix = render(&cfg, 100, 100);
         // Background is #000000 + bubbles in red/green. At least some
@@ -1933,8 +2574,48 @@ mod tests {
     }
 
     #[test]
+    fn render_matrix_produces_non_background_pixels() {
+        assert_paints(PatternType::Matrix);
+    }
+
+    #[test]
+    fn render_crt_produces_non_background_pixels() {
+        assert_paints(PatternType::Crt);
+    }
+
+    #[test]
     fn render_bokeh_produces_non_background_pixels() {
         assert_paints(PatternType::Bokeh);
+    }
+
+    // Regression: an empty color list must never panic (mesh and stripes
+    // used to modulo by cfg.colors.len() / palette.len() == 0). Renders
+    // through render_cpu directly so the tiny-skia paths are exercised
+    // even on machines where the GPU path would succeed.
+    #[test]
+    fn empty_colors_does_not_panic() {
+        for pattern_type in [
+            PatternType::Mesh,
+            PatternType::Geometric,
+            PatternType::Dots,
+            PatternType::Stripes,
+            PatternType::Emoji,
+            PatternType::Flower,
+            PatternType::Flow,
+            PatternType::Waves,
+            PatternType::Aurora,
+            PatternType::Bokeh,
+            PatternType::Matrix,
+            PatternType::Crt,
+        ] {
+            let cfg = PatternConfig {
+                pattern_type,
+                colors: vec![],
+                ..base_cfg()
+            };
+            let pix = render_cpu(&cfg, 64, 64);
+            assert_eq!(pix.width(), 64, "{pattern_type:?}");
+        }
     }
 
     // Shared config: dark base + violet/pink/amber foreground, all
@@ -1975,6 +2656,12 @@ mod tests {
             aurora_bands: None,
             aurora_spread: None,
             aurora_amplitude: None,
+            matrix_trail: None,
+            matrix_speed: None,
+            matrix_text: None,
+            crt_scanlines: None,
+            crt_curvature: None,
+            crt_noise: None,
         }
     }
 }

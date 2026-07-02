@@ -240,19 +240,17 @@ textarea,
      the tab labels float on top with content visible through them. */
 }
 
+/* Tabs fill the window edge-to-edge. The old max-width: 1280px cap dates
+   from the fixed-820px-window era — on a maximized/ultrawide window it
+   left the content floating in a letterboxed column. Full-bleed stages
+   (previews, card grids) scale with the window; the floating glass panels
+   inside them keep their own fixed widths. */
 .library,
 .patterns,
 .sources,
 .generate {
   align-self: center;
   width: 100%;
-}
-
-.library,
-.patterns,
-.sources,
-.generate {
-  max-width: 1280px;
 }
 
 /* --- Generic buttons (scoped to exclude tab-like) --- */
@@ -597,12 +595,7 @@ input[type='range']:active::-moz-range-thumb {
   font-size: var(--fs-body);
   font-weight: var(--fw-semibold);
   color: var(--text);
-}
-
-.set-note {
-  margin: 0 0 2px;
-  font-size: var(--fs-caption);
-  color: var(--muted);
+  text-align: center;
 }
 
 /* Every setting is one row: label on the left, a fixed-width control on
@@ -1069,6 +1062,7 @@ input[type='range']:active::-moz-range-thumb {
   font-size: var(--fs-eyebrow);
   font-weight: var(--fw-semibold);
   color: var(--text);
+  text-align: center;
 }
 
 .emoji-picker-grid {
@@ -1586,7 +1580,6 @@ button.primary.icon-btn {
   /* Snap state transitions for the sliding pills instead of easing. */
   .tab-indicator,
   .toast,
-  .gen-bg-drift,
   .emoji-field-item {
     transition: none;
     animation: none;
@@ -1686,20 +1679,6 @@ button.primary.icon-btn {
 
 
 
-/* Static patterns set as a live wallpaper get a slow Ken-Burns drift in
-   the preview (the desktop plugin does the same in QML). The image is
-   object-fit: cover, so scaling >1 + a small translate never reveals an
-   edge. Generative types use the WebGL canvas instead. */
-@keyframes gen-drift {
-  0% { transform: scale(1.08) translate(-1.5%, -1%); }
-  50% { transform: scale(1.13) translate(1.5%, 1%); }
-  100% { transform: scale(1.08) translate(-1.5%, -1%); }
-}
-.gen-bg-drift {
-  animation: gen-drift 48s ease-in-out infinite;
-  will-change: transform;
-}
-
 /* Animated emoji field (Animate + Emoji). Each glyph drifts (individual
    `translate`) and spins (`rotate`) independently — separate transform
    properties so the two animations compose instead of clobbering. The
@@ -1727,6 +1706,18 @@ button.primary.icon-btn {
 @keyframes emoji-spin {
   from { rotate: 0deg; }
   to { rotate: 360deg; }
+}
+
+/* Microsoft Fluent 3D emoji artwork standing in for a font glyph: size in
+   em so it tracks the surrounding font-size (picker cells, emoji-field
+   items with per-glyph inline font-size). */
+.fluent-emoji {
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
+  vertical-align: -0.15em;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* Shared floating-glass panel for the controls tray + prompt composer. */
@@ -1829,6 +1820,15 @@ button.primary.icon-btn {
   gap: 10px 14px;
   padding: 8px 12px;
   border-radius: var(--radius-container);
+}
+
+/* Matrix custom-text input — sits among the sliders in the inspector. */
+.matrix-text {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  margin-bottom: 2px;
 }
 
 .pat-side {

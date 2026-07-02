@@ -51,16 +51,21 @@ pub struct ShaderUniforms {
     pub p1: f32,
     pub p2: f32,
     pub p3: f32,
+    /// Matrix text slots (t0..t3): 15 glyph indices into the shader's baked
+    /// font charset plus the count in the final component. All zeros for
+    /// every other pattern type.
+    pub text: [[f32; 4]; 4],
 }
 
 impl ShaderUniforms {
     /// Pack into the exact std140 layout of the `.frag` `uniform buf` block:
     ///   mat4 qt_Matrix(0); float qt_Opacity(64); vec2 iResolution(72);
     ///   float iTime(80); int colorCount(84); vec4 c0..c5(96..192);
-    ///   float seed(192) gSize(196) p1(200) p2(204) p3(208); size 224.
-    pub fn to_std140(&self) -> [u8; 224] {
-        let mut b = [0u8; 224];
-        let put = |b: &mut [u8; 224], off: usize, v: f32| {
+    ///   float seed(192) gSize(196) p1(200) p2(204) p3(208);
+    ///   vec4 t0..t3(224..288); size 288.
+    pub fn to_std140(&self) -> [u8; 288] {
+        let mut b = [0u8; 288];
+        let put = |b: &mut [u8; 288], off: usize, v: f32| {
             b[off..off + 4].copy_from_slice(&v.to_le_bytes());
         };
         // qt_Matrix = identity (the frag only reads qt_Opacity from the block).
@@ -83,6 +88,12 @@ impl ShaderUniforms {
         put(&mut b, 200, self.p1);
         put(&mut b, 204, self.p2);
         put(&mut b, 208, self.p3);
+        for (i, t) in self.text.iter().enumerate() {
+            let o = 224 + i * 16;
+            for (j, v) in t.iter().enumerate() {
+                put(&mut b, o + j * 4, *v);
+            }
+        }
         b
     }
 }
@@ -395,6 +406,7 @@ mod tests {
             p1: 12.0,
             p2: 0.5,
             p3: 0.0,
+            text: [[0.0; 4]; 4],
         };
         let rgba = render_to_rgba8(frag, 800, 600, &u.to_std140()).expect("gpu render");
         let img = image::RgbaImage::from_raw(800, 600, rgba).expect("image");

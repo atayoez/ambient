@@ -12,10 +12,12 @@
 //   2. Look the PID up via sysinfo; only act if the live process is
 //      actually an `ambient` binary (defends against PID rollover —
 //      otherwise we'd risk SIGTERMing a stranger).
-//   3. SIGTERM and wait up to ~1s for graceful exit. Tauri's
-//      RunEvent::Exit path runs on SIGTERM, which lets the old
-//      process release the tray icon, drop its WebView, and flush
-//      any in-flight settings writes before we replace it.
+//   3. SIGKILL and wait up to ~0.8s for the process to vanish. Not
+//      SIGTERM: the graceful WebKitGTK teardown races shutdown and can
+//      heap-corrupt on the way out (see the comment at the kill site).
+//      A hard kill is safe because settings/library writes are atomic
+//      (temp-file + rename) and the tray item is reclaimed when the old
+//      process's D-Bus connection drops.
 //   4. Write our own PID, register cleanup on graceful exit.
 //
 // Pure stdlib + sysinfo. No tokio, no Tauri runtime — runs synchronously

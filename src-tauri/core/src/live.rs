@@ -47,41 +47,36 @@ where
 
 /// Build the live-wallpaper spec JSON from a PatternConfig. Cfg-agnostic so
 /// both the KDE plugin and the Windows background window get an identical
-/// spec. Shader patterns (flow/waves/aurora/dots/bokeh/stripes/geometric/
-/// flower/mesh) and emoji are rendered live by the delivery layer from the
-/// config; every other pattern animates as a slow drift over a pre-rendered
-/// still, so render it now and stamp its path. The user's live render
-/// quality (resolution + fps caps) is stamped in for both.
+/// spec. Every pattern type is rendered live by the delivery layer straight
+/// from the config — shader patterns (flow/waves/aurora/dots/bokeh/stripes/
+/// geometric/flower/mesh) via their fragment shaders, emoji via glyph tiles
+/// — so the spec is just the config plus the user's live render quality
+/// (resolution + fps caps).
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
-    let renders_live = matches!(
-        config.get("type").and_then(|t| t.as_str()),
-        Some("flow")
-            | Some("waves")
-            | Some("aurora")
-            | Some("dots")
-            | Some("bokeh")
-            | Some("stripes")
-            | Some("geometric")
-            | Some("flower")
-            | Some("mesh")
-            | Some("emoji")
-    );
-    let mut spec_value = if renders_live {
-        config.clone()
-    } else {
-        let cfg: crate::renderer::PatternConfig = serde_json::from_value(config.clone())
-            .map_err(|e| format!("parse pattern config: {e}"))?;
-        let wallpaper = crate::renderer::apply_pattern(cfg).await?;
-        let mut s = config.clone();
-        if let Some(obj) = s.as_object_mut() {
-            obj.insert(
-                "image".to_string(),
-                serde_json::Value::String(wallpaper.path),
-            );
+    let mut spec_value = config.clone();
+    // Emoji renders in the delivery layer (QML Text/Image tiles). Ship the
+    // Fluent 3D PNG for every glyph alongside the spec so the plugin shows
+    // the same 3D art as the in-app renderer — a bare Text glyph depends on
+    // whatever color-emoji font the system has and looks flat on Linux.
+    if config.get("type").and_then(|t| t.as_str()) == Some("emoji") {
+        let glyphs: Vec<String> = config
+            .get("emojis")
+            .and_then(|e| e.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !glyphs.is_empty() {
+            let paths = crate::emojis::export_pngs(&glyphs).await;
+            if let Some(obj) = spec_value.as_object_mut() {
+                obj.insert("emojiImages".to_string(), serde_json::json!(paths));
+            }
         }
-        s
-    };
+    }
+
     let (max_edge, fps) = crate::state::settings()
         .get()
         .await
@@ -257,6 +252,18 @@ const ASSETS: &[Asset] = &[
         rel: "contents/shaders/mesh.frag.qsb",
         bytes: include_bytes!(concat!(
             "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/mesh.frag.qsb"
+        )),
+    },
+    Asset {
+        rel: "contents/shaders/matrix.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/matrix.frag.qsb"
+        )),
+    },
+    Asset {
+        rel: "contents/shaders/crt.frag.qsb",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/shaders/crt.frag.qsb"
         )),
     },
 ];

@@ -5,6 +5,8 @@
 // be ~450 LOC of Canvas drawing code.
 
 import { invoke } from '@tauri-apps/api/core';
+import colorPresetsJson from './colorPresets.json';
+import { FRAG_SHADERS } from './shaders';
 
 export type PatternType =
   | 'mesh'
@@ -16,7 +18,9 @@ export type PatternType =
   | 'flow'
   | 'waves'
   | 'aurora'
-  | 'bokeh';
+  | 'bokeh'
+  | 'matrix'
+  | 'crt';
 
 export type GeometricShape =
   | 'circles'
@@ -100,6 +104,21 @@ export interface PatternConfig {
 
   // Bokeh: soft glowing orbs. Count = density, radius = size (the orbs'
   // radial alpha falloff is soft on its own — no blur knob).
+
+  // Matrix: digital rain. density = column count; trail length and fall
+  // speed are 0-1 knobs. matrixText: optional custom text (≤15 chars from
+  // MATRIX_CHARSET, uppercased) that rains down the columns in sequence;
+  // empty = random glyphs from the whole charset.
+  matrixTrail?: number;
+  matrixSpeed?: number;
+  matrixText?: string;
+
+  // CRT test pattern: SMPTE bars with analogue artifacts. All 0-1 knobs:
+  // scanline strength, tube curvature, noise amount. Uses the broadcast
+  // standard bar colours, not the palette.
+  crtScanlines?: number;
+  crtCurvature?: number;
+  crtNoise?: number;
 }
 
 export interface ColorPreset {
@@ -132,121 +151,13 @@ export function customToColorPreset(c: CustomPreset): ColorPreset {
   return { id: c.id, name: c.name, emojis: c.emojis, light: c.colors, dark: c.colors };
 }
 
-// Curated set of 15 themed palettes. Each ships with a light and dark
-// variant chosen to read well against the corresponding bg-base, plus
-// paired emoji set so picking a theme auto-swaps the Emoji pattern's
-// glyphs to match. Cosmic is first because it's the brand default;
-// Mono is kept last as the neutral ender.
-export const COLOR_PRESETS: ColorPreset[] = [
-  {
-    id: 'cosmic',
-    name: 'Cosmic',
-    emojis: ['✨', '🌙', '⭐', '💫', '🪐', '🌟', '☄️', '🌌', '🌠'],
-    dark: ['#0c0a1f', '#7c5cff', '#ec4899', '#fbbf24', '#f1ecff'],
-    light: ['#f1ecff', '#d6c1ff', '#ec4899', '#fbbf24', '#7c5cff'],
-  },
-  {
-    id: 'pastel',
-    name: 'Pastel',
-    emojis: ['🌸', '🌷', '🍡', '🦄', '🩰', '🌺', '🐰', '🧸', '🪄', '🎀'],
-    light: ['#fdf2f8', '#fbcfe8', '#c7d2fe', '#a7f3d0', '#fef3c7'],
-    dark: ['#2a1f2e', '#7a4a6e', '#5a6da8', '#5a8a7e', '#a89968'],
-  },
-  {
-    id: 'nature',
-    name: 'Nature',
-    emojis: ['🌿', '🌳', '🍃', '🌻', '🦋', '🌱', '🌷', '🐝', '🍄', '🌾'],
-    light: ['#f0fdf4', '#bbf7d0', '#86efac', '#fde047', '#a16207'],
-    dark: ['#0f1f12', '#264e36', '#5a8a52', '#a4c47e', '#dad7a0'],
-  },
-  {
-    id: 'halloween',
-    name: 'Halloween',
-    emojis: ['🎃', '👻', '🦇', '🕸️', '🌙', '🕷️', '💀', '🧙', '🍬', '⚰️'],
-    light: ['#fff7ed', '#fed7aa', '#ea580c', '#7c2d12', '#1a0f1a'],
-    dark: ['#0a0010', '#1f0a1f', '#ea580c', '#dc2626', '#fbbf24'],
-  },
-  {
-    id: 'ocean',
-    name: 'Ocean',
-    emojis: ['🌊', '🐚', '🐠', '🪸', '⛵', '🐙', '🐡', '🦀', '🐳', '🦈'],
-    light: ['#f0f9ff', '#bae6fd', '#38bdf8', '#0284c7', '#082f49'],
-    dark: ['#011627', '#0e2954', '#2e8bc0', '#5fd3bc', '#bfffcc'],
-  },
-  {
-    id: 'sunset',
-    name: 'Sunset',
-    emojis: ['🌅', '🌇', '🔥', '🌺', '🌴', '🌵', '🌞', '🦩', '🏝️', '☀️'],
-    light: ['#fff7ed', '#fed7aa', '#fb923c', '#f43f5e', '#7c2d12'],
-    dark: ['#1f0e3d', '#7b2cbf', '#e94560', '#ff9f1c', '#fcd34d'],
-  },
-  {
-    id: 'aurora',
-    name: 'Aurora',
-    emojis: ['🌌', '💚', '💜', '✨', '🏔️', '🌠', '❄️', '🌃'],
-    dark: ['#03111a', '#0a3d3a', '#10b981', '#5eead4', '#a78bfa'],
-    light: ['#ecfeff', '#a7f3d0', '#10b981', '#0891b2', '#7c3aed'],
-  },
-  {
-    id: 'cyberpunk',
-    name: 'Cyberpunk',
-    emojis: ['⚡', '🌃', '🤖', '🔮', '💜', '🌆', '💎', '🎮'],
-    dark: ['#0a0118', '#ff007a', '#00e5ff', '#fde047', '#a855f7'],
-    light: ['#faf0ff', '#f0abfc', '#db2777', '#0891b2', '#7c3aed'],
-  },
-  {
-    id: 'autumn',
-    name: 'Autumn',
-    emojis: ['🍂', '🍁', '🌰', '🍄', '🦊', '🌾', '🍎', '🐿️'],
-    light: ['#fffbeb', '#fed7aa', '#ea580c', '#b45309', '#7c2d12'],
-    dark: ['#1a0f08', '#5a2e0e', '#c2410c', '#ea9a3e', '#fcd9a8'],
-  },
-  {
-    id: 'sakura',
-    name: 'Sakura',
-    emojis: ['🌸', '🌷', '🩷', '🦋', '🍃', '🌺', '🐦', '🎀'],
-    light: ['#fff5f7', '#fecdd3', '#fb7185', '#f9a8d4', '#a78bfa'],
-    dark: ['#2a1620', '#6b2848', '#f43f5e', '#fb7eb0', '#d8b4fe'],
-  },
-  {
-    id: 'vaporwave',
-    name: 'Vaporwave',
-    emojis: ['🌴', '🌊', '🌆', '💿', '🕶️', '🍹', '🐬', '⭐'],
-    dark: ['#190a2e', '#ff5ca8', '#36e0d8', '#b16cff', '#fef08a'],
-    light: ['#fdf2ff', '#fbcfe8', '#e879f9', '#22d3ee', '#818cf8'],
-  },
-  {
-    id: 'forest',
-    name: 'Forest',
-    emojis: ['🌲', '🍄', '🦌', '🌿', '🦉', '🐻', '🍃', '🌰'],
-    light: ['#f2fbf4', '#bbe7c6', '#4d9e63', '#2f6b3c', '#3b2a1a'],
-    dark: ['#08130b', '#16301c', '#3f7d4f', '#86c08e', '#d8cba0'],
-  },
-  {
-    id: 'citrus',
-    name: 'Citrus',
-    emojis: ['🍋', '🍊', '🍈', '🌿', '🍹', '🐝', '🌼', '🥝'],
-    light: ['#fefce8', '#fef08a', '#facc15', '#65a30d', '#15803d'],
-    dark: ['#161a05', '#3f4d0a', '#a3b817', '#facc15', '#fff6a8'],
-  },
-  {
-    id: 'berry',
-    name: 'Berry',
-    emojis: ['🫐', '🍇', '🍓', '🍒', '🍷', '🌸', '🍰', '💜'],
-    light: ['#fdf4ff', '#f5d0fe', '#c026d3', '#9333ea', '#581c87'],
-    dark: ['#160a1f', '#3b0f52', '#a21caf', '#e056c7', '#f7c6f0'],
-  },
-  {
-    id: 'mono',
-    name: 'Mono',
-    // Full 8-phase lunar cycle reads as a single rhythmic set rather than
-    // five random circles. New, Waxing crescent, First quarter, Waxing
-    // gibbous, Full, Waning gibbous, Last quarter, Waning crescent.
-    emojis: ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'],
-    light: ['#ffffff', '#e5e5e5', '#a3a3a3', '#525252', '#171717'],
-    dark: ['#0a0a0a', '#262626', '#525252', '#a3a3a3', '#fafafa'],
-  },
-];
+// Curated themed palettes — data lives in colorPresets.json, the single
+// source of truth shared with Rust (core includes the same file via
+// include_str! for the tray "Random wallpaper" preset roll). Each ships
+// a light and dark variant plus a paired emoji set so picking a theme
+// auto-swaps the Emoji pattern's glyphs to match. Cosmic first (brand
+// default), Mono last (neutral ender).
+export const COLOR_PRESETS: ColorPreset[] = colorPresetsJson as ColorPreset[];
 
 export function getPreset(id: string | undefined): ColorPreset | undefined {
   if (!id) return undefined;
@@ -377,33 +288,34 @@ export function accentPreset(hex: string): ColorPreset | null {
 
 export const DEFAULT_EMOJIS = COLOR_PRESETS[0].emojis;
 
+// Palette size limits, counting the background: colors[0] is the
+// background, colors[1..] the foreground, so 6 total = bg + 5 foreground
+// chips and the minimum is bg + 1. Shared by Patterns.tsx (whole-palette
+// add/remove guards) and PaletteEditor.tsx (foreground-only view).
+export const MAX_COLORS = 6;
+export const MIN_COLORS = 2;
+
+// Copies (not aliases) of the preset arrays: config.colors / config.emojis
+// get mutated per-config downstream, and sharing the array with
+// COLOR_PRESETS[0] would let an in-place edit corrupt the preset itself.
 export const DEFAULT_CONFIG: PatternConfig = {
   type: 'mesh',
-  colors: COLOR_PRESETS[0].dark,
+  colors: [...COLOR_PRESETS[0].dark],
   density: 40,
   size: 80,
-  emojis: DEFAULT_EMOJIS,
+  emojis: [...DEFAULT_EMOJIS],
   seed: Math.floor(Math.random() * 1_000_000),
   colorPresetId: COLOR_PRESETS[0].id,
 };
 
-// Pattern types with a live fragment shader (mirrored by FRAG_SHADERS in
-// lib/shaders.ts) — the live-wallpaper subset. Flow/Waves/Aurora drift their
+// Pattern types with a live fragment shader — the live-wallpaper subset.
+// Derived from FRAG_SHADERS in lib/shaders.ts (the single source of truth:
+// a type is animatable iff it ships a shader). Flow/Waves/Aurora drift their
 // sin/cos phase fields; Dots/Bokeh/Geometric move per element; Stripes scroll;
 // Flower counter-rotates its layers; Mesh drifts soft metaball blobs. Every
 // pattern animates as a shader except Emoji, which animates via its own glyph
 // field.
-export const ANIMATABLE: PatternType[] = [
-  'flow',
-  'waves',
-  'aurora',
-  'dots',
-  'bokeh',
-  'stripes',
-  'geometric',
-  'flower',
-  'mesh',
-];
+export const ANIMATABLE: PatternType[] = Object.keys(FRAG_SHADERS) as PatternType[];
 
 // User-facing metadata for each pattern type — single source of truth used
 // by the type picker UI and by library entries.
@@ -418,6 +330,8 @@ export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
   { id: 'waves', name: 'Waves' },
   { id: 'aurora', name: 'Aurora' },
   { id: 'bokeh', name: 'Bokeh' },
+  { id: 'matrix', name: 'Matrix' },
+  { id: 'crt', name: 'CRT Test' },
 ];
 
 // When the user switches pattern types we re-seed density/size + the
@@ -465,38 +379,15 @@ export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
     density: 22,
     size: 60,
   },
-};
-
-// Per-type slider ranges + labels. Patterns that don't use a given control
-// omit it here, and the UI hides the slider so dragging always changes
-// something visible.
-export const SLIDER_RANGES: Partial<
-  Record<
-    PatternType,
-    {
-      density?: { min: number; max: number; label: string };
-      size?: { min: number; max: number };
-    }
-  >
-> = {
-  geometric: {
-    density: { min: 10, max: 200, label: 'Shape count' },
-    size: { min: 12, max: 120 },
+  matrix: {
+    density: 48,
+    matrixTrail: 0.5,
+    matrixSpeed: 0.5,
   },
-  dots: {
-    // density min matches the Rust renderer's floor (`density.max(8.0)`)
-    // — values below 8 are clamped, so exposing them in the slider was
-    // a dead zone the user saw as a broken interval.
-    density: { min: 8, max: 60, label: 'Density' },
-    size: { min: 6, max: 80 },
-  },
-  stripes: { size: { min: 10, max: 140 } },
-  emoji: { size: { min: 40, max: 140 } },
-  flower: { size: { min: 40, max: 160 } },
-  flow: { size: { min: 6, max: 120 } },
-  bokeh: {
-    density: { min: 8, max: 60, label: 'Count' },
-    size: { min: 10, max: 120 },
+  crt: {
+    crtScanlines: 0.6,
+    crtCurvature: 0.4,
+    crtNoise: 0.25,
   },
 };
 
@@ -504,7 +395,9 @@ export const SLIDER_RANGES: Partial<
 // UI knobs, so "Randomize" and the sliders stay in lockstep — every
 // modifier a generator exposes is also a variable Randomize re-rolls,
 // and vice versa. Per-type maps of knob → [min, max] (continuous 0–1
-// knobs are stored as 0..1; integer knobs round).
+// knobs are stored as 0..1; integer knobs round). The density/size
+// entries are ALSO the single source for SLIDER_RANGES below, so the
+// sliders can't desync from what Randomize rolls.
 type Knob = { min: number; max: number; int?: boolean };
 const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
   mesh: {
@@ -516,6 +409,9 @@ const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
     size: { min: 12, max: 120, int: true },
   },
   dots: {
+    // density min matches the Rust renderer's floor (`density.max(8.0)`)
+    // — values below 8 are clamped, so exposing them in the slider was
+    // a dead zone the user saw as a broken interval.
     density: { min: 8, max: 60, int: true },
     size: { min: 6, max: 80, int: true },
     dotsJitter: { min: 0, max: 1 },
@@ -557,20 +453,78 @@ const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
     density: { min: 8, max: 60, int: true },
     size: { min: 10, max: 120, int: true },
   },
+  matrix: {
+    density: { min: 16, max: 96, int: true },
+    matrixTrail: { min: 0, max: 1 },
+    matrixSpeed: { min: 0, max: 1 },
+  },
+  crt: {
+    crtScanlines: { min: 0, max: 1 },
+    crtCurvature: { min: 0, max: 1 },
+    crtNoise: { min: 0, max: 1 },
+  },
 };
+
+// Per-type slider ranges + labels, derived from MODIFIER_RANGES (a type
+// gets a density/size slider iff it has that knob there — same min/max).
+// Patterns without a given control omit it, and the UI hides the slider
+// so dragging always changes something visible. Only the density labels
+// are slider-specific.
+const DENSITY_LABELS: Partial<Record<PatternType, string>> = {
+  geometric: 'Shape count',
+  dots: 'Density',
+  bokeh: 'Count',
+  matrix: 'Columns',
+};
+
+export const SLIDER_RANGES: Partial<
+  Record<
+    PatternType,
+    {
+      density?: { min: number; max: number; label: string };
+      size?: { min: number; max: number };
+    }
+  >
+> = Object.fromEntries(
+  (Object.entries(MODIFIER_RANGES) as [PatternType, Record<string, Knob>][])
+    .map(([type, knobs]) => {
+      const entry: {
+        density?: { min: number; max: number; label: string };
+        size?: { min: number; max: number };
+      } = {};
+      if (knobs.density) {
+        entry.density = {
+          min: knobs.density.min,
+          max: knobs.density.max,
+          label: DENSITY_LABELS[type] ?? 'Density',
+        };
+      }
+      if (knobs.size) entry.size = { min: knobs.size.min, max: knobs.size.max };
+      return [type, entry] as const;
+    })
+    .filter(([, entry]) => entry.density || entry.size),
+);
+
+// Ordered geometric shape list — the single source for the Patterns UI
+// shape scroller, the Randomize choice set, and the live-shader shape
+// code (lib/liveShader.ts GEO_SHAPE_CODE). ORDER IS A WIRE CONTRACT: each
+// shape's index here is the numeric code the WebGL/QML shaders decode
+// ('mix' = 0, 'circles' = 1, … 'plus' = 6) — never reorder or insert,
+// only append.
+export const GEOMETRIC_SHAPES: { id: GeometricShape; label: string }[] = [
+  { id: 'mix', label: 'Mix' },
+  { id: 'circles', label: 'Circles' },
+  { id: 'triangles', label: 'Triangles' },
+  { id: 'squares', label: 'Squares' },
+  { id: 'hexagons', label: 'Hexagons' },
+  { id: 'stars', label: 'Stars' },
+  { id: 'plus', label: 'Plus' },
+];
 
 // Enum-valued modifiers that Randomize should also pick from.
 const MODIFIER_CHOICES: Partial<Record<PatternType, Record<string, string[]>>> = {
   geometric: {
-    geometricShape: [
-      'mix',
-      'circles',
-      'triangles',
-      'squares',
-      'hexagons',
-      'stars',
-      'plus',
-    ],
+    geometricShape: GEOMETRIC_SHAPES.map((s) => s.id),
     geometricFill: ['solid', 'outline', 'mix'],
   },
 };

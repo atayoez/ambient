@@ -142,12 +142,20 @@ pub struct Settings {
     // Rust only persists it and checks presence; the KDE plugin renders it.
     #[serde(default)]
     pub live_wallpaper: Option<serde_json::Value>,
+    // The last committed static pattern's PatternConfig. Stamped by
+    // renderer::apply_pattern so the tray "Random wallpaper" action can
+    // re-roll the current pattern's seed without the webview running.
+    // Opaque JSON for the same reason as live_wallpaper.
+    #[serde(default)]
+    pub last_pattern: Option<serde_json::Value>,
     // Live-wallpaper render quality — caps the KDE plugin shader's internal
     // resolution + fps. `#[serde(default)]` → legacy stores land on Balanced.
     #[serde(default)]
     pub live_wallpaper_quality: LiveQuality,
 }
 
+// NOTE: these values must match DEFAULT_SETTINGS in src/lib/types.ts —
+// the TS layer assumes both sides agree on what an unset field means.
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -169,6 +177,7 @@ impl Default for Settings {
             last_applied: None,
             custom_presets: Vec::new(),
             live_wallpaper: None,
+            last_pattern: None,
             live_wallpaper_quality: LiveQuality::default(),
         }
     }

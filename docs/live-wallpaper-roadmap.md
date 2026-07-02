@@ -16,6 +16,16 @@ Remaining order by value/effort: A (video) -> B (other platforms). Each is
 independently shippable.
 
 ## Carry-forward gotchas (don't rediscover these)
+- qsb MUST bake GLES variants ("100es,300es" on top of "150,330,440" — gen-shaders.ts owns
+  the list). Plasma/Qt Quick runs an OpenGL ES context on some machines (seen: aarch64 +
+  NVIDIA), where a desktop-GL-only bake fails with "No GLSL shader code found (versions
+  tried: 320, 310, 300, 100)" in the plasmashell journal and every ShaderEffect pattern
+  renders blank — only the shaderless emoji field survives. That journal line is the
+  fingerprint; check it before suspecting the renderer.
+- NVIDIA + Wayland webview crash ("Error 71... dispatching to Wayland display") is NVIDIA's
+  EGL registering wp_linux_drm_syncobj explicit sync while GTK3 commits without an acquire
+  point. Fix is __NV_DISABLE_EXPLICIT_SYNC=1 (lib.rs), NOT WEBKIT_DISABLE_DMABUF_RENDERER=1
+  — the latter also kills GPU compositing and with it every backdrop-filter glass blur.
 - Qt6 ShaderEffect on Plasma's GL backend needs our own wallpaper.vert pass-through vertex
   shader (built-in fails "qt_TexCoord0 ... no matching output").
 - GPU cap is mandatory: drive the clock from a ~30fps Timer (not FrameAnimation) and render

@@ -78,6 +78,10 @@ export interface Settings {
   // indicator survives a webview destroy/rebuild. Optional because
   // pre-Phase-1 saved settings predate the field.
   lastApplied?: string | null;
+  // The last committed static pattern's config. Owned by Rust
+  // (renderer::apply_pattern stamps it) for the tray "Random wallpaper"
+  // action; the webview never reads it.
+  lastPattern?: unknown;
 }
 
 export interface Wallpaper {

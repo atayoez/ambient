@@ -65,8 +65,13 @@ pub async fn get_startup_license() -> Result<StartupLicense, String> {
 }
 
 #[tauri::command]
-pub async fn activate_license(key: String) -> Result<LicenseInfo, String> {
-    ambient_core::license::activate_license(key).await
+pub async fn request_login_code(email: String) -> Result<(), String> {
+    ambient_core::license::request_login_code(email).await
+}
+
+#[tauri::command]
+pub async fn login_with_code(code: String) -> Result<LicenseInfo, String> {
+    ambient_core::license::login_with_code(code).await
 }
 
 #[tauri::command]
@@ -147,6 +152,14 @@ pub async fn render_preview(
     height: u32,
 ) -> Result<String, String> {
     ambient_core::renderer::render_preview(config, width, height).await
+}
+
+/// Materialize Fluent 3D PNGs for `emojis` on disk and return their paths
+/// (empty string per glyph that isn't available), so the webview can show
+/// the same 3D art via the asset protocol instead of flat font glyphs.
+#[tauri::command]
+pub async fn export_emoji_pngs(emojis: Vec<String>) -> Vec<String> {
+    ambient_core::emojis::export_pngs(&emojis).await
 }
 
 // --- live (animated) wallpaper ---------------------------------------

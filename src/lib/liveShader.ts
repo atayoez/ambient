@@ -5,8 +5,8 @@
 // window (WebGL) and Android (GLES). Degrades cleanly: returns null when
 // WebGL2 is unavailable so callers can fall back to the static <img>.
 
-import type { PatternConfig, PatternType } from './patterns';
-import { FRAG_SHADERS, VERT_SHADER } from './shaders';
+import { GEOMETRIC_SHAPES, type PatternConfig, type PatternType } from './patterns';
+import { FRAG_SHADERS, matrixTextSlots, VERT_SHADER } from './shaders';
 
 // Cap the backing resolution — wallpaper-smoothness isn't needed for an
 // in-app preview, and an uncapped DPR×window canvas with a 100-line Flow
@@ -25,6 +25,10 @@ const UNIFORM_NAMES = [
   'u_seed',
   'u_size',
   'u_p1',
+  'u_t0',
+  'u_t1',
+  'u_t2',
+  'u_t3',
   'u_p2',
   'u_p3',
 ] as const;
@@ -51,15 +55,12 @@ function hexToRgb(hex: string): [number, number, number] {
 
 // Geometric's shape pool + fill mode are enums; the shader takes numbers, so
 // encode them into p2/p3 here (decoded in shaders.ts / main.qml GEOMETRIC).
-const GEO_SHAPE_CODE: Record<string, number> = {
-  mix: 0,
-  circles: 1,
-  triangles: 2,
-  squares: 3,
-  hexagons: 4,
-  stars: 5,
-  plus: 6,
-};
+// Derived from GEOMETRIC_SHAPES: the index in that list IS the numeric code
+// the Rust/QML side decodes ('mix' = 0 … 'plus' = 6) — the list's order is
+// a wire contract, see the comment on GEOMETRIC_SHAPES in patterns.ts.
+const GEO_SHAPE_CODE: Record<string, number> = Object.fromEntries(
+  GEOMETRIC_SHAPES.map((s, i) => [s.id, i]),
+);
 const GEO_FILL_CODE: Record<string, number> = { solid: 0, outline: 1, mix: 2 };
 
 // Per-type knob mapping → (p1, p2, p3). Mirrors the uniform contract in
@@ -88,6 +89,10 @@ function knobs(c: PatternConfig): [number, number, number] {
       return [c.flowerPetals ?? 12, c.flowerTwist ?? 0.5, 0];
     case 'mesh':
       return [c.meshBubbles ?? 16, c.meshSoftness ?? 0.5, 0];
+    case 'matrix':
+      return [c.density ?? 48, c.matrixTrail ?? 0.5, c.matrixSpeed ?? 0.5];
+    case 'crt':
+      return [c.crtScanlines ?? 0.6, c.crtCurvature ?? 0.4, c.crtNoise ?? 0.25];
     default:
       return [1, 0.5, 0.5];
   }
@@ -223,6 +228,12 @@ export function startLiveShader(
     gl.uniform1f(uniforms.u_p1 ?? null, p1);
     gl.uniform1f(uniforms.u_p2 ?? null, p2);
     gl.uniform1f(uniforms.u_p3 ?? null, p3);
+    // Matrix custom-text slots (zeros for every other type).
+    const slots = matrixTextSlots(config.type === 'matrix' ? config.matrixText : '');
+    gl.uniform4f(uniforms.u_t0 ?? null, slots[0], slots[1], slots[2], slots[3]);
+    gl.uniform4f(uniforms.u_t1 ?? null, slots[4], slots[5], slots[6], slots[7]);
+    gl.uniform4f(uniforms.u_t2 ?? null, slots[8], slots[9], slots[10], slots[11]);
+    gl.uniform4f(uniforms.u_t3 ?? null, slots[12], slots[13], slots[14], slots[15]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 

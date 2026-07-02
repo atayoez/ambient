@@ -80,7 +80,10 @@ fn create_wallpaper_window(app: &AppHandle, spec: &str) -> Result<(), String> {
     .skip_taskbar(true)
     .focused(false)
     .resizable(false)
-    .visible(true)
+    // Created hidden: it'd otherwise flash as a normal floating window for
+    // a frame before place_behind_icons drops it to the desktop level —
+    // same ordering the Windows path uses.
+    .visible(false)
     .initialization_script(&init)
     .build()
     .map_err(|e| format!("create wallpaper window: {e}"))?;
@@ -93,6 +96,9 @@ fn create_wallpaper_window(app: &AppHandle, spec: &str) -> Result<(), String> {
     // the duration of these synchronous AppKit setters, on the main thread.
     let window: &NSWindow = unsafe { &*ptr };
     place_behind_icons(window);
+    // Reveal only after the level/collection flags are set — showing a
+    // desktop-level window keeps it behind the icons.
+    let _ = win.show();
     Ok(())
 }
 

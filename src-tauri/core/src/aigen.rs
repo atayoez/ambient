@@ -20,10 +20,7 @@ const HTTP_TIMEOUT_SECS: u64 = 60;
 const POLLINATIONS_REFERRER: &str = "ambient.oezcan.me";
 
 fn http_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
-        .build()
-        .map_err(|e| format!("build HTTP client: {}", e))
+    crate::util::http_client(HTTP_TIMEOUT_SECS)
 }
 
 /// Live list of image models Pollinations currently serves. The set is

@@ -1,4 +1,5 @@
-import { type CSSProperties, useMemo } from 'react';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import type { PatternConfig } from '../lib/patterns';
 
 // Deterministic per-glyph pseudo-random in [0,1), keyed by index + seed so
@@ -27,6 +28,27 @@ export default function EmojiField({
   const sizeVar = config.emojiSizeVar ?? 0.75;
   const glyphs = config.emojis?.length ? config.emojis : ['✨'];
   const bg = config.colors?.[0] ?? '#000000';
+
+  // Fluent 3D art for each glyph, exported to disk by the backend and loaded
+  // through the asset protocol — the same files the KDE plugin renders, so
+  // the preview matches the desktop instead of showing font glyphs. Entries
+  // are '' while loading or for glyphs with no art (those keep the text
+  // fallback).
+  const [images, setImages] = useState<string[]>([]);
+  // Effect keyed on glyph content — `glyphs` itself is a fresh array every
+  // render, which as a dep would re-invoke (and re-render) forever.
+  const glyphsKey = glyphs.join('\n');
+  useEffect(() => {
+    let stale = false;
+    invoke<string[]>('export_emoji_pngs', { emojis: glyphsKey.split('\n') })
+      .then((paths) => {
+        if (!stale) setImages(paths.map((p) => (p ? convertFileSrc(p) : '')));
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [glyphsKey]);
 
   // Nominal 16:9 grid, positioned in %, so it's resolution-independent.
   const cell = Math.max(size * (spacing / 100), 24);
@@ -60,11 +82,18 @@ export default function EmojiField({
       style={{ backgroundColor: bg, overflow: 'hidden' }}
       aria-hidden="true"
     >
-      {items.map((it) => (
-        <span key={it.key} className="emoji-field-item" style={it.style}>
-          {it.glyph}
-        </span>
-      ))}
+      {items.map((it) => {
+        const img = images[it.key % glyphs.length] || '';
+        return (
+          <span key={it.key} className="emoji-field-item" style={it.style}>
+            {img ? (
+              <img className="fluent-emoji" src={img} alt={it.glyph} draggable={false} />
+            ) : (
+              it.glyph
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }

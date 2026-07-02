@@ -32,10 +32,7 @@ static APOD_CACHE: LazyLock<RwLock<Option<ApodCache>>> =
     LazyLock::new(|| RwLock::new(None));
 
 fn http_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
-        .build()
-        .map_err(|e| format!("build HTTP client: {}", e))
+    crate::util::http_client(HTTP_TIMEOUT_SECS)
 }
 
 fn source_name(kind: SourceKind) -> &'static str {
@@ -82,7 +79,7 @@ async fn fetch_nasa_apod() -> Result<Wallpaper, String> {
                 }
                 return Ok(Wallpaper {
                     path: c.path.clone(),
-                    source: "nasa-apod".to_string(),
+                    source: source_name(SourceKind::NasaApod).to_string(),
                     added_at: ms_since_epoch(),
                     prompt: None,
                     title: c.title.clone(),
@@ -140,7 +137,7 @@ async fn fetch_nasa_apod() -> Result<Wallpaper, String> {
 
     Ok(Wallpaper {
         path: local_path,
-        source: "nasa-apod".to_string(),
+        source: source_name(SourceKind::NasaApod).to_string(),
         added_at: ms_since_epoch(),
         prompt: None,
         title,

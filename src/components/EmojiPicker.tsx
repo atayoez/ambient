@@ -9,6 +9,7 @@
 // doesn't need (categories, search, recents, skin tones, locale).
 
 import { createPortal } from 'react-dom';
+import FluentEmoji from './FluentEmoji';
 
 interface EmojiPickerProps {
   onPick: (emoji: string) => void;
@@ -1463,7 +1464,7 @@ export default function EmojiPicker({ onPick }: EmojiPickerProps) {
                 aria-label={`Add ${emoji}`}
                 title={`Add ${emoji}`}
               >
-                {emoji}
+                <FluentEmoji emoji={emoji} />
               </button>
             ))}
           </div>

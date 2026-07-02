@@ -1,7 +1,8 @@
 // Small set of cross-component React hooks. Domain-agnostic — anything
 // in here should make sense in any component, not just one tab.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadKey, saveKey } from './store';
+import { loadKey, patchSettings, saveKey } from './store';
+import type { Settings } from './types';
 
 // Returns a stable callback that fires `delayMs` after its LAST call.
 // Use for "stop typing → persist" patterns where intermediate states
@@ -39,6 +40,20 @@ export function useDebouncedCallback<Args extends unknown[]>(
     },
     [delayMs],
   );
+}
+
+// Trailing-edge debounced mirror of a value: re-renders with the latest
+// value once it has been stable for `ms`. Bind expensive consumers (WebGL
+// uniforms, big DOM fields, IPC renders) to the debounced copy while the
+// controls stay bound to the live value — rapid slider/scroller input then
+// costs one update instead of one per event.
+export function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
 }
 
 // State that auto-persists on every change. Use for low-frequency
@@ -130,12 +145,22 @@ interface KeydownOptions {
   // shortcuts (Cmd+Enter to submit, Cmd+1..5 to switch tabs) should still
   // work from inside an input.
   notInInputs?: boolean;
+  // When false, the shortcut is inert (no listener attached). Tabs stay
+  // mounted (display:none) after their first visit, so a window-level
+  // shortcut registered by an inactive tab would still fire — each tab
+  // gates its shortcuts on being the active one via this flag.
+  enabled?: boolean;
 }
 
 export function useKeydown(
   key: string,
   handler: (e: KeyboardEvent) => void,
-  { cmdOrCtrl = false, shift = false, notInInputs = false }: KeydownOptions = {},
+  {
+    cmdOrCtrl = false,
+    shift = false,
+    notInInputs = false,
+    enabled = true,
+  }: KeydownOptions = {},
 ) {
   // Hold the handler in a ref so we can keep one listener for the
   // lifetime of the component while still calling the latest closure.
@@ -143,6 +168,7 @@ export function useKeydown(
   handlerRef.current = handler;
 
   useEffect(() => {
+    if (!enabled) return;
     function onKey(e: KeyboardEvent) {
       if (e.key.toLowerCase() !== key.toLowerCase()) return;
       if (cmdOrCtrl && !(e.metaKey || e.ctrlKey)) return;
@@ -161,5 +187,37 @@ export function useKeydown(
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [key, cmdOrCtrl, shift, notInInputs]);
+  }, [key, cmdOrCtrl, shift, notInInputs, enabled]);
+}
+
+// Coalesced, debounced settings writer. Rapid queue() calls merge into one
+// pending patch that flushes to patchSettings() `delayMs` after the last
+// call — slider drags / keystroke bursts cost one disk write, not one per
+// event. The Rust side emits `settings-changed` on every patch (bridged to
+// the typed bus by App.tsx), so no manual dispatch is needed here; pass
+// `onFlush` for UI-only follow-ups like a "Saved" toast. Pending patches
+// are dropped on unmount (same trade as useDebouncedCallback).
+export function useDebouncedSettingsPatch(
+  onFlush?: () => void,
+  delayMs = 400,
+): (patch: Partial<Settings>) => void {
+  const pendingRef = useRef<Partial<Settings>>({});
+  const onFlushRef = useRef(onFlush);
+  onFlushRef.current = onFlush;
+
+  const flush = useDebouncedCallback(() => {
+    const patch = pendingRef.current;
+    pendingRef.current = {};
+    void patchSettings(patch).then(() => {
+      onFlushRef.current?.();
+    });
+  }, delayMs);
+
+  return useCallback(
+    (patch: Partial<Settings>) => {
+      pendingRef.current = { ...pendingRef.current, ...patch };
+      flush();
+    },
+    [flush],
+  );
 }

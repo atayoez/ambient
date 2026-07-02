@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSystemAccentColor } from '../lib/appHooks';
-import { dispatch } from '../lib/events';
-import { useDraftState, useKeydown, usePersistedState } from '../lib/hooks';
+import {
+  useDebouncedValue,
+  useDraftState,
+  useKeydown,
+  usePersistedState,
+} from '../lib/hooks';
 import {
   ANIMATABLE,
   accentPreset,
@@ -10,7 +14,10 @@ import {
   type CustomPreset,
   customToColorPreset,
   DEFAULT_CONFIG,
+  GEOMETRIC_SHAPES,
   getPreset,
+  MAX_COLORS,
+  MIN_COLORS,
   PATTERN_TYPES,
   type PatternConfig,
   type PatternType,
@@ -57,16 +64,6 @@ function pickInitialConfig(dark: boolean): PatternConfig {
   };
 }
 
-const SHAPE_OPTIONS = [
-  { id: 'mix', label: 'Mix' },
-  { id: 'circles', label: 'Circles' },
-  { id: 'triangles', label: 'Triangles' },
-  { id: 'squares', label: 'Squares' },
-  { id: 'hexagons', label: 'Hexagons' },
-  { id: 'stars', label: 'Stars' },
-  { id: 'plus', label: 'Plus' },
-];
-
 const FILL_OPTIONS = [
   { id: 'solid', label: 'Solid' },
   { id: 'outline', label: 'Outline' },
@@ -75,7 +72,10 @@ const FILL_OPTIONS = [
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export default function Patterns() {
+// `active` — whether this is the visible tab. Tabs stay mounted after
+// their first visit, so the window-level shortcuts below must only be
+// live while this tab is the one on screen.
+export default function Patterns({ active = true }: { active?: boolean }) {
   const systemDark = useSystemDark();
   const [themeMode, setThemeMode] = usePersistedState<ThemeMode>(
     'patterns.themeMode',
@@ -127,9 +127,9 @@ export default function Patterns() {
         typeof update === 'function' ? update(customPresetsRef.current) : update;
       customPresetsRef.current = next;
       setCustomPresetsState(next);
-      void patchSettings({ customPresets: next }).then(() =>
-        dispatch('settings-changed'),
-      );
+      // patchSettings → Rust emits `settings-changed`, which App.tsx
+      // forwards onto the typed bus — no manual dispatch needed.
+      void patchSettings({ customPresets: next });
     },
     [],
   );
@@ -212,6 +212,11 @@ export default function Patterns() {
   // which kept the tokio blocking pool from piling up while still
   // feeling responsive — the last frame the user sees is always current.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Debounced copy of the config for every expensive preview consumer
+  // (static IPC render, WebGL live preview, emoji field): controls stay
+  // bound to `config` for instant feedback, previews update once ~90ms
+  // after the last edit instead of on every input event.
+  const previewConfig = useDebouncedValue(config, 90);
   // Monotonic counter: every config/size change fires a fresh render and
   // claims a generation. Only the latest generation's result is allowed
   // to paint — stale renders are dropped here, and the Rust side
@@ -221,23 +226,16 @@ export default function Patterns() {
 
   useEffect(() => {
     if (previewSize.w === 0 || previewSize.h === 0) return;
-    // Debounce: a slider drag fires dozens of config changes; we only
-    // want one render after motion settles. The timer resets on every
-    // change, so we render ~90ms after the last edit. The gen guard +
-    // Rust-side PREVIEW_GEN cancellation handle any that still overlap.
-    const t = setTimeout(() => {
-      const myGen = ++previewGenRef.current;
-      void renderPreview(config, previewSize.w, previewSize.h)
-        .then((dataUrl) => {
-          if (myGen === previewGenRef.current) setPreviewUrl(dataUrl);
-        })
-        .catch(() => {
-          // "preview superseded" or a transient failure — ignore; the
-          // newest request will paint.
-        });
-    }, 90);
-    return () => clearTimeout(t);
-  }, [config, previewSize.w, previewSize.h]);
+    const myGen = ++previewGenRef.current;
+    void renderPreview(previewConfig, previewSize.w, previewSize.h)
+      .then((dataUrl) => {
+        if (myGen === previewGenRef.current) setPreviewUrl(dataUrl);
+      })
+      .catch(() => {
+        // "preview superseded" or a transient failure — ignore; the
+        // newest request will paint.
+      });
+  }, [previewConfig, previewSize.w, previewSize.h]);
 
   // Re-apply the active preset's variant when the resolved theme flips.
   // Custom palettes (where the user manually edited a chip and
@@ -289,7 +287,7 @@ export default function Patterns() {
   }
 
   function addColor() {
-    if (config.colors.length >= 6) return;
+    if (config.colors.length >= MAX_COLORS) return;
     patch({
       colors: [...config.colors, '#ffffff'],
       colorPresetId: undefined,
@@ -297,7 +295,7 @@ export default function Patterns() {
   }
 
   function removeColor(i: number) {
-    if (config.colors.length <= 2) return;
+    if (config.colors.length <= MIN_COLORS) return;
     patch({
       colors: config.colors.filter((_, idx) => idx !== i),
       colorPresetId: undefined,
@@ -371,11 +369,12 @@ export default function Patterns() {
 
   // Cmd/Ctrl+Enter applies, Cmd/Ctrl+Shift+R re-rolls. Apple desktop
   // staples — Cmd+R itself is avoided since some webviews still treat
-  // it as a reload.
+  // it as a reload. Only live while this is the visible tab.
   useKeydown('Enter', () => void (animated ? applyLive() : apply()), {
     cmdOrCtrl: true,
+    enabled: active,
   });
-  useKeydown('r', () => reroll(), { cmdOrCtrl: true, shift: true });
+  useKeydown('r', () => reroll(), { cmdOrCtrl: true, shift: true, enabled: active });
 
   const ranges = SLIDER_RANGES[config.type] ?? {};
   const densityRange = ranges.density;
@@ -399,30 +398,21 @@ export default function Patterns() {
           are arrow scrollers — the same shape as the marketing site. */}
       <div className="gen-stage" ref={previewWrapRef}>
         {previewUrl ? (
-          // When Animate is on, static patterns get a slow CSS drift (the
-          // desktop plugin does the same in QML); generative types are
-          // covered by the live WebGL canvas below instead.
-          <img
-            className={
-              animated && !ANIMATABLE.includes(config.type) && config.type !== 'emoji'
-                ? 'gen-bg gen-bg-drift'
-                : 'gen-bg'
-            }
-            src={previewUrl}
-            alt=""
-          />
+          <img className="gen-bg" src={previewUrl} alt="" />
         ) : (
           <div className="gen-bg gen-bg-empty" aria-hidden="true" />
         )}
         {/* When Animate is on: generative types run the live WebGL canvas
-            (same shader as the wallpaper), Emoji runs the animated glyph
-            field, and the rest fall back to the drifting <img> above. Each
-            overlay is opaque and covers the still beneath it. */}
-        {animated && ANIMATABLE.includes(config.type) && (
-          <LivePreview config={config} className="gen-bg" />
+            (same shader as the wallpaper) and Emoji runs the animated glyph
+            field — every pattern type is one or the other. Each overlay is
+            opaque and covers the still beneath it. Both consume the
+            DEBOUNCED config so a fast slider drag costs one update, not
+            one per input event. */}
+        {animated && ANIMATABLE.includes(previewConfig.type) && (
+          <LivePreview config={previewConfig} className="gen-bg" />
         )}
-        {animated && config.type === 'emoji' && (
-          <EmojiField config={config} className="gen-bg" />
+        {animated && previewConfig.type === 'emoji' && (
+          <EmojiField config={previewConfig} className="gen-bg" />
         )}
 
         <div className="gen-panel pat-top">
@@ -569,7 +559,7 @@ export default function Patterns() {
               <>
                 <OptionScroller
                   label="Shape"
-                  options={SHAPE_OPTIONS}
+                  options={GEOMETRIC_SHAPES}
                   value={(config.geometricShape ?? 'mix') as string}
                   onChange={(v) =>
                     patch({ geometricShape: v as PatternConfig['geometricShape'] })
@@ -752,6 +742,66 @@ export default function Patterns() {
                   min={0}
                   max={100}
                   onChange={(v) => patch({ auroraAmplitude: v / 100 })}
+                />
+              </>
+            )}
+
+            {config.type === 'matrix' && (
+              <>
+                <input
+                  type="text"
+                  className="matrix-text"
+                  value={config.matrixText ?? ''}
+                  onChange={(e) => patch({ matrixText: e.target.value })}
+                  placeholder="Custom text (optional)"
+                  maxLength={15}
+                  spellCheck={false}
+                  aria-label="Matrix rain text"
+                />
+                <ControlRow
+                  label="Trail"
+                  value={Math.round((config.matrixTrail ?? 0.5) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ matrixTrail: v / 100 })}
+                />
+                <ControlRow
+                  label="Speed"
+                  value={Math.round((config.matrixSpeed ?? 0.5) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ matrixSpeed: v / 100 })}
+                />
+              </>
+            )}
+
+            {config.type === 'crt' && (
+              <>
+                <ControlRow
+                  label="Scanlines"
+                  value={Math.round((config.crtScanlines ?? 0.6) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ crtScanlines: v / 100 })}
+                />
+                <ControlRow
+                  label="Curvature"
+                  value={Math.round((config.crtCurvature ?? 0.4) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ crtCurvature: v / 100 })}
+                />
+                <ControlRow
+                  label="Noise"
+                  value={Math.round((config.crtNoise ?? 0.25) * 100)}
+                  suffix="%"
+                  min={0}
+                  max={100}
+                  onChange={(v) => patch({ crtNoise: v / 100 })}
                 />
               </>
             )}

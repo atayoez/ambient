@@ -26,6 +26,16 @@ pub fn pseudo_seed() -> u32 {
         .wrapping_add(c.wrapping_mul(2654435761))
 }
 
+/// Shared reqwest client constructor — one place for the builder chain so
+/// the per-module copies (sources, aigen, license, emojis) can't drift.
+/// Callers pass their own timeout since fetch budgets differ per API.
+pub(crate) fn http_client(timeout_secs: u64) -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .build()
+        .map_err(|e| format!("build HTTP client: {}", e))
+}
+
 /// Local-date string in YYYY-MM-DD format. Used by NASA APOD cache:
 /// matches the user's perspective of "today" even when UTC has rolled
 /// over (consistent with the pre-Phase-3 TS behavior). Chrono pulls in

@@ -37,6 +37,8 @@ const KNOBS: Record<string, [string, string, string]> = {
   geometric: ['density', 'shape code', 'fill code'],
   flower: ['petal count', 'twist (fullness) 0..1', 'unused'],
   mesh: ['bubble count', 'softness 0..1', 'unused'],
+  matrix: ['columns', 'trail 0..1', 'speed 0..1'],
+  crt: ['scanlines 0..1', 'curvature 0..1', 'noise 0..1'],
 };
 
 function header(type: string): string {
@@ -46,7 +48,7 @@ function header(type: string): string {
 // (app/desktop/Android) and this Qt/RHI (KDE Plasma) shader are one source
 // now, so they can no longer drift.
 //
-// Bake:  qsb --glsl "150,330,440" -o ${type}.frag.qsb ${type}.frag
+// Bake:  qsb --glsl "100es,300es,150,330,440" -o ${type}.frag.qsb ${type}.frag
 #version 440
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -70,6 +72,10 @@ layout(std140, binding = 0) uniform buf {
     float p1; // ${k1}
     float p2; // ${k2}
     float p3; // ${k3}
+    vec4 t0; // matrix text glyph indices 0-3
+    vec4 t1; // 4-7
+    vec4 t2; // 8-11
+    vec4 t3; // 12-14 + count in .w (0 = no custom text)
 };
 
 // Palette (c0 = background) selected by index; the cyclic paletteColor /
@@ -108,7 +114,11 @@ function toQt(type: string, webgl: string): string {
     .replaceAll('u_size', 'gSize')
     .replaceAll('u_p1', 'p1')
     .replaceAll('u_p2', 'p2')
-    .replaceAll('u_p3', 'p3');
+    .replaceAll('u_p3', 'p3')
+    .replaceAll('u_t0', 't0')
+    .replaceAll('u_t1', 't1')
+    .replaceAll('u_t2', 't2')
+    .replaceAll('u_t3', 't3');
   // Premultiply by the item's opacity, as Qt's ShaderEffect expects.
   body = body.replace(
     /fragColor\s*=\s*vec4\(col,\s*1\.0\);/,
@@ -126,6 +136,20 @@ function toQt(type: string, webgl: string): string {
 const check = process.argv.includes('--check');
 const QSB = process.env.QSB || '/usr/lib/qt6/bin/qsb';
 
+// Desktop GL *and* GLES targets: Plasma on NVIDIA-aarch64 (and many ARM
+// boards) runs Qt Quick on an OpenGL ES context, where a qsb baked only with
+// desktop GLSL variants fails to load and the ShaderEffect renders nothing —
+// every pattern except the shaderless emoji field showed a blank wallpaper.
+const GLSL_TARGETS = '100es,300es,150,330,440';
+
+function bake(fragPath: string, qsbPath: string): void {
+  const baked = Bun.spawnSync([QSB, '--glsl', GLSL_TARGETS, '-o', qsbPath, fragPath]);
+  if (baked.exitCode !== 0) {
+    console.error(`bake failed for ${fragPath}:\n${baked.stderr.toString()}`);
+    process.exit(1);
+  }
+}
+
 let stale = 0;
 for (const [type, webgl] of Object.entries(FRAG_SHADERS)) {
   const frag = toQt(type, webgl);
@@ -142,14 +166,17 @@ for (const [type, webgl] of Object.entries(FRAG_SHADERS)) {
   }
 
   await Bun.write(fragPath, frag);
-  const baked = Bun.spawnSync([
-    QSB, '--glsl', '150,330,440', '-o', qsbPath, fragPath,
-  ]);
-  if (baked.exitCode !== 0) {
-    console.error(`bake failed for ${type}:\n${baked.stderr.toString()}`);
-    process.exit(1);
-  }
+  bake(fragPath, qsbPath);
   console.log(`generated ${type}.frag + .qsb`);
+}
+
+// The pass-through vertex shader is hand-written (not derived from WebGL) but
+// must be baked with the same target list, or a GLES-only context loads the
+// fragment shader and still fails on the vertex stage.
+if (!check) {
+  const vertPath = `${SHADER_DIR}wallpaper.vert`;
+  bake(vertPath, `${vertPath}.qsb`);
+  console.log('baked wallpaper.vert.qsb');
 }
 
 if (check && stale > 0) {

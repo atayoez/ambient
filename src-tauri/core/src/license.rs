@@ -32,6 +32,14 @@ pub struct LicenseInfo {
     pub email: Option<String>,
     pub activated_at: u64,
     pub last_validated: u64,
+    /// Key expiry (ms since epoch), present on time-limited keys — i.e. the
+    /// 7-day trial product, whose license-key benefit is configured in Polar
+    /// to expire after grant. Absent on purchased (perpetual) keys. The UI
+    /// uses it to show trial state; the shell schedules a revalidation at
+    /// this instant so an expired trial gates without waiting for the next
+    /// launch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -68,16 +76,24 @@ impl LicenseState {
         self.startup.read().await.clone()
     }
 
+    // set/clear/mark_invalid acquire BOTH write guards (inner first, then
+    // startup — one consistent order) before mutating either, so a reader
+    // can never observe inner and startup mid-update / out of sync.
+
     pub async fn set(&self, info: LicenseInfo) -> Result<(), String> {
         write_atomic(&self.path, &info)?;
-        *self.inner.write().await = Some(info.clone());
-        *self.startup.write().await = StartupLicense::Valid { info };
+        let mut inner = self.inner.write().await;
+        let mut startup = self.startup.write().await;
+        *inner = Some(info.clone());
+        *startup = StartupLicense::Valid { info };
         Ok(())
     }
 
     pub async fn clear(&self) {
-        *self.inner.write().await = None;
-        *self.startup.write().await = StartupLicense::None;
+        let mut inner = self.inner.write().await;
+        let mut startup = self.startup.write().await;
+        *inner = None;
+        *startup = StartupLicense::None;
         let _ = std::fs::remove_file(&self.path);
     }
 
@@ -85,6 +101,9 @@ impl LicenseState {
         // Don't drop the in-memory key — keep it so the user can re-try
         // activation later without re-pasting if the rejection was
         // transient (key revoked then un-revoked, e.g. payment fixed).
+        // The inner guard is still taken (unmodified) to keep the
+        // inner→startup update atomic with respect to set()/clear().
+        let _inner = self.inner.write().await;
         *self.startup.write().await = StartupLicense::Invalid { message };
     }
 }
@@ -141,9 +160,10 @@ pub async fn revalidate_background() {
         None => return,
     };
     match call_polar_validate(&info.key).await {
-        Ok(_) => {
+        Ok(body) => {
             let mut updated = info;
             updated.last_validated = ms_since_epoch();
+            updated.expires_at = extract_expires(&body);
             let _ = state.set(updated).await;
         }
         Err(ValidateErr::Rejected(msg)) => {
@@ -156,6 +176,34 @@ pub async fn revalidate_background() {
     }
 }
 
+/// Long-running watcher that turns a time-limited key (the 7-day trial)
+/// into a runtime gate: sleeps until the key's expiry, then revalidates —
+/// Polar rejects the lapsed key, which flips state to Invalid and emits
+/// `license-revoked`, so the gate drops at the moment the trial ends
+/// instead of at the next launch. Re-checks hourly to pick up keys
+/// activated mid-session (e.g. signing into a trial after first launch).
+pub async fn watch_expiry() {
+    const HOUR_MS: u64 = 60 * 60 * 1000;
+    loop {
+        let next = crate::state::license()
+            .current()
+            .await
+            .and_then(|i| i.expires_at);
+        let now = ms_since_epoch();
+        let sleep_ms = match next {
+            // +30s past expiry so Polar's clock has definitely lapsed too.
+            Some(at) if at.saturating_sub(now) < HOUR_MS => at.saturating_sub(now) + 30_000,
+            _ => HOUR_MS,
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(sleep_ms)).await;
+        if let Some(at) = next {
+            if ms_since_epoch() >= at {
+                revalidate_background().await;
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum ValidateErr {
     Rejected(String),
@@ -163,10 +211,7 @@ pub(crate) enum ValidateErr {
 }
 
 pub(crate) async fn call_polar_validate(key: &str) -> Result<serde_json::Value, ValidateErr> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
-        .build()
-        .map_err(|e| ValidateErr::Transient(format!("build client: {}", e)))?;
+    let client = portal_client().map_err(ValidateErr::Transient)?;
 
     let url = format!("{}/v1/customer-portal/license-keys/validate", POLAR_BASE);
     let body = serde_json::json!({ "key": key, "organization_id": POLAR_ORG_ID });
@@ -214,6 +259,7 @@ pub(crate) fn extract_error_message(body: &serde_json::Value, status: u16) -> St
     match status {
         404 => "License key not found.".to_string(),
         401 | 403 => "License key is no longer valid.".to_string(),
+        429 => "Too many attempts — wait a minute and try again.".to_string(),
         _ => format!("Activation failed (HTTP {}).", status),
     }
 }
@@ -225,12 +271,22 @@ pub(crate) fn extract_email(body: &serde_json::Value) -> Option<String> {
         .map(String::from)
 }
 
+/// Key expiry from a Polar license-key payload (`expires_at`, RFC 3339) as
+/// ms since epoch. None for perpetual keys or unparseable values.
+pub(crate) fn extract_expires(body: &serde_json::Value) -> Option<u64> {
+    let raw = body.get("expires_at")?.as_str()?;
+    let dt = chrono::DateTime::parse_from_rfc3339(raw).ok()?;
+    u64::try_from(dt.timestamp_millis()).ok()
+}
+
 /// The license decision the UI gates on at mount.
 pub async fn get_startup_license() -> StartupLicense {
     crate::state::license().startup().await
 }
 
-/// Validate a key against Polar and persist it on success.
+/// Validate a key against Polar and persist it on success. Not exposed in
+/// the UI anymore (login is email-only); `login_with_code` funnels through
+/// here so there is a single validate-and-persist path.
 pub async fn activate_license(key: String) -> Result<LicenseInfo, String> {
     let key = key.trim().to_string();
     if key.is_empty() {
@@ -244,6 +300,7 @@ pub async fn activate_license(key: String) -> Result<LicenseInfo, String> {
                 email: extract_email(&body),
                 activated_at: now,
                 last_validated: now,
+                expires_at: extract_expires(&body),
             };
             crate::state::license().set(info.clone()).await?;
             Ok(info)
@@ -251,6 +308,146 @@ pub async fn activate_license(key: String) -> Result<LicenseInfo, String> {
         Err(ValidateErr::Rejected(msg)) => Err(msg),
         Err(ValidateErr::Transient(msg)) => Err(msg),
     }
+}
+
+fn portal_client() -> Result<reqwest::Client, String> {
+    crate::util::http_client(HTTP_TIMEOUT_SECS)
+}
+
+/// Ask Polar to email a one-time login code. Same unauthenticated
+/// customer-portal endpoint Polar's own hosted portal login uses. Polar
+/// deliberately answers 202 whether or not the email belongs to a customer
+/// (no account enumeration), so success here only means "if you bought
+/// Ambient with this address, a code is on its way".
+pub async fn request_login_code(email: String) -> Result<(), String> {
+    let email = email.trim().to_lowercase();
+    if email.is_empty() || !email.contains('@') {
+        return Err("Enter a valid email address.".to_string());
+    }
+    let res = portal_client()?
+        .post(format!(
+            "{POLAR_BASE}/v1/customer-portal/customer-session/request"
+        ))
+        .json(&serde_json::json!({
+            "email": email,
+            "organization_id": POLAR_ORG_ID,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("send: {e}"))?;
+
+    let status = res.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    let body: serde_json::Value = res.json().await.unwrap_or(serde_json::Value::Null);
+    if status == 409 {
+        // Multiple Polar customers share this email; the request endpoint
+        // wants a customer_id to disambiguate. Vanishingly rare for a
+        // single-product org — surface it instead of building a picker.
+        return Err(
+            "Multiple accounts share this email. Please contact support to resolve it."
+                .to_string(),
+        );
+    }
+    Err(extract_error_message(&body, status.as_u16()))
+}
+
+/// Exchange the emailed code for a Polar customer session, look up the
+/// customer's Ambient license key through it, and activate that key. The
+/// session token is used once and dropped — long-term auth stays the stored
+/// license key + the existing 24h revalidation.
+pub async fn login_with_code(code: String) -> Result<LicenseInfo, String> {
+    let code = code.trim().to_string();
+    if code.is_empty() {
+        return Err("Enter the code from the email.".to_string());
+    }
+    let client = portal_client()?;
+
+    let res = client
+        .post(format!(
+            "{POLAR_BASE}/v1/customer-portal/customer-session/authenticate"
+        ))
+        .json(&serde_json::json!({ "code": code }))
+        .send()
+        .await
+        .map_err(|e| format!("send: {e}"))?;
+    let status = res.status();
+    let body: serde_json::Value = res.json().await.unwrap_or(serde_json::Value::Null);
+    if !status.is_success() {
+        if status == 401 {
+            return Err("That code is invalid or has expired. Request a new one.".to_string());
+        }
+        return Err(extract_error_message(&body, status.as_u16()));
+    }
+    let token = body
+        .get("token")
+        .and_then(|t| t.as_str())
+        .ok_or_else(|| "Polar returned no session token.".to_string())?;
+
+    let res = client
+        .get(format!(
+            "{POLAR_BASE}/v1/customer-portal/license-keys/?limit=100"
+        ))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("send: {e}"))?;
+    let status = res.status();
+    let body: serde_json::Value = res.json().await.unwrap_or(serde_json::Value::Null);
+    if !status.is_success() {
+        return Err(extract_error_message(&body, status.as_u16()));
+    }
+    let candidates = candidate_keys(&body);
+    if candidates.is_empty() {
+        return Err("No Ambient license is attached to this email. \
+             If you just bought one, try again in a minute."
+            .to_string());
+    }
+    // A customer can hold several keys — e.g. an expired 7-day trial key
+    // plus a purchased one. Try each until one validates; only if every
+    // key is rejected (all expired/revoked) surface the last rejection,
+    // which for a lapsed trial reads as the expiry message.
+    let mut last_err = String::new();
+    for key in candidates {
+        match activate_license(key).await {
+            Ok(info) => return Ok(info),
+            Err(e) => last_err = e,
+        }
+    }
+    Err(last_err)
+}
+
+/// Keys from a customer-portal license-keys listing in the order worth
+/// trying: `granted` keys first (perpetual purchases before soon-expiring
+/// trial keys), then everything else — validate() has the final say on
+/// each (Polar statuses: granted / disabled / revoked).
+pub(crate) fn candidate_keys(body: &serde_json::Value) -> Vec<String> {
+    let Some(items) = body.get("items").and_then(|i| i.as_array()) else {
+        return Vec::new();
+    };
+    let key_of = |it: &serde_json::Value| {
+        it.get("key")
+            .and_then(|k| k.as_str())
+            .map(String::from)
+    };
+    let is_granted =
+        |it: &&serde_json::Value| it.get("status").and_then(|s| s.as_str()) == Some("granted");
+    let perpetual =
+        |it: &&serde_json::Value| it.get("expires_at").map_or(true, |e| e.is_null());
+
+    let mut ordered: Vec<String> = Vec::new();
+    for filter in [
+        // granted + no expiry (a real purchase) beats granted-but-expiring
+        // (an active trial), which beats anything revoked/disabled.
+        Box::new(|it: &&serde_json::Value| is_granted(it) && perpetual(it))
+            as Box<dyn Fn(&&serde_json::Value) -> bool>,
+        Box::new(|it: &&serde_json::Value| is_granted(it) && !perpetual(it)),
+        Box::new(|it: &&serde_json::Value| !is_granted(it)),
+    ] {
+        ordered.extend(items.iter().filter(&filter).filter_map(key_of));
+    }
+    ordered
 }
 
 /// Drop the stored license (Settings → "Sign out").
@@ -313,6 +510,44 @@ mod tests {
     }
 
     #[test]
+    fn candidate_keys_orders_purchase_trial_then_rest() {
+        let body = serde_json::json!({
+            "items": [
+                { "key": "revoked-key", "status": "revoked", "expires_at": null },
+                { "key": "trial-key", "status": "granted", "expires_at": "2026-07-09T00:00:00Z" },
+                { "key": "purchase-key", "status": "granted", "expires_at": null }
+            ]
+        });
+        assert_eq!(
+            candidate_keys(&body),
+            vec!["purchase-key", "trial-key", "revoked-key"]
+        );
+    }
+
+    #[test]
+    fn candidate_keys_includes_non_granted_last() {
+        let body = serde_json::json!({
+            "items": [{ "key": "only-key", "status": "disabled" }]
+        });
+        assert_eq!(candidate_keys(&body), vec!["only-key"]);
+    }
+
+    #[test]
+    fn candidate_keys_empty_when_no_items() {
+        assert!(candidate_keys(&serde_json::json!({ "items": [] })).is_empty());
+        assert!(candidate_keys(&serde_json::json!({})).is_empty());
+    }
+
+    #[test]
+    fn extract_expires_parses_rfc3339() {
+        let body = serde_json::json!({ "expires_at": "2026-07-09T12:00:00Z" });
+        let ms = extract_expires(&body).expect("should parse");
+        assert_eq!(ms, 1_783_598_400_000);
+        assert!(extract_expires(&serde_json::json!({ "expires_at": null })).is_none());
+        assert!(extract_expires(&serde_json::json!({})).is_none());
+    }
+
+    #[test]
     fn load_or_migrate_returns_none_when_nothing_present() {
         let tmp = std::env::temp_dir().join("ambient-test-license-empty");
         let _ = std::fs::remove_dir_all(&tmp);
@@ -370,6 +605,7 @@ mod tests {
             email: None,
             activated_at: two_days_ago,
             last_validated: two_days_ago,
+            expires_at: None,
         };
         write_atomic(&tmp.join("ambient-license.json"), &info).unwrap();
 
@@ -391,6 +627,7 @@ mod tests {
             email: None,
             activated_at: ms_since_epoch(),
             last_validated: ms_since_epoch(),
+            expires_at: None,
         };
         write_atomic(&tmp.join("ambient-license.json"), &info).unwrap();
 

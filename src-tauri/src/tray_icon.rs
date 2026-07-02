@@ -225,26 +225,23 @@ pub fn update_tray_theme(app: AppHandle, is_dark: bool) -> Result<(), String> {
         let _ = (app, is_dark);
         return Ok(());
     }
-    #[cfg(all(desktop, not(target_os = "macos")))]
+    // Linux commits to one glyph for the whole session (see
+    // linux_panel_wants_light_glyph), so re-setting the identical icon on
+    // every prefers-color-scheme flip is pure tray churn — short-circuit
+    // like macOS does.
+    #[cfg(all(desktop, target_os = "linux"))]
     {
-        // On Linux the passed `is_dark` reflects the webview's
-        // prefers-color-scheme, which is the wrong signal for the panel
-        // (see linux_panel_dark). Re-detect the panel theme and ignore
-        // it; the call still usefully serves as a "theme may have
-        // changed, refresh" trigger. Windows' tray host tracks the same
-        // theme the registry reports, so the web signal is fine there.
-        #[cfg(target_os = "linux")]
-        let want_light_glyph = {
-            let _ = is_dark;
-            linux_panel_wants_light_glyph()
-        };
-        #[cfg(not(target_os = "linux"))]
-        let want_light_glyph = is_dark;
-
+        let _ = (app, is_dark);
+        return Ok(());
+    }
+    #[cfg(all(desktop, target_os = "windows"))]
+    {
+        // Windows' tray host tracks the same theme the registry reports,
+        // so the webview's prefers-color-scheme signal is the right one.
         let tray = app
             .tray_by_id("main")
             .ok_or_else(|| "tray 'main' not registered".to_string())?;
-        let icon = symbolic_icon(!want_light_glyph);
+        let icon = symbolic_icon(!is_dark);
         tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
         Ok(())
     }

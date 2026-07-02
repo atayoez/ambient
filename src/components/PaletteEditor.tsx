@@ -5,7 +5,7 @@
 // escape-to-close behaviour is colocated with the trigger.
 
 import { useEffect, useRef, useState } from 'react';
-import type { PatternType } from '../lib/patterns';
+import { MAX_COLORS, MIN_COLORS, type PatternType } from '../lib/patterns';
 import EmojiPicker from './EmojiPicker';
 import { PlusIcon, XIcon } from './Icons';
 
@@ -135,7 +135,10 @@ export default function PaletteEditor({
             onChange={(e) => onColorChange(i, e.target.value)}
             aria-label={`color ${i + 1}`}
           />
-          {colors.length > 1 && (
+          {/* `colors` here is the foreground slice (config.colors minus
+              the background chip), so the shared whole-palette limits
+              shift down by one. */}
+          {colors.length > MIN_COLORS - 1 && (
             <button
               onClick={() => onRemoveColor(i)}
               className="chip-remove"
@@ -147,7 +150,7 @@ export default function PaletteEditor({
           )}
         </div>
       ))}
-      {colors.length < 5 && (
+      {colors.length < MAX_COLORS - 1 && (
         <button
           onClick={onAddColor}
           className="add-color"

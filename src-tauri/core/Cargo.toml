@@ -29,8 +29,10 @@ serde_json = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 # sync (RwLock, watch) owns the in-memory settings/library/license
 # state; macros + time + rt for the render pipeline's spawn_blocking
-# and the source caches.
-tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
+# and the source caches; rt-multi-thread for the block_in_place that
+# keeps store persistence from stalling a runtime worker (the shells
+# run multithread runtimes).
+tokio = { version = "1", features = ["sync", "macros", "time", "rt", "rt-multi-thread"] }
 # Software 2D rasterizer for the Pattern renderer. Pure Rust, no GPU
 # dependency, fast enough for live preview at thumbnail res +
 # native-res export via spawn_blocking.

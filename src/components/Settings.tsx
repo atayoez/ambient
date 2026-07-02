@@ -8,7 +8,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useEffect, useState } from 'react';
-import { dispatch } from '../lib/events';
+import { getStartupLicense, type LicenseInfo } from '../lib/license';
 import { useSecret } from '../lib/secrets';
 import { loadSettings, patchSettings } from '../lib/store';
 import { toast } from '../lib/toast';
@@ -88,7 +88,13 @@ export default function Settings() {
   const [confirmingWipe, setConfirmingWipe] = useState(false);
   const [wiping, setWiping] = useState(false);
 
+  const [account, setAccount] = useState<LicenseInfo | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
   useEffect(() => {
+    void getStartupLicense().then((s) => {
+      if (s.status === 'valid') setAccount(s.info);
+    });
     void loadSettings().then((s) => {
       setSettings(s);
       setIntervalDraft(String(s.rotationIntervalMinutes));
@@ -100,10 +106,11 @@ export default function Settings() {
     void canSelfUpdate().then(setSelfUpdate);
   }, []);
 
+  // patchSettings → Rust emits `settings-changed`, which App.tsx forwards
+  // onto the typed bus — other tabs refresh without a manual dispatch.
   async function patch(p: Partial<AppSettings>) {
     const next = await patchSettings(p);
     setSettings(next);
-    dispatch('settings-changed');
   }
 
   // Persist the quality, then re-apply the active live wallpaper (if any) so
@@ -123,8 +130,10 @@ export default function Settings() {
     try {
       await invoke('set_autostart', { enabled });
       setAutostart(enabled);
-    } catch {
-      // Non-Linux / no $HOME — leave the toggle where it was.
+    } catch (e) {
+      // Non-Linux / no $HOME — the toggle stays where it was; tell the
+      // user why instead of failing silently.
+      toast.fromError(e);
     }
   }
 
@@ -204,14 +213,29 @@ export default function Settings() {
     }
   }
 
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await invoke('clear_license');
+      // Reload re-runs the startup gate decision (get_startup_license →
+      // None → gate). Cheaper than threading gate state down from App.
+      window.location.reload();
+    } catch (e) {
+      toast.fromError(e);
+      setSigningOut(false);
+    }
+  }
+
+  // Trial keys carry an expiry; purchased keys don't.
+  const trialDaysLeft = account?.expiresAt
+    ? Math.max(0, Math.ceil((account.expiresAt - Date.now()) / 86_400_000))
+    : null;
+
   return (
     <div className="settings">
       <div className="settings-inner">
         <section className="set-group">
           <h3 className="set-title">API keys</h3>
-          <p className="set-note">
-            Stored in your OS keyring. Sources and AI generation read them from here.
-          </p>
           <div className="set-row">
             <span>Pollinations</span>
             <input
@@ -335,6 +359,47 @@ export default function Settings() {
               />
               <span className="switch-track" />
             </label>
+          </div>
+        </section>
+
+        <section className="set-group">
+          <h3 className="set-title">Account</h3>
+          <div className="set-row">
+            <span>Signed in as</span>
+            <span className="set-value">{account?.email ?? '—'}</span>
+          </div>
+          {trialDaysLeft !== null && (
+            <>
+              <div className="set-row">
+                <span>License</span>
+                <span className="set-value">
+                  {trialDaysLeft > 0
+                    ? `Free trial — ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`
+                    : 'Free trial — ends today'}
+                </span>
+              </div>
+              <div className="set-row">
+                <span>Keep it forever</span>
+                <button
+                  type="button"
+                  className="set-link"
+                  onClick={() => void openUrl(`${HOMEPAGE}/#pricing`)}
+                >
+                  Buy Ambient
+                </button>
+              </div>
+            </>
+          )}
+          <div className="set-row">
+            <span>Sign out</span>
+            <button
+              type="button"
+              className="set-btn"
+              onClick={signOut}
+              disabled={signingOut}
+            >
+              {signingOut ? 'Signing out…' : 'Sign out'}
+            </button>
           </div>
         </section>
 

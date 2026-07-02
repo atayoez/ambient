@@ -79,31 +79,42 @@ pub async fn list_wallpapers() -> Result<Vec<String>, String> {
     if !dirs.contains(&legacy) {
         dirs.push(legacy);
     }
-    let mut out = Vec::new();
-    for dir in dirs {
-        let Ok(rd) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in rd.flatten() {
-            // Skip the thumbs subdir / any nested dir — only image files.
-            if entry.path().is_dir() {
+    // Directory scans are blocking fs IO — run them off the async
+    // workers, mirroring get_or_create_thumbnail.
+    tokio::task::spawn_blocking(move || {
+        let mut out = Vec::new();
+        for dir in dirs {
+            let Ok(rd) = std::fs::read_dir(&dir) else {
                 continue;
-            }
-            if let Some(s) = entry.path().to_str() {
-                out.push(s.to_string());
+            };
+            for entry in rd.flatten() {
+                // Skip the thumbs subdir / any nested dir — only image files.
+                if entry.path().is_dir() {
+                    continue;
+                }
+                if let Some(s) = entry.path().to_str() {
+                    out.push(s.to_string());
+                }
             }
         }
-    }
-    Ok(out)
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub async fn delete_wallpaper(path: String) -> Result<(), String> {
-    std::fs::remove_file(&path).map_err(|e| e.to_string())?;
-    // Best-effort thumb cleanup. Failure is non-fatal (the thumb may
-    // never have been generated, or the dir might be missing); we don't
-    // want a missing thumb to block the user's delete intent.
-    let _ = remove_thumbnail_for(&path);
-    Ok(())
+    // Blocking fs IO off the async workers (see get_or_create_thumbnail).
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        // Best-effort thumb cleanup. Failure is non-fatal (the thumb may
+        // never have been generated, or the dir might be missing); we don't
+        // want a missing thumb to block the user's delete intent.
+        let _ = remove_thumbnail_for(&path);
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// All directories Ambient may have written wallpapers to (current OS dir
@@ -143,23 +154,30 @@ pub async fn clear_thumbnail_cache() -> Result<(), String> {
 /// many image files were deleted. The currently-applied desktop wallpaper
 /// is the DE's own copy/reference, so the live desktop is unaffected.
 pub async fn delete_local_wallpapers() -> Result<u32, String> {
-    let mut removed = 0u32;
-    for dir in all_wallpaper_dirs() {
-        let Ok(rd) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in rd.flatten() {
-            let p = entry.path();
-            if p.is_dir() {
-                continue; // skip any nested dir (e.g. a stray thumbs/)
-            }
-            if std::fs::remove_file(&p).is_ok() {
-                removed += 1;
+    // The scan + per-file deletes are blocking fs IO — run them off the
+    // async workers, mirroring get_or_create_thumbnail.
+    let removed = tokio::task::spawn_blocking(|| {
+        let mut removed = 0u32;
+        for dir in all_wallpaper_dirs() {
+            let Ok(rd) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in rd.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    continue; // skip any nested dir (e.g. a stray thumbs/)
+                }
+                if std::fs::remove_file(&p).is_ok() {
+                    removed += 1;
+                }
             }
         }
-    }
-    // Thumbnails point at now-deleted files — clear them too.
-    let _ = clear_thumbs();
+        // Thumbnails point at now-deleted files — clear them too.
+        let _ = clear_thumbs();
+        removed
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     // Empty the index so the Library tab reflects the deletion immediately
     // (patch emits `library-changed`).
     let _ = crate::state::library()

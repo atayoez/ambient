@@ -3,7 +3,7 @@
 // (app/desktop/Android) and this Qt/RHI (KDE Plasma) shader are one source
 // now, so they can no longer drift.
 //
-// Bake:  qsb --glsl "150,330,440" -o dots.frag.qsb dots.frag
+// Bake:  qsb --glsl "100es,300es,150,330,440" -o dots.frag.qsb dots.frag
 #version 440
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -27,6 +27,10 @@ layout(std140, binding = 0) uniform buf {
     float p1; // density
     float p2; // jitter 0..1
     float p3; // size variance 0..1
+    vec4 t0; // matrix text glyph indices 0-3
+    vec4 t1; // 4-7
+    vec4 t2; // 8-11
+    vec4 t3; // 12-14 + count in .w (0 = no custom text)
 };
 
 // Palette (c0 = background) selected by index; the cyclic paletteColor /

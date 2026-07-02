@@ -13,7 +13,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
-use std::time::Duration;
 
 use image::DynamicImage;
 
@@ -329,16 +328,50 @@ pub async fn preload(emojis: &[String]) {
     if needed.is_empty() {
         return;
     }
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(FETCH_TIMEOUT_SECS))
-        .build()
-    {
+    let client = match crate::util::http_client(FETCH_TIMEOUT_SECS) {
         Ok(c) => c,
         Err(_) => return,
     };
     for emoji in needed {
         let _ = fetch_and_cache(&emoji, &client).await;
     }
+}
+
+/// Materialize each emoji's Fluent 3D artwork as a PNG file on disk and
+/// return its absolute path, so out-of-process renderers (the KDE Plasma
+/// wallpaper plugin's QML) can show the same 3D art the in-app renderer
+/// composites instead of falling back to flat system-font glyphs. Bundled
+/// glyphs are written into the fetch cache dir on first use (raw bytes are
+/// already PNG); fetched glyphs are already there. Returns one entry per
+/// input, parallel to `emojis`; an unavailable glyph maps to an empty string
+/// (callers/QML fall back to a text glyph for that tile).
+pub async fn export_pngs(emojis: &[String]) -> Vec<String> {
+    preload(emojis).await;
+    emojis
+        .iter()
+        .map(|emoji| {
+            let key = codepoint_key(emoji);
+            if key.is_empty() {
+                return String::new();
+            }
+            let Some(path) = cache_path(&key) else {
+                return String::new();
+            };
+            if !path.exists() {
+                match BUNDLED.get(key.as_str()) {
+                    Some(&bytes) => {
+                        if std::fs::write(&path, bytes).is_err() {
+                            return String::new();
+                        }
+                    }
+                    // Not bundled and preload didn't land it on disk
+                    // (offline / fetch failed).
+                    None => return String::new(),
+                }
+            }
+            path.to_string_lossy().into_owned()
+        })
+        .collect()
 }
 
 async fn fetch_and_cache(emoji: &str, client: &reqwest::Client) -> Option<()> {
@@ -401,4 +434,21 @@ mod tests {
         assert!(img.width() > 0 && img.height() > 0);
     }
 
+    #[tokio::test]
+    async fn export_pngs_materializes_bundled_glyphs() {
+        let tmp = std::env::temp_dir().join("ambient-test-emoji-export");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        init(&tmp);
+
+        let paths = export_pngs(&["✨".to_string(), "🦄".to_string()]).await;
+        assert_eq!(paths.len(), 2);
+        for path in &paths {
+            assert!(!path.is_empty(), "bundled glyph should export");
+            let img = image::open(path).expect("exported file should be a decodable PNG");
+            assert!(img.width() > 0);
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

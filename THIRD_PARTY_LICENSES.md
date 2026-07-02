@@ -37,6 +37,21 @@ Lucide is distributed under the **ISC License**:
 
 ---
 
+## Microsoft Fluent Emoji (3D artwork)
+
+Copyright (c) Microsoft Corporation
+(<https://github.com/microsoft/fluentui-emoji>)
+
+The emoji artwork bundled at `src-tauri/core/assets/emojis/` (and
+fetched on demand from the codepoint-indexed
+`@lobehub/fluent-emoji-3d` mirror of the same artwork) is the
+Microsoft Fluent Emoji 3D set, distributed under the **MIT License**:
+<https://github.com/microsoft/fluentui-emoji/blob/main/LICENSE>.
+Ambient composites this artwork into rendered wallpapers, the KDE
+Plasma live-wallpaper plugin, and the in-app emoji UI.
+
+---
+
 ## Runtime dependencies
 
 **JavaScript** dependencies (React, ReactDOM, the Tauri JS API

@@ -1,10 +1,14 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
-import { dispatch, listen } from '../lib/events';
-import { useDebouncedCallback, useKeydown } from '../lib/hooks';
+import { listen } from '../lib/events';
+import {
+  useDebouncedCallback,
+  useDebouncedSettingsPatch,
+  useKeydown,
+} from '../lib/hooks';
 import { useSecret } from '../lib/secrets';
 import { fetchSourceWallpaper } from '../lib/sources';
-import { loadLibrary, loadSettings, patchSettings } from '../lib/store';
+import { loadLibrary, loadSettings } from '../lib/store';
 import {
   DEFAULT_SETTINGS,
   type Settings,
@@ -102,7 +106,9 @@ async function mostRecentFromSource(source: SourceKind): Promise<Wallpaper | nul
   return lib.find((w) => w.source === source) ?? null;
 }
 
-export default function Sources() {
+// `active` — whether this is the visible tab; gates the window-level
+// shortcuts below (tabs stay mounted after their first visit).
+export default function Sources({ active = true }: { active?: boolean }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -233,20 +239,11 @@ export default function Sources() {
   // debounce, every keystroke into the Unsplash/Pexels query inputs
   // nagged the user with a fresh notification. App.tsx + RotationControl
   // pick up the Rust-emitted settings-changed event via the typed bus.
-  const pendingPatchRef = useRef<Partial<Settings>>({});
-  const debouncedFlush = useDebouncedCallback(() => {
-    const patch = pendingPatchRef.current;
-    pendingPatchRef.current = {};
-    void patchSettings(patch).then(() => {
-      toast.success('Saved');
-      dispatch('settings-changed');
-    });
-  }, 400);
+  const queuePatch = useDebouncedSettingsPatch(() => toast.success('Saved'));
 
   function update(patch: Partial<Settings>) {
     setSettings((s) => ({ ...s, ...patch }));
-    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
-    debouncedFlush();
+    queuePatch(patch);
   }
 
   // Auto-pull a fresh preview after a source switch or a search/options
@@ -305,9 +302,14 @@ export default function Sources() {
   }
 
   // Cmd/Ctrl+Enter applies the current preview as the wallpaper.
-  // Cmd/Ctrl+Shift+R fetches a fresh image.
-  useKeydown('Enter', () => void applyPreview(), { cmdOrCtrl: true });
-  useKeydown('r', () => void fetchNew(false), { cmdOrCtrl: true, shift: true });
+  // Cmd/Ctrl+Shift+R fetches a fresh image. Only live while this is the
+  // visible tab.
+  useKeydown('Enter', () => void applyPreview(), { cmdOrCtrl: true, enabled: active });
+  useKeydown('r', () => void fetchNew(false), {
+    cmdOrCtrl: true,
+    shift: true,
+    enabled: active,
+  });
 
   const meta = sourceMeta(settings.source);
   const emptyMessage = canFetch(settings)

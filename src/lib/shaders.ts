@@ -42,6 +42,13 @@ uniform float u_size;
 uniform float u_p1;
 uniform float u_p2;
 uniform float u_p3;
+// Matrix text slots: 15 glyph indices into MATRIX_CHARSET + count in
+// u_t3.w (0 = no custom text, rain uses the whole charset). Zero for
+// every other pattern type.
+uniform vec4 u_t0;
+uniform vec4 u_t1;
+uniform vec4 u_t2;
+uniform vec4 u_t3;
 out vec4 fragColor;
 const float TWO_PI = 6.28318530718;
 
@@ -577,8 +584,208 @@ void main() {
 }
 `;
 
-// Animatable pattern types → their fragment shader. Mirrors ANIMATABLE in
-// lib/patterns.ts. Types absent here have no live shader (static only).
+// Animatable pattern types → their fragment shader. Single source of truth
+// for the animatable set: ANIMATABLE in lib/patterns.ts is derived from
+// these keys. Types absent here have no live shader (static only).
+// --- Matrix: digital-rain glyph columns. Each column drops a bright head
+// with a fading trail; "glyphs" are per-cell 4×5 sub-block masks that
+// re-roll on their own clock, so the rain shimmers like changing
+// characters without a font. Trail colour cycles the foreground palette
+// (classic look = a green preset), head flashes near-white.
+//   p1 = column count, p2 = trail length 0..1, p3 = fall speed 0..1
+const MATRIX_MAIN = `
+// GENERATED FONT — 5x7 bitmaps for MATRIX_CHARSET (see scripts note in
+// matrixCharIndices): rows 0-5 packed 5 bits each into .x, row 6 in .y.
+const int FONT_N = 88;
+const uvec2 FONT[88] = uvec2[88](uvec2(71447071u, 2u), uvec2(102672u, 0u), uvec2(285788132u, 6u), uvec2(138547359u, 31u), uvec2(312882120u, 12u), uvec2(623530948u, 25u), uvec2(142479812u, 4u), uvec2(142920644u, 2u), uvec2(138718146u, 2u), uvec2(554189343u, 31u), uvec2(277162314u, 4u), uvec2(143148034u, 2u), uvec2(616702238u, 17u), uvec2(69564994u, 28u), uvec2(142887473u, 2u), uvec2(143051716u, 2u), uvec2(138547342u, 2u), uvec2(142886564u, 2u), uvec2(138574862u, 2u), uvec2(35030049u, 1u), uvec2(4357252u, 2u), uvec2(14u, 31u), uvec2(751184414u, 3u), uvec2(141697476u, 4u), uvec2(138682896u, 3u), uvec2(587802954u, 17u), uvec2(34649121u, 31u), uvec2(142885407u, 2u), uvec2(538224838u, 16u), uvec2(726798788u, 4u), uvec2(138748447u, 8u), uvec2(101059086u, 8u), uvec2(1009059844u, 17u), uvec2(616966416u, 1u), uvec2(139432078u, 28u), uvec2(138829634u, 4u), uvec2(277094670u, 31u), uvec2(554648095u, 31u), uvec2(277380110u, 6u), uvec2(285787697u, 4u), uvec2(191043782u, 13u), uvec2(177767457u, 3u), uvec2(588826175u, 17u), uvec2(277366335u, 6u), uvec2(142622785u, 3u), uvec2(588826158u, 14u), uvec2(138547334u, 31u), uvec2(209994254u, 31u), uvec2(554058254u, 31u), uvec2(301279624u, 8u), uvec2(554186830u, 15u), uvec2(589136958u, 14u), uvec2(138551583u, 4u), uvec2(588728878u, 30u), uvec2(558679598u, 15u), uvec2(585443460u, 17u), uvec2(588752431u, 15u), uvec2(34636862u, 30u), uvec2(588826159u, 15u), uvec2(35095615u, 31u), uvec2(35095615u, 1u), uvec2(589071422u, 30u), uvec2(589284913u, 17u), uvec2(1073741823u, 31u), uvec2(554189328u, 31u), uvec2(311661881u, 17u), uvec2(34636833u, 31u), uvec2(725478961u, 17u), uvec2(865783409u, 17u), uvec2(588826158u, 14u), uvec2(35112511u, 1u), uvec2(488162862u, 24u), uvec2(307742255u, 17u), uvec2(554044462u, 31u), uvec2(138547359u, 4u), uvec2(588826161u, 14u), uvec2(145031729u, 4u), uvec2(344512165u, 10u), uvec2(346175825u, 17u), uvec2(138553361u, 4u), uvec2(69345566u, 31u), uvec2(414u, 30u), uvec2(408983952u, 16u), uvec2(214446273u, 1u), uvec2(350745732u, 10u), uvec2(139432068u, 4u), uvec2(31u, 31u), uvec2(1073741823u, 31u));
+
+// Bit test for glyph idx at sub-cell (col,row); col 0 = left, row 0 = top.
+float glyphPx(int idx, int col, int row) {
+  uvec2 g = FONT[idx - (idx / FONT_N) * FONT_N];
+  uint bits = (row < 6) ? (g.x >> uint(row * 5)) : g.y;
+  return float((bits >> uint(col)) & 1u);
+}
+
+void main() {
+  float w = u_resolution.x;
+  float h = u_resolution.y;
+  vec2 frag = vec2(gl_FragCoord.x, h - gl_FragCoord.y);
+
+  float cols = max(u_p1, 8.0);
+  float trail = mix(5.0, 30.0, clamp(u_p2, 0.0, 1.0));
+  float speedK = mix(0.25, 1.6, clamp(u_p3, 0.0, 1.0));
+
+  float cellW = w / cols;
+  float cellH = cellW * 1.5;
+  vec2 cell = vec2(cellW, cellH);
+  vec2 gid = floor(frag / cell);
+  float rows = h / cellH;
+
+  // Per-column speed + phase so columns never march in lockstep.
+  float colR = hash(gid.x * 7.31);
+  float speed = (2.0 + colR * 6.0) * speedK;
+  float offset = hash(gid.x * 13.7) * 977.0;
+
+  float cycle = rows + trail;
+  float head = mod(u_time * speed + offset, cycle);
+  float age = head - gid.y;
+  float bright = (age >= 0.0) ? clamp(1.0 - age / trail, 0.0, 1.0) : 0.0;
+  bright *= bright; // phosphor decay
+
+  // Which glyph lives in this cell: custom text reads down the column in
+  // sequence (so it's literally readable top-to-bottom); otherwise a
+  // random pick from the whole charset that re-rolls on its own clock.
+  int textCount = int(u_t3.w + 0.5);
+  int idx;
+  if (textCount > 0) {
+    int slot = int(mod(gid.y + floor(offset), float(textCount)));
+    float v = (slot < 4) ? u_t0[slot]
+            : (slot < 8) ? u_t1[slot - 4]
+            : (slot < 12) ? u_t2[slot - 8]
+            : u_t3[slot - 12];
+    idx = int(v + 0.5);
+  } else {
+    float tick = floor(u_time * (0.5 + hash21(gid) * 2.5));
+    idx = int(hash21(gid * 3.17 + tick * 0.618) * float(FONT_N));
+  }
+
+  // Rasterize the 5x7 glyph inside the cell (one sub-cell of padding).
+  vec2 f = fract(frag / cell);
+  vec2 sub = floor(f * vec2(6.0, 8.0));
+  float lit = 0.0;
+  if (sub.x < 5.0 && sub.y < 7.0) {
+    lit = glyphPx(idx, int(sub.x), int(sub.y));
+  }
+
+  vec3 rain = paletteColor(int(colR * 101.0));
+  float headGlow = step(age, 1.0) * step(0.0, age);
+  vec3 glyph = mix(rain, vec3(1.0), headGlow * 0.75);
+
+  vec3 col = mix(u_colors[0], glyph, bright * lit);
+  fragColor = vec4(col, 1.0);
+}
+`;
+
+// --- CRT test pattern: SMPTE-style 75% colour bars with castellation and
+// PLUGE strips, curved glass, scanlines, a slow rolling brightness band,
+// and analogue noise. The bar colours are the broadcast standard, NOT the
+// user palette — a test card isn't a test card in pastel. u_colors[0] is
+// only used outside the tube (the bezel).
+//   p1 = scanline strength 0..1, p2 = curvature 0..1, p3 = noise 0..1
+const CRT_MAIN = `
+vec3 smpteBar(float u) {
+  // 7 equal top bars: 75% gray, yellow, cyan, green, magenta, red, blue.
+  int i = int(clamp(u, 0.0, 0.999) * 7.0);
+  if (i == 0) return vec3(0.75, 0.75, 0.75);
+  if (i == 1) return vec3(0.75, 0.75, 0.0);
+  if (i == 2) return vec3(0.0, 0.75, 0.75);
+  if (i == 3) return vec3(0.0, 0.75, 0.0);
+  if (i == 4) return vec3(0.75, 0.0, 0.75);
+  if (i == 5) return vec3(0.75, 0.0, 0.0);
+  return vec3(0.0, 0.0, 0.75);
+}
+
+vec3 castellation(float u) {
+  // Reverse-order strip: blue, black, magenta, black, cyan, black, gray.
+  int i = int(clamp(u, 0.0, 0.999) * 7.0);
+  if (i == 0) return vec3(0.0, 0.0, 0.75);
+  if (i == 2) return vec3(0.75, 0.0, 0.75);
+  if (i == 4) return vec3(0.0, 0.75, 0.75);
+  if (i == 6) return vec3(0.75, 0.75, 0.75);
+  return vec3(0.0);
+}
+
+vec3 bottomStrip(float u) {
+  // -I, 100% white, +Q, black, then the PLUGE steps, black.
+  if (u < 0.125) return vec3(0.0, 0.129, 0.298);
+  if (u < 0.25) return vec3(1.0);
+  if (u < 0.375) return vec3(0.192, 0.0, 0.42);
+  if (u < 0.625) return vec3(0.0);
+  if (u < 0.708) return vec3(0.015);
+  if (u < 0.791) return vec3(0.045);
+  if (u < 0.875) return vec3(0.09);
+  return vec3(0.0);
+}
+
+void main() {
+  float w = u_resolution.x;
+  float h = u_resolution.y;
+  vec2 frag = vec2(gl_FragCoord.x, h - gl_FragCoord.y);
+  vec2 uv = frag / vec2(w, h);
+
+  // Barrel distortion — the curved glass. Outside the tube = bezel.
+  float curv = clamp(u_p2, 0.0, 1.0);
+  vec2 cc = uv * 2.0 - 1.0;
+  cc *= 1.0 + curv * 0.16 * dot(cc, cc);
+  uv = (cc + 1.0) * 0.5;
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+    fragColor = vec4(u_colors[0] * 0.25, 1.0);
+    return;
+  }
+
+  // Horizontal sync glitch: every few seconds a burst of row shear tears
+  // through for a fraction of a second, like a failing H-hold.
+  float burst = hash(floor(u_time * 0.5) + 31.0);
+  float burstOn = step(0.72, burst) * step(fract(u_time * 0.5), 0.12);
+  float shear = burstOn * (hash21(vec2(floor(uv.y * 90.0), floor(u_time * 24.0))) - 0.5) * 0.06;
+  uv.x = clamp(uv.x + shear, 0.0, 1.0);
+
+  vec3 col;
+  if (uv.y < 0.67) {
+    col = smpteBar(uv.x);
+  } else if (uv.y < 0.75) {
+    col = castellation(uv.x);
+  } else {
+    col = bottomStrip(uv.x);
+  }
+
+  // Scanlines (pixel-space so they stay crisp at any size).
+  float scanStrength = clamp(u_p1, 0.0, 1.0);
+  float scan = 1.0 - scanStrength * 0.3 * (0.5 + 0.5 * sin(frag.y * 3.14159));
+  // Rolling brightness band sweeping down the tube — the classic slow
+  // "hum bar", bright enough to clearly move.
+  float band = fract(uv.y * 0.9 - u_time * 0.11);
+  float roll = 1.0 + 0.10 * exp(-pow((band - 0.5) * 6.0, 2.0))
+             + 0.03 * sin(TWO_PI * (uv.y * 1.4 - u_time * 0.16));
+  // Analogue noise, re-seeded every frame, plus a heavier static band
+  // that sweeps through every few seconds.
+  float noiseAmt = clamp(u_p3, 0.0, 1.0);
+  float staticBand = exp(-pow((fract(uv.y + u_time * 0.043) - 0.5) * 10.0, 2.0));
+  float n = (hash21(frag + fract(u_time) * vec2(917.3, 113.7)) - 0.5)
+          * noiseAmt * (0.16 + staticBand * 0.5);
+  // Global mains flicker — subtle fast brightness shimmer.
+  float flicker = 1.0 + 0.02 * sin(u_time * 47.0) + 0.012 * sin(u_time * 13.7);
+  // Corner falloff — stronger with more curvature.
+  float vig = 1.0 - (0.15 + curv * 0.25) * dot(cc, cc);
+
+  col = col * scan * roll * vig * flicker + n;
+  fragColor = vec4(col, 1.0);
+}
+`;
+
+// The Matrix glyph charset — index order IS the wire contract with the
+// baked FONT bitmap array inside MATRIX_MAIN (generated from Noto Sans CJK
+// at 5x7 via ImageMagick; regenerate both together if this ever changes).
+// Mirrored in main.qml (JS copy) and renderer.rs (MATRIX_CHARSET).
+export const MATRIX_CHARSET =
+  'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:<>*+=-';
+
+// Encode user text for the matrix shader's u_t0..u_t3 slots: up to 15
+// glyph indices (uppercased, unknown characters dropped) followed by the
+// count in the 16th component. count 0 → the rain uses the whole charset.
+export function matrixTextSlots(text: string | undefined): number[] {
+  const out = new Array(16).fill(0);
+  const chars = (text ?? '').toUpperCase();
+  let n = 0;
+  for (const ch of chars) {
+    if (n >= 15) break;
+    const idx = MATRIX_CHARSET.indexOf(ch);
+    if (idx >= 0) out[n++] = idx;
+  }
+  out[15] = n;
+  return out;
+}
+
 export const FRAG_SHADERS: Record<string, string> = {
   flow: HEAD + FLOW_MAIN,
   waves: HEAD + WAVES_MAIN,
@@ -589,4 +796,6 @@ export const FRAG_SHADERS: Record<string, string> = {
   geometric: HEAD + GEO_HELPERS + GEOMETRIC_MAIN,
   flower: HEAD + FLOWER_HELPERS + FLOWER_MAIN,
   mesh: HEAD + MESH_MAIN,
+  matrix: HEAD + MATRIX_MAIN,
+  crt: HEAD + CRT_MAIN,
 };

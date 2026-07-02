@@ -127,7 +127,7 @@ fn current_backend() -> Backend {
         .expect("secrets::init must run before get/set")
 }
 
-pub fn get(name: &str) -> Result<Option<String>, String> {
+pub(crate) fn get(name: &str) -> Result<Option<String>, String> {
     match current_backend() {
         Backend::Keyring => {
             let entry = Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
@@ -143,7 +143,7 @@ pub fn get(name: &str) -> Result<Option<String>, String> {
     }
 }
 
-pub fn set(name: &str, value: &str) -> Result<(), String> {
+pub(crate) fn set(name: &str, value: &str) -> Result<(), String> {
     match current_backend() {
         Backend::Keyring => {
             let entry = Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
@@ -157,7 +157,7 @@ pub fn set(name: &str, value: &str) -> Result<(), String> {
     }
 }
 
-pub fn clear(name: &str) -> Result<(), String> {
+pub(crate) fn clear(name: &str) -> Result<(), String> {
     match current_backend() {
         Backend::Keyring => {
             let entry = Entry::new(SERVICE, name).map_err(|e| e.to_string())?;
@@ -186,17 +186,30 @@ fn write_json_secrets(
         .map_err(|e| format!("mkdir {:?}: {}", parent, e))?;
     let json = serde_json::to_string(map).map_err(|e| e.to_string())?;
     let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, json).map_err(|e| format!("write tmp: {}", e))?;
-    std::fs::rename(&tmp, path).map_err(|e| format!("rename: {}", e))?;
+    // Create the temp file mode-0600 BEFORE any plaintext hits disk, so
+    // the rename target inherits it — chmod-after-rename left a window
+    // where the secrets were world-readable.
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = std::fs::metadata(path) {
-            let mut perm = meta.permissions();
-            perm.set_mode(0o600);
-            let _ = std::fs::set_permissions(path, perm);
-        }
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)
+            .map_err(|e| format!("open tmp: {}", e))?;
+        // `mode` only applies on creation; force 0600 in case a stale
+        // tmp file with looser permissions was left behind.
+        f.set_permissions(std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("chmod tmp: {}", e))?;
+        f.write_all(json.as_bytes())
+            .map_err(|e| format!("write tmp: {}", e))?;
     }
+    #[cfg(not(unix))]
+    std::fs::write(&tmp, json).map_err(|e| format!("write tmp: {}", e))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("rename: {}", e))?;
     Ok(())
 }
 
