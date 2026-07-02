@@ -66,10 +66,15 @@ apt-get install -y --no-install-recommends \
   build-essential pkg-config libssl-dev unzip
 curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 . "$HOME/.cargo/env"; curl -fsSL https://bun.sh/install | bash; export PATH="$HOME/.bun/bin:$PATH"
+# Persistent cargo caches (named podman volume mounted at /ccache) — the
+# first release pays the cold compile, later ones are incremental.
+mkdir -p /ccache/registry /ccache/target
+ln -sfn /ccache/registry "$HOME/.cargo/registry"
+export CARGO_TARGET_DIR=/ccache/target
 git clone /src /build && cd /build && bun install --frozen-lockfile
 export APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=true
 bun x tauri build --bundles appimage || true
-mkdir -p /out && cp -v src-tauri/target/release/bundle/appimage/*.AppImage* /out/'
+mkdir -p /out && cp -v "$CARGO_TARGET_DIR"/release/bundle/appimage/*.AppImage* /out/'
 
 build_windows() { # <triple> <out-dir>
   local triple="$1" out="$2"; rm -rf "$out"; mkdir -p "$out"
@@ -91,28 +96,59 @@ sign_appimage() { # <dir> — sign any .AppImage missing a .sig (updater signatu
     TAURI_SIGNING_PRIVATE_KEY_PASSWORD= bun x tauri signer sign -f "$KEY" -p "" "$f" >/dev/null || true
 }
 
-echo "==> Linux x86_64 AppImage (ubuntu:rolling container, signed)"
-rm -rf build-out/ambient-linux-x86_64; mkdir -p build-out/ambient-linux-x86_64
-"${PODMAN[@]}" run --rm --pull=newer \
-  -v "$REPO_ROOT":/src:ro -v "$REPO_ROOT/build-out/ambient-linux-x86_64":/out -v "$KEY":/key:ro \
-  -e TAURI_SIGNING_PRIVATE_KEY=/key -e TAURI_SIGNING_PRIVATE_KEY_PASSWORD= \
-  "$UBUNTU" bash -c "$CONTAINER_APPIMAGE"
+# --- Three parallel lanes ------------------------------------------------
+# The Linux container build, the arm64 remote build, and the Windows cross
+# builds are fully independent (the containers clone the repo; only the two
+# Windows builds share the host dist/ + cargo, so those stay sequential
+# WITHIN their lane). Wall time = the slowest lane instead of the sum.
+LOGDIR="$REPO_ROOT/build-out/logs"; mkdir -p "$LOGDIR"
 
-echo "==> Linux aarch64 AppImage (ubuntu:rolling container on $ARM_HOST, native arm64)"
-out=build-out/ambient-linux-arm-aarch64; rm -rf "$out"; mkdir -p "$out"
-rsync -az --delete --exclude='/src-tauri/target' --exclude='node_modules' \
-  --exclude='/build-out' --exclude='/dist' --exclude='/.cache' ./ "$ARM_HOST:/tmp/ambient-src/"
-ssh "$ARM_HOST" "mkdir -p \$HOME/ambient-out && rm -f \$HOME/ambient-out/*.AppImage*
-podman --storage-driver vfs --root \$HOME/orion-pbuild run --rm --pull=newer --security-opt label=disable \
-  -v /tmp/ambient-src:/src:ro -v \$HOME/ambient-out:/out \
-  $UBUNTU bash -c $(printf '%q' "$CONTAINER_APPIMAGE")"
-scp -q "$ARM_HOST:\$HOME/ambient-out/*.AppImage" "$out/" 2>/dev/null || \
-  scp -q "$ARM_HOST":'~/ambient-out/*.AppImage' "$out/"
-sign_appimage "$out"
+lane_linux_x86() {
+  echo "==> Linux x86_64 AppImage (ubuntu:rolling container, signed)"
+  rm -rf build-out/ambient-linux-x86_64; mkdir -p build-out/ambient-linux-x86_64
+  "${PODMAN[@]}" run --rm --pull=newer \
+    -v "$REPO_ROOT":/src:ro -v "$REPO_ROOT/build-out/ambient-linux-x86_64":/out -v "$KEY":/key:ro -v ambient-ccache:/ccache \
+    -e TAURI_SIGNING_PRIVATE_KEY=/key -e TAURI_SIGNING_PRIVATE_KEY_PASSWORD= \
+    "$UBUNTU" bash -c "$CONTAINER_APPIMAGE"
+}
 
-echo "==> Windows x86_64 + aarch64 (NSIS setup.exe)"
-build_windows x86_64-pc-windows-msvc build-out/ambient-windows-latest-x86_64
-build_windows aarch64-pc-windows-msvc build-out/ambient-windows-11-arm-aarch64
+lane_linux_arm() {
+  echo "==> Linux aarch64 AppImage (ubuntu:rolling container on $ARM_HOST, native arm64)"
+  local out=build-out/ambient-linux-arm-aarch64; rm -rf "$out"; mkdir -p "$out"
+  rsync -az --delete --exclude='/src-tauri/target' --exclude='node_modules' \
+    --exclude='/build-out' --exclude='/dist' --exclude='/.cache' ./ "$ARM_HOST:/tmp/ambient-src/"
+  ssh "$ARM_HOST" "mkdir -p \$HOME/ambient-out && rm -f \$HOME/ambient-out/*.AppImage*
+  podman --storage-driver vfs --root \$HOME/orion-pbuild run --rm --pull=newer --security-opt label=disable \
+    -v /tmp/ambient-src:/src:ro -v \$HOME/ambient-out:/out -v ambient-ccache:/ccache \
+    $UBUNTU bash -c $(printf '%q' "$CONTAINER_APPIMAGE")"
+  scp -q "$ARM_HOST:\$HOME/ambient-out/*.AppImage" "$out/" 2>/dev/null || \
+    scp -q "$ARM_HOST":'~/ambient-out/*.AppImage' "$out/"
+  sign_appimage "$out"
+}
+
+lane_windows() {
+  echo "==> Windows x86_64 + aarch64 (NSIS setup.exe)"
+  build_windows x86_64-pc-windows-msvc build-out/ambient-windows-latest-x86_64
+  build_windows aarch64-pc-windows-msvc build-out/ambient-windows-11-arm-aarch64
+}
+
+echo "==> Building 3 lanes in parallel (logs: build-out/logs/)"
+lane_linux_x86 > "$LOGDIR/linux-x86_64.log" 2>&1 & PID_X86=$!
+lane_linux_arm > "$LOGDIR/linux-aarch64.log" 2>&1 & PID_ARM=$!
+lane_windows   > "$LOGDIR/windows.log"      2>&1 & PID_WIN=$!
+
+FAILED=0
+for spec in "linux-x86_64:$PID_X86" "linux-aarch64:$PID_ARM" "windows:$PID_WIN"; do
+  name="${spec%%:*}"; pid="${spec##*:}"
+  if wait "$pid"; then
+    echo "  ✓ lane $name done"
+  else
+    echo "  ✗ lane $name FAILED — last 40 log lines:" >&2
+    tail -40 "$LOGDIR/$name.log" >&2 || true
+    FAILED=1
+  fi
+done
+[ "$FAILED" -eq 0 ] || { echo "One or more lanes failed — see build-out/logs/." >&2; exit 1; }
 
 echo
 echo "✓ Local build done (v$VERSION) — everything but macOS:"

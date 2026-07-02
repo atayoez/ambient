@@ -15,9 +15,47 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Free 7-day trial** — no card needed. Grab it from the website, sign in
+  with your email, and the full app just works for a week (the license
+  expires server-side; buying later uses the same sign-in).
+- **Sign in with your email instead of a license key.** Polar emails you a
+  one-time code; the app fetches and activates your license behind the
+  scenes. The key-paste gate is gone.
+- **Two new patterns:** *Matrix* — digital rain with real glyphs (authentic
+  half-width katakana, or type your own text and watch it rain down the
+  columns) — and *CRT Test* — an SMPTE color-bar test card with curved
+  glass, scanlines, a rolling hum bar, static bursts, and H-sync tears
+  when animated.
+- **Account section in Settings**: signed-in email, trial countdown, and
+  sign out.
+- The window is **resizable and maximizable** now (was fixed 820×600).
+- Tray: with auto-rotate off, "Next wallpaper" becomes **Random
+  wallpaper** — one click re-rolls the current pattern with a random
+  preset (colors + emojis) and fresh knobs, even from the tray with the
+  window closed.
+
 ### Changed
 
+- Emoji everywhere are now the **Microsoft Fluent 3D** artwork — the
+  desktop live wallpaper, the picker, and the animated preview all show
+  the same glossy 3D art instead of flat font glyphs.
+- Sliders and pickers respond instantly; previews now render once after
+  you stop adjusting instead of once per tick.
+
 ### Fixed
+
+- **Animated wallpapers on ARM / OpenGL ES systems** (e.g. aarch64 +
+  NVIDIA): the Plasma plugin's shaders were baked for desktop GL only, so
+  every pattern except Emoji rendered blank. Now baked with GLES variants.
+- **Blurred glass on NVIDIA**: the Wayland crash workaround used to
+  disable GPU compositing (killing every blur); the crash is now fixed at
+  its root (explicit-sync opt-out) and the glass is back.
+- Maximized/fullscreen no longer letterboxes the content in a 1280px
+  column.
+- One Cmd+Enter no longer triggers Apply on every previously-visited tab
+  at once.
+- Empty palettes can no longer crash the mesh/stripes renderers, and the
+  secrets file is never briefly world-readable during writes.
 
 ## [1.2.1] — 2026-06-26
 

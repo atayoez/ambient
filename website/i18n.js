@@ -10,7 +10,7 @@
     en: {
       nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       hero: {
-        eyebrow: 'Live wallpapers, new in 1.2',
+        eyebrow: 'Matrix rain & CRT patterns, new in 1.3',
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A small desktop app for your wallpaper. It just got live wallpapers that actually move, and this whole page is one of them. You also get pattern generators, a few photo sources, and an AI generator if you'd rather just describe what you want.",
@@ -21,8 +21,8 @@
       features: {
         eyebrow: "What's in it",
         patterns: {
-          title: 'Ten pattern generators',
-          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, and emoji walls. Ten of them. Tweak the knobs or hit shuffle until one clicks.',
+          title: 'Twelve pattern generators',
+          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, emoji walls — and new in 1.3, Matrix rain (with your own text) and a CRT test card. Tweak the knobs or hit shuffle until one clicks.',
         },
         sources: {
           title: 'Curated photo sources',
@@ -171,7 +171,7 @@
     de: {
       nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       hero: {
-        eyebrow: 'Lebende Hintergründe, neu in 1.2',
+        eyebrow: 'Matrix-Regen & CRT-Muster, neu in 1.3',
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Eine kleine Desktop-App für dein Hintergrundbild. Neu sind lebende Hintergründe, die sich wirklich bewegen, und diese ganze Seite ist einer davon. Dazu gibt es Muster-Generatoren, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
@@ -182,8 +182,8 @@
       features: {
         eyebrow: 'Was drin steckt',
         patterns: {
-          title: 'Zehn Muster-Generatoren',
-          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter und Emoji-Wallpaper. Zehn Stück. An den Reglern drehen oder mischen, bis eins passt.',
+          title: 'Zwölf Muster-Generatoren',
+          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter, Emoji-Wallpaper — und neu in 1.3: Matrix-Regen (mit eigenem Text) und ein CRT-Testbild. An den Reglern drehen oder mischen, bis eins passt.',
         },
         sources: {
           title: 'Kuratierte Bildquellen',
@@ -332,7 +332,7 @@
     tr: {
       nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       hero: {
-        eyebrow: "Canlı duvar kağıtları, 1.2'de yeni",
+        eyebrow: "Matrix yağmuru ve CRT desenleri, 1.3'te yeni",
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Duvar kağıdın için küçük bir masaüstü uygulaması. Artık gerçekten hareket eden canlı duvar kağıtları var, bu sayfanın tamamı da onlardan biri. Ayrıca desen üreticileri, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
@@ -343,8 +343,8 @@
       features: {
         eyebrow: 'İçinde neler var',
         patterns: {
-          title: 'On desen üreticisi',
-          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar ve emoji duvar kağıtları. Toplam on tane. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
+          title: 'On iki desen üreticisi',
+          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar, emoji duvar kağıtları — ve 1.3 ile yeni: Matrix yağmuru (kendi metninle) ve CRT test deseni. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
         },
         sources: {
           title: 'Seçili fotoğraf kaynakları',
