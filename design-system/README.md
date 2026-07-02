@@ -14,7 +14,7 @@ There is exactly one product surface: the **desktop app window**. No web marketi
 
 | Source | Path / link | Notes |
 |---|---|---|
-| **Repo** | [github.com/atayozcan/ambient](https://github.com/atayozcan/ambient) | Private. Proprietary license. Source of truth. |
+| **Repo** | [github.com/atayoez/ambient](https://github.com/atayoez/ambient) | Private. Proprietary license. Source of truth. |
 | Live tokens | `reference/index.css` | All `--*` vars; dark default + light overrides. |
 | App shell | `reference/App.tsx` | Custom titlebar + sliding-pill tab nav. |
 | Component JSX | `reference/Patterns.tsx`, `Library.tsx`, `Sources.tsx`, `Generate.tsx`, `Settings.tsx` | The five tabs. |

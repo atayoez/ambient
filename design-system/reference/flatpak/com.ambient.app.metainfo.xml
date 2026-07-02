@@ -33,8 +33,8 @@
 
   <launchable type="desktop-id">com.ambient.app.desktop</launchable>
 
-  <url type="homepage">https://github.com/atayozcan/ambient</url>
-  <url type="bugtracker">https://github.com/atayozcan/ambient/issues</url>
+  <url type="homepage">https://github.com/atayoez/ambient</url>
+  <url type="bugtracker">https://github.com/atayoez/ambient/issues</url>
 
   <provides>
     <binary>ambient</binary>

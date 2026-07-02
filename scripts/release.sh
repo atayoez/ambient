@@ -194,6 +194,6 @@ cat <<EOF
     bun run publish:local $VERSION --ci-run <run-id>
   (Or let the scheduled publish-macos routine do it.)
 
-  Release:  https://github.com/atayozcan/ambient/releases/tag/v$VERSION
+  Release:  https://github.com/atayoez/ambient/releases/tag/v$VERSION
   Manifest: https://ambient.oezcan.me/downloads/latest.json
 EOF

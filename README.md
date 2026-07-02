@@ -12,7 +12,7 @@ Anything you apply lands in your **Library** for re-use. Everything stays local;
 
 ## Install
 
-Builds for every release land on the [Releases page](https://github.com/atayozcan/ambient/releases). Pick the file for your OS:
+Builds for every release land on the [Releases page](https://github.com/atayoez/ambient/releases). Pick the file for your OS:
 
 | Platform                | File                                       | Notes                                                                |
 |-------------------------|--------------------------------------------|----------------------------------------------------------------------|
@@ -61,7 +61,7 @@ On Ubuntu 22.04+ / Fedora the equivalent package is available in the default rep
 Requires Rust (stable), [Bun](https://bun.sh) ≥ 1.3, and the platform-specific Tauri prerequisites listed on [tauri.app](https://tauri.app/start/prerequisites/).
 
 ```bash
-git clone https://github.com/atayozcan/ambient
+git clone https://github.com/atayoez/ambient
 cd ambient
 bun install
 bun run tauri dev          # hot-reload dev build
