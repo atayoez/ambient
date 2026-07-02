@@ -15,6 +15,14 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.3.0] — 2026-07-02
+
+### Added
+
 - **Free 7-day trial** — no card needed. Grab it from the website, sign in
   with your email, and the full app just works for a week (the license
   expires server-side; buying later uses the same sign-in).
