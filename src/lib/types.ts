@@ -72,6 +72,12 @@ export interface Settings {
   /** Live-wallpaper render quality — caps the KDE plugin shader's internal
    * resolution + fps. Higher = sharper but heavier on the GPU. */
   liveWallpaperQuality: LiveQuality;
+  /** Saved-wallpaper cache cap in whole GB; 0 = unlimited. Rust evicts the
+   * oldest saved files (plus their thumbs and library rows) after each save
+   * until the total is back under the cap. */
+  cacheLimitGb: number;
+  /** Global speed multiplier for live/animated wallpapers. 1 = normal. */
+  animationSpeed: number;
   // Path of the most-recently-applied wallpaper. Owned by Rust's
   // set_wallpaper command (stamped under the SettingsState write lock
   // on every apply), exposed here so the Library "currently applied"
@@ -112,5 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customPresets: [],
   lockscreen: false,
   liveWallpaperQuality: 'balanced',
+  cacheLimitGb: 2,
+  animationSpeed: 1,
   lastApplied: null,
 };

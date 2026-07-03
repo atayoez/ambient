@@ -115,6 +115,10 @@ WallpaperItem {
     readonly property int maxRenderEdge: num(spec.maxRenderEdge, 1280)
     readonly property int targetFps: Math.max(1, num(spec.fps, 30))
     readonly property int frameMs: Math.max(8, Math.round(1000 / targetFps))
+    // Global animation-speed multiplier from Settings, stamped into the
+    // spec by the app. Scales every clock below (shader time, emoji
+    // drift, still drift); floor keeps a bad value from freezing them.
+    readonly property real speedFactor: Math.max(0.05, num(spec.speed, 1.0))
     // Cap the shader's internal render to maxRenderEdge px on the long edge.
     readonly property real renderScale: {
         var longEdge = Math.max(width, height, 1);
@@ -125,7 +129,7 @@ WallpaperItem {
         interval: root.frameMs // app-configured fps cap (GPU vs vsync-rate)
         repeat: true
         running: root.isGenerative // only the shader needs the clock
-        onTriggered: root.iTime += root.frameMs / 1000.0
+        onTriggered: root.iTime += (root.frameMs / 1000.0) * root.speedFactor
     }
 
     ShaderEffect {
@@ -189,7 +193,7 @@ WallpaperItem {
         NumberAnimation on driftPhase {
             from: 0
             to: 6.2831853
-            duration: 60000
+            duration: Math.round(60000 / root.speedFactor)
             loops: Animation.Infinite
             running: staticImage.visible
         }
@@ -237,7 +241,7 @@ WallpaperItem {
             interval: 33
             repeat: true
             running: emojiField.visible
-            onTriggered: emojiField.clock += 0.033
+            onTriggered: emojiField.clock += 0.033 * root.speedFactor
         }
 
         Repeater {

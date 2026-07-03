@@ -58,6 +58,12 @@ pub fn cleanup() {
 ///   Windows: %LOCALAPPDATA%\Ambient\ambient.pid
 ///   Fallback: std::env::temp_dir()/ambient.pid
 fn pid_path() -> PathBuf {
+    // The HOME branch is unix-gated: Git-Bash / some IDEs set HOME on
+    // Windows too, which used to split the PID file across two locations
+    // (%HOME%\.cache vs %LOCALAPPDATA%\Ambient) depending on how the app
+    // was launched — the takeover then missed the old instance and the
+    // user ended up with two trays.
+    #[cfg(unix)]
     if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
         return home.join(".cache").join("ambient.pid");
     }

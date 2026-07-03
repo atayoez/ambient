@@ -1,8 +1,15 @@
-// Monitor detection. Tauri 2's `primaryMonitor()` returns null on
-// COSMIC Wayland (the compositor doesn't speak the output protocol
-// Tauri queries), so we shell out to the available randr tool and
-// parse its text output. cosmic-randr → wlr-randr → xrandr, first
-// hit wins.
+// Monitor detection. Two routes, in platform-appropriate order:
+//
+//   * Linux: shell out to the available randr tool and parse its text
+//     output (cosmic-randr → wlr-randr → xrandr, first hit wins) —
+//     Tauri 2's `primaryMonitor()` returns null on COSMIC Wayland (the
+//     compositor doesn't speak the output protocol Tauri queries).
+//   * Everywhere: a shell-registered provider (the Tauri shell wires
+//     `primary_monitor()` in via set_provider, mirroring
+//     desktop::set_os_setter). This is the ONLY route on Windows/macOS —
+//     the randr binaries are Linux tools, and before this gate existed
+//     Windows always fell through to the 1920×1080 render fallback, so
+//     4K monitors got low-res wallpapers.
 
 use serde::Serialize;
 
@@ -14,19 +21,43 @@ pub struct MonitorInfo {
     pub source: String,
 }
 
-pub fn get_primary_monitor_pixels() -> Result<MonitorInfo, String> {
-    if let Some(info) = try_cosmic_randr() {
-        return Ok(info);
-    }
-    if let Some(info) = try_wlr_randr() {
-        return Ok(info);
-    }
-    if let Some(info) = try_xrandr() {
-        return Ok(info);
-    }
-    Err("could not detect monitor via cosmic-randr / wlr-randr / xrandr".into())
+type MonitorProvider = Box<dyn Fn() -> Option<MonitorInfo> + Send + Sync>;
+static SHELL_PROVIDER: std::sync::OnceLock<MonitorProvider> = std::sync::OnceLock::new();
+
+/// Register the shell's monitor lookup (Tauri's `primary_monitor()`).
+/// Later calls are ignored — one shell per process.
+pub fn set_provider<F>(provider: F)
+where
+    F: Fn() -> Option<MonitorInfo> + Send + Sync + 'static,
+{
+    let _ = SHELL_PROVIDER.set(Box::new(provider));
 }
 
+pub fn get_primary_monitor_pixels() -> Result<MonitorInfo, String> {
+    // Linux first tries the randr tools: they report physical pixels even
+    // on the Wayland compositors where Tauri's monitor query comes back
+    // empty or logical-sized.
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(info) = try_cosmic_randr() {
+            return Ok(info);
+        }
+        if let Some(info) = try_wlr_randr() {
+            return Ok(info);
+        }
+        if let Some(info) = try_xrandr() {
+            return Ok(info);
+        }
+    }
+    if let Some(provider) = SHELL_PROVIDER.get() {
+        if let Some(info) = provider() {
+            return Ok(info);
+        }
+    }
+    Err("could not detect the primary monitor".into())
+}
+
+#[cfg(target_os = "linux")]
 fn try_cosmic_randr() -> Option<MonitorInfo> {
     let output = std::process::Command::new("cosmic-randr")
         .arg("list")
@@ -66,6 +97,7 @@ fn try_cosmic_randr() -> Option<MonitorInfo> {
     })
 }
 
+#[cfg(target_os = "linux")]
 fn try_wlr_randr() -> Option<MonitorInfo> {
     let output = std::process::Command::new("wlr-randr").output().ok()?;
     if !output.status.success() {
@@ -99,6 +131,7 @@ fn try_wlr_randr() -> Option<MonitorInfo> {
     })
 }
 
+#[cfg(target_os = "linux")]
 fn try_xrandr() -> Option<MonitorInfo> {
     let output = std::process::Command::new("xrandr").output().ok()?;
     if !output.status.success() {
@@ -129,6 +162,7 @@ fn try_xrandr() -> Option<MonitorInfo> {
 
 // Find the first WxH token in a line, e.g. extracts (2880, 1800) from
 // "    2880x1800 @ 90.001 Hz (current) (preferred)"
+#[cfg(target_os = "linux")]
 pub(crate) fn first_wxh(line: &str) -> Option<(u32, u32)> {
     for token in line.split_whitespace() {
         let token = token.trim_start_matches('[').trim_end_matches(']');
@@ -141,6 +175,7 @@ pub(crate) fn first_wxh(line: &str) -> Option<(u32, u32)> {
     None
 }
 
+#[cfg(target_os = "linux")]
 pub(crate) fn strip_ansi(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
@@ -162,7 +197,7 @@ pub(crate) fn strip_ansi(s: &str) -> String {
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 

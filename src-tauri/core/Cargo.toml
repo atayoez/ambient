@@ -81,6 +81,10 @@ apple-native-keyring-store = { version = "1", features = ["keychain"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1"
+# Direct registry read for the DWM accent color (accent.rs). Shelling out
+# to `reg query` from a GUI-subsystem process flashes a console window on
+# every app launch; winreg is already a transitive dep of `wallpaper`.
+winreg = "0.55"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 dbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }

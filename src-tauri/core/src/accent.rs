@@ -4,9 +4,11 @@
 //   - the user hasn't picked one
 //   - the read fails (registry permission, gsettings missing, etc.)
 //
-// Shell-outs are used in preference to native crates so the binary stays
-// dependency-free. The lookups run on every app launch (<10 ms total)
-// and the result is cached in the frontend for the session.
+// macOS/Linux shell out (`defaults`/`gsettings`) so the binary stays
+// dependency-free; Windows reads the registry directly via winreg — a
+// shell-out there would flash a console window from the GUI-subsystem
+// process. The lookups run on every app launch (<10 ms total) and the
+// result is cached in the frontend for the session.
 
 pub fn get_system_accent() -> Option<String> {
     #[cfg(target_os = "macos")]
@@ -64,36 +66,17 @@ mod macos {
 
 #[cfg(target_os = "windows")]
 mod windows {
-    use std::process::Command;
-
-    // Windows stores the DWM accent as a DWORD in ABGR order (little
-    // endian). `reg query` prints it as a hex value like `0xff0078d4`,
-    // which is alpha-prefixed ABGR — we strip alpha and swap to RGB.
+    // Windows stores the DWM accent as a DWORD in alpha-prefixed ABGR
+    // order — strip alpha and swap to RGB. Read via winreg, NOT a
+    // `reg query` shell-out: spawning a console child from a
+    // GUI-subsystem process flashes a cmd window on every app launch.
     pub fn accent() -> Option<String> {
-        let out = Command::new("reg")
-            .args([
-                "query",
-                "HKCU\\Software\\Microsoft\\Windows\\DWM",
-                "/v",
-                "AccentColor",
-            ])
-            .output()
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
+        let value: u32 = RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey("Software\\Microsoft\\Windows\\DWM")
+            .and_then(|k| k.get_value("AccentColor"))
             .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        // Output format: "    AccentColor    REG_DWORD    0xff0078d4"
-        let hex = stdout
-            .lines()
-            .find_map(|line| {
-                let lower = line.to_ascii_lowercase();
-                lower
-                    .split_whitespace()
-                    .find(|tok| tok.starts_with("0x"))
-                    .map(|tok| tok.trim_start_matches("0x").to_string())
-            })?;
-        let value = u32::from_str_radix(&hex, 16).ok()?;
         let b = ((value >> 16) & 0xFF) as u8;
         let g = ((value >> 8) & 0xFF) as u8;
         let r = (value & 0xFF) as u8;

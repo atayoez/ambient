@@ -28,6 +28,9 @@ export default function EmojiField({
   const sizeVar = config.emojiSizeVar ?? 0.75;
   const glyphs = config.emojis?.length ? config.emojis : ['✨'];
   const bg = config.colors?.[0] ?? '#000000';
+  // Global animation-speed multiplier, present when this renders the live
+  // wallpaper spec (Rust stamps it in); the in-app preview stays at 1×.
+  const speed = Math.max(0.05, (config as { speed?: number }).speed ?? 1);
 
   // Fluent 3D art for each glyph, exported to disk by the backend and loaded
   // through the asset protocol — the same files the KDE plugin renders, so
@@ -64,7 +67,7 @@ export default function EmojiField({
         left: `${((col + 0.5) / cols) * 100}%`,
         top: `${((row + 0.5) / rows) * 100}%`,
         fontSize: `${size * (1 - sizeVar * 0.4 + sizeVar * 0.8 * rnd(i, 8, seed))}px`,
-        animationDuration: `${40 + rnd(i, 1, seed) * 50}s, ${60 + rnd(i, 4, seed) * 90}s`,
+        animationDuration: `${(40 + rnd(i, 1, seed) * 50) / speed}s, ${(60 + rnd(i, 4, seed) * 90) / speed}s`,
         animationDelay: `${-rnd(i, 2, seed) * 40}s, ${-rnd(i, 5, seed) * 40}s`,
         animationDirection: `${rnd(i, 3, seed) > 0.5 ? 'reverse' : 'normal'}, ${
           rnd(i, 7, seed) > 0.5 ? 'reverse' : 'normal'
@@ -74,7 +77,7 @@ export default function EmojiField({
       out.push({ key: i, glyph: glyphs[i % glyphs.length], style });
     }
     return out;
-  }, [cols, rows, glyphs, seed, size, sizeVar]);
+  }, [cols, rows, glyphs, seed, size, sizeVar, speed]);
 
   return (
     <div

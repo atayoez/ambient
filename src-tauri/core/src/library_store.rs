@@ -15,7 +15,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
-use crate::settings::{strip_keys_from_legacy, write_atomic};
+use crate::settings::write_atomic;
 use crate::types::{Wallpaper, WallpaperMode};
 
 #[derive(Deserialize, Clone, Debug)]
@@ -129,21 +129,6 @@ pub fn load_or_default(app_data_dir: &Path) -> Vec<Wallpaper> {
     if let Ok(bytes) = std::fs::read(&target) {
         if let Ok(lib) = serde_json::from_slice::<Vec<Wallpaper>>(&bytes) {
             return dedup_by_path(lib);
-        }
-    }
-    let legacy_path = app_data_dir.join("ambient.json");
-    if let Ok(bytes) = std::fs::read(&legacy_path) {
-        if let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-            let extracted = value
-                .as_object_mut()
-                .and_then(|obj| obj.remove("library"))
-                .and_then(|v| serde_json::from_value::<Vec<Wallpaper>>(v).ok());
-            if let Some(library) = extracted {
-                let deduped = dedup_by_path(library);
-                let _ = write_atomic(&target, &deduped);
-                strip_keys_from_legacy(&legacy_path, value);
-                return deduped;
-            }
         }
     }
     Vec::new()
@@ -268,43 +253,6 @@ mod tests {
         let deduped = dedup_by_path(list);
         assert_eq!(deduped.iter().map(|w| w.path.as_str()).collect::<Vec<_>>(),
                    vec!["/a", "/b"]);
-    }
-
-    #[test]
-    fn load_or_default_migrates_legacy_library() {
-        let tmp_dir = std::env::temp_dir().join("ambient-test-migrate-library");
-        let _ = std::fs::remove_dir_all(&tmp_dir);
-        std::fs::create_dir_all(&tmp_dir).unwrap();
-
-        let legacy = serde_json::json!({
-            "library": [
-                { "path": "/x/wp1.png", "source": "generated", "addedAt": 100 },
-                { "path": "/x/wp2.png", "source": "nasa-apod", "addedAt": 200, "title": "Apod" }
-            ],
-            "license.state": { "key": "abc" }
-        });
-        std::fs::write(
-            tmp_dir.join("ambient.json"),
-            serde_json::to_string_pretty(&legacy).unwrap(),
-        )
-        .unwrap();
-
-        let loaded = load_or_default(&tmp_dir);
-        assert_eq!(loaded.len(), 2);
-        assert_eq!(loaded[0].path, "/x/wp1.png");
-        assert_eq!(loaded[1].title.as_deref(), Some("Apod"));
-
-        assert!(tmp_dir.join("ambient-library.json").exists());
-
-        // license.state preserved in legacy file
-        let remaining: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(tmp_dir.join("ambient.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(remaining.get("library").is_none());
-        assert!(remaining.get("license.state").is_some());
-
-        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 
     #[test]

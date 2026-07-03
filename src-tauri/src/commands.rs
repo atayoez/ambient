@@ -118,7 +118,14 @@ pub async fn get_settings() -> Result<Settings, String> {
 
 #[tauri::command]
 pub async fn patch_settings(patch: serde_json::Value) -> Result<Settings, String> {
-    ambient_core::state::settings().patch(patch).await
+    // Lowering cacheLimitGb should evict immediately, not at the next
+    // save — cheap no-op scan for every other patch.
+    let touches_cache_limit = patch.get("cacheLimitGb").is_some();
+    let updated = ambient_core::state::settings().patch(patch).await?;
+    if touches_cache_limit {
+        tauri::async_runtime::spawn(ambient_core::library::enforce_cache_limit());
+    }
+    Ok(updated)
 }
 
 // --- sources + AI generation -----------------------------------------

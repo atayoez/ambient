@@ -19,9 +19,17 @@ import EmojiField from './EmojiField';
 // lib/shaders.ts, so this Set always matches the shaders that actually exist.
 const SHADER_TYPES = new Set<PatternType>(ANIMATABLE);
 
-// The spec is a PatternConfig plus the quality caps the shell stamps in and,
-// for non-shader patterns, the path to the pre-rendered still.
-type Spec = PatternConfig & { image?: string };
+// The spec is a PatternConfig plus the quality caps + animation speed the
+// shell stamps in and, for non-shader patterns, the path to the
+// pre-rendered still. The stamped fields flow into startLiveShader via
+// LiveShaderConfig, so the desktop honors the quality setting (the in-app
+// preview keeps its own lighter caps).
+type Spec = PatternConfig & {
+  image?: string;
+  maxRenderEdge?: number;
+  fps?: number;
+  speed?: number;
+};
 
 declare global {
   interface Window {

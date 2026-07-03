@@ -66,6 +66,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "windows 0.61.3",
+ "winreg 0.55.0",
 ]
 
 [[package]]
@@ -91,6 +92,7 @@ dependencies = [
  "wallpaper",
  "wgpu",
  "windows-native-keyring-store",
+ "winreg 0.55.0",
 ]
 
 [[package]]

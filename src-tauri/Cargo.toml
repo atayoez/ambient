@@ -89,6 +89,12 @@ windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
 ] }
+# Direct registry reads (tray_icon.rs theme detection). A `reg query`
+# shell-out from a windows_subsystem = "windows" binary allocates a fresh
+# console for the child — users saw a cmd window flash every 5 minutes
+# from the theme-follow task. winreg is already in the tree via the
+# `wallpaper` crate, so this adds no new build weight.
+winreg = "0.55"
 
 # macOS live-wallpaper delivery (live_mac.rs): AppKit calls to place the
 # background window at the desktop window level. objc2 versions match the

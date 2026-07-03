@@ -127,31 +127,21 @@ fn edge(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
 pub fn is_system_dark() -> bool {
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
         // AppsUseLightTheme = 0 means dark, 1 means light. Missing key
         // → fall back to dark (matches Windows 11 default + the prior
-        // icon color).
-        let out = Command::new("reg")
-            .args([
-                "query",
-                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                "/v",
-                "AppsUseLightTheme",
-            ])
-            .output();
-        if let Ok(out) = out {
-            if out.status.success() {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                if let Some(tok) = stdout
-                    .lines()
-                    .find_map(|line| line.split_whitespace().find(|t| t.starts_with("0x")))
-                {
-                    let v = u32::from_str_radix(tok.trim_start_matches("0x"), 16).unwrap_or(0);
-                    return v == 0;
-                }
-            }
-        }
-        return true;
+        // icon color). Read via winreg, NOT a `reg query` shell-out: a
+        // GUI-subsystem process spawning a console child allocates a
+        // fresh console window, and this runs from the 5-minute
+        // theme-follow task — users saw a cmd window flash forever.
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
+        let value: Result<u32, _> = RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
+            .and_then(|k| k.get_value("AppsUseLightTheme"));
+        return match value {
+            Ok(v) => v == 0,
+            Err(_) => true,
+        };
     }
     #[cfg(target_os = "linux")]
     {

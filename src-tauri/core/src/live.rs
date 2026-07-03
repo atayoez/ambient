@@ -77,14 +77,14 @@ async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
         }
     }
 
-    let (max_edge, fps) = crate::state::settings()
-        .get()
-        .await
-        .live_wallpaper_quality
-        .resolve();
+    let settings = crate::state::settings().get().await;
+    let (max_edge, fps) = settings.live_wallpaper_quality.resolve();
     if let Some(obj) = spec_value.as_object_mut() {
         obj.insert("maxRenderEdge".to_string(), serde_json::json!(max_edge));
         obj.insert("fps".to_string(), serde_json::json!(fps));
+        // Global animation-speed multiplier — the delivery layers (QML
+        // Timer, WebGL runner, emoji drift) scale their clocks by it.
+        obj.insert("speed".to_string(), serde_json::json!(settings.animation_speed));
     }
     serde_json::to_string(&spec_value).map_err(|e| format!("serialize live spec: {e}"))
 }

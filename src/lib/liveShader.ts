@@ -8,14 +8,28 @@
 import { GEOMETRIC_SHAPES, type PatternConfig, type PatternType } from './patterns';
 import { FRAG_SHADERS, matrixTextSlots, VERT_SHADER } from './shaders';
 
-// Cap the backing resolution — wallpaper-smoothness isn't needed for an
+// Preview defaults, used when the config doesn't carry explicit caps:
+// cap the backing resolution — wallpaper-smoothness isn't needed for an
 // in-app preview, and an uncapped DPR×window canvas with a 100-line Flow
 // loop is needless GPU load. object-fit: cover scales it to the stage.
-const MAX_DIM = 1600;
+// The wallpaper window overrides both via the spec's maxRenderEdge/fps
+// (stamped by Rust from the quality setting) — before that existed, the
+// desktop wallpaper itself was silently capped to 1600 px / 30 fps no
+// matter what quality the user picked.
+const PREVIEW_MAX_DIM = 1600;
+const PREVIEW_FPS = 30;
 
-// Throttle the preview to ~30fps — soft, slow motion doesn't need vsync
-// rate, and an uncapped fullscreen shader loop is needless GPU/battery load.
-const MIN_FRAME_MS = 1000 / 30;
+/** What the shader runner actually consumes: a PatternConfig, optionally
+ * extended with the live-spec fields Rust stamps in for the wallpaper
+ * window (LiveWallpaper.tsx passes the full spec straight through). */
+export type LiveShaderConfig = PatternConfig & {
+  /** Render cap for the canvas long edge in px; 0 = uncapped (native). */
+  maxRenderEdge?: number;
+  /** Frame-rate cap. */
+  fps?: number;
+  /** Global animation-speed multiplier (Settings → Animation speed). */
+  speed?: number;
+};
 
 const UNIFORM_NAMES = [
   'u_resolution',
@@ -34,7 +48,7 @@ const UNIFORM_NAMES = [
 ] as const;
 
 export interface LiveShaderHandle {
-  setConfig(config: PatternConfig): void;
+  setConfig(config: LiveShaderConfig): void;
   destroy(): void;
 }
 
@@ -122,7 +136,7 @@ function compileShader(
  */
 export function startLiveShader(
   canvas: HTMLCanvasElement,
-  initial: PatternConfig,
+  initial: LiveShaderConfig,
   opts: { reducedMotion?: boolean } = {},
 ): LiveShaderHandle | null {
   if (!FRAG_SHADERS[initial.type]) return null;
@@ -140,7 +154,10 @@ export function startLiveShader(
     Record<(typeof UNIFORM_NAMES)[number], WebGLUniformLocation | null>
   > = {};
   let raf = 0;
-  let startMs = -1;
+  // Shader time is ACCUMULATED (dt × speed each frame) rather than derived
+  // from wall clock × speed, so a live speed change glides instead of
+  // teleporting the animation to a different point in time.
+  let timeSec = 0;
   let lastRenderMs = -1;
   let disposed = false;
   const colorBuf = new Float32Array(8 * 3);
@@ -186,9 +203,16 @@ export function startLiveShader(
     const dpr = window.devicePixelRatio || 1;
     let w = Math.max(1, Math.round(rect.width * dpr));
     let h = Math.max(1, Math.round(rect.height * dpr));
+    // Quality cap from the live spec (0 = uncapped/native); preview
+    // default otherwise. Re-read per frame so a quality re-apply pushed
+    // through setConfig takes effect without restarting the shader.
+    const cap =
+      config.maxRenderEdge === 0
+        ? Number.POSITIVE_INFINITY
+        : (config.maxRenderEdge ?? PREVIEW_MAX_DIM);
     const longEdge = Math.max(w, h);
-    if (longEdge > MAX_DIM) {
-      const s = MAX_DIM / longEdge;
+    if (longEdge > cap) {
+      const s = cap / longEdge;
       w = Math.max(1, Math.round(w * s));
       h = Math.max(1, Math.round(h * s));
     }
@@ -239,10 +263,14 @@ export function startLiveShader(
 
   function frame(now: number) {
     if (disposed) return;
-    if (startMs < 0) startMs = now;
-    if (lastRenderMs < 0 || now - lastRenderMs >= MIN_FRAME_MS) {
+    const minFrameMs = 1000 / (config.fps ?? PREVIEW_FPS);
+    if (lastRenderMs < 0) {
       lastRenderMs = now;
-      render((now - startMs) / 1000);
+      render(0);
+    } else if (now - lastRenderMs >= minFrameMs) {
+      timeSec += ((now - lastRenderMs) / 1000) * (config.speed ?? 1);
+      lastRenderMs = now;
+      render(timeSec);
     }
     raf = requestAnimationFrame(frame);
   }
@@ -267,7 +295,7 @@ export function startLiveShader(
   }
 
   return {
-    setConfig(next: PatternConfig) {
+    setConfig(next: LiveShaderConfig) {
       config = next;
       if (next.type !== activeType) {
         try {

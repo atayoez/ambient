@@ -45,7 +45,6 @@
           "$APPDATA/**",
           "$APPLOCALDATA/**",
           "$HOME/.local/share/me.oezcan.ambient/**",
-          "$PICTURE/Ambient/**",
           "$HOME/.local/share/wallpapers/Ambient/**"
         ]
       }

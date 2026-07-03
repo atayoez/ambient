@@ -48,6 +48,27 @@ const LIVE_QUALITY_OPTIONS: { id: LiveQuality; label: string }[] = [
   { id: 'native', label: 'Native' },
 ];
 
+// Global animation-speed multiplier for live wallpapers (shader clock,
+// emoji drift, Ken Burns drift). Stored as a number; OptionScroller ids
+// are strings, so String()/Number() convert at the boundary.
+const SPEED_OPTIONS: { id: string; label: string }[] = [
+  { id: '0.25', label: '0.25×' },
+  { id: '0.5', label: '0.5×' },
+  { id: '1', label: '1×' },
+  { id: '1.5', label: '1.5×' },
+  { id: '2', label: '2×' },
+];
+
+// Saved-wallpaper cache cap. Rust evicts oldest-first past the limit
+// (library::enforce_cache_limit); 0 disables eviction.
+const CACHE_LIMIT_OPTIONS: { id: string; label: string }[] = [
+  { id: '1', label: '1 GB' },
+  { id: '2', label: '2 GB' },
+  { id: '5', label: '5 GB' },
+  { id: '10', label: '10 GB' },
+  { id: '0', label: 'Unlimited' },
+];
+
 type UpdateState =
   | { kind: 'idle' }
   | { kind: 'checking' }
@@ -113,11 +134,9 @@ export default function Settings() {
     setSettings(next);
   }
 
-  // Persist the quality, then re-apply the active live wallpaper (if any) so
-  // the new resolution/fps caps take effect immediately rather than on the
-  // next apply.
-  async function setLiveQuality(v: LiveQuality) {
-    await patch({ liveWallpaperQuality: v });
+  // Re-apply the active live wallpaper (if any) so a changed quality/speed
+  // takes effect immediately rather than on the next apply.
+  async function reapplyLive() {
     try {
       const cfg = await invoke<unknown>('get_live_wallpaper');
       if (cfg) await invoke('apply_live_pattern', { config: cfg });
@@ -126,13 +145,23 @@ export default function Settings() {
     }
   }
 
+  async function setLiveQuality(v: LiveQuality) {
+    await patch({ liveWallpaperQuality: v });
+    await reapplyLive();
+  }
+
+  async function setAnimationSpeed(v: string) {
+    await patch({ animationSpeed: Number(v) });
+    await reapplyLive();
+  }
+
   async function toggleAutostart(enabled: boolean) {
     try {
       await invoke('set_autostart', { enabled });
       setAutostart(enabled);
     } catch (e) {
-      // Non-Linux / no $HOME — the toggle stays where it was; tell the
-      // user why instead of failing silently.
+      // macOS (unsupported) / registry or fs failure — the toggle stays
+      // where it was; tell the user why instead of failing silently.
       toast.fromError(e);
     }
   }
@@ -346,6 +375,24 @@ export default function Settings() {
               value={settings.liveWallpaperQuality}
               onChange={(v) => void setLiveQuality(v)}
               ariaLabel="Live wallpaper render quality"
+            />
+          </div>
+          <div className="set-row">
+            <span>Animation speed</span>
+            <OptionScroller
+              options={SPEED_OPTIONS}
+              value={String(settings.animationSpeed)}
+              onChange={(v) => void setAnimationSpeed(v)}
+              ariaLabel="Live wallpaper animation speed"
+            />
+          </div>
+          <div className="set-row">
+            <span>Wallpaper cache limit</span>
+            <OptionScroller
+              options={CACHE_LIMIT_OPTIONS}
+              value={String(settings.cacheLimitGb)}
+              onChange={(v) => void patch({ cacheLimitGb: Number(v) })}
+              ariaLabel="Saved wallpaper cache limit"
             />
           </div>
           <div className="set-row">

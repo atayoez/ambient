@@ -66,20 +66,40 @@ fn set_live(app: &AppHandle, spec: &str) -> Result<(), String> {
         let _ = tx.send(create_wallpaper_window(&app_for_create, &spec));
     })
     .map_err(|e| e.to_string())?;
-    rx.recv()
+    // Bounded wait: if the main thread is winding down (quit racing an
+    // apply), an unbounded recv() would park this worker thread forever.
+    rx.recv_timeout(std::time::Duration::from_secs(10))
         .map_err(|_| "wallpaper window creation did not complete".to_string())?
 }
 
-/// Clearer: destroy the background window. Un-parenting happens implicitly
-/// when the HWND is gone; Plasma's equivalent is reverting the plugin.
+/// Clearer: un-parent + destroy the background window. Plasma's equivalent
+/// is reverting the plugin.
 fn clear_live(app: &AppHandle) {
     // Window teardown on the main thread, same reasoning as creation.
     let app_for_destroy = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        if let Some(win) = app_for_destroy.get_webview_window(WALLPAPER_LABEL) {
-            let _ = win.destroy();
+    let _ = app.run_on_main_thread(move || teardown(&app_for_destroy));
+}
+
+/// Un-parent the wallpaper window from explorer's WorkerW tree, then destroy
+/// it. Must run on the main thread, and MUST run before process exit:
+/// `SetParent` across processes ties our thread's input queue to explorer's,
+/// and letting tao's shutdown call DestroyWindow on a still-parented HWND
+/// while the message pump is winding down can deadlock — the process then
+/// lingers headless after "Quit" (the well-known WorkerW hang that
+/// Lively / Wallpaper Engine also re-parent to avoid).
+pub fn teardown(app: &AppHandle) {
+    let Some(win) = app.get_webview_window(WALLPAPER_LABEL) else {
+        return;
+    };
+    if let Ok(raw) = win.hwnd() {
+        let hwnd = HWND(raw.0 as _);
+        // SAFETY: hwnd is our own live window; re-parenting to the desktop
+        // (None) is standard Win32 and detaches us from explorer's tree.
+        unsafe {
+            let _ = SetParent(hwnd, None);
         }
-    });
+    }
+    let _ = win.destroy();
 }
 
 fn create_wallpaper_window(app: &AppHandle, spec: &str) -> Result<(), String> {

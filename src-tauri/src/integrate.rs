@@ -112,11 +112,10 @@ fn refresh_launcher_caches(home: &std::path::Path) {
 }
 
 /// Remove the desktop integration this app wrote (binary copy, .desktop
-/// entry, icon) — for both the current `me.oezcan.ambient` id and the
-/// legacy `com.ambient.app` id, best-effort. Does NOT touch settings,
-/// library, or saved wallpapers; the caller decides whether to purge
-/// those. Invoked via `--uninstall` (CLI / desktop action) and the
-/// `uninstall_self` command (About panel).
+/// entry, icon), best-effort. Does NOT touch settings, library, or saved
+/// wallpapers; the caller decides whether to purge those. Invoked via
+/// `--uninstall` (CLI / desktop action) and the `uninstall_self` command
+/// (About panel).
 #[cfg(target_os = "linux")]
 pub fn remove_integration() -> Result<(), String> {
     use std::path::PathBuf;
@@ -127,9 +126,6 @@ pub fn remove_integration() -> Result<(), String> {
         home.join(".local/bin/Ambient.AppImage"),
         apps.join("me.oezcan.ambient.desktop"),
         icons.join("me.oezcan.ambient.png"),
-        // Legacy (pre-0.7 bundle id), in case an old install lingers.
-        apps.join("com.ambient.app.desktop"),
-        icons.join("com.ambient.app.png"),
     ];
     let mut first_err = None;
     for t in &targets {
@@ -206,14 +202,56 @@ pub fn set_autostart(enabled: bool) -> Result<(), String> {
     std::fs::write(&path, desktop).map_err(|e| e.to_string())
 }
 
-#[cfg(not(target_os = "linux"))]
+// Windows: a value under HKCU\...\CurrentVersion\Run — the per-user
+// autostart mechanism, no admin rights, works for the NSIS install and
+// dev builds alike (the value points at the running exe).
+
+#[cfg(target_os = "windows")]
+const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+#[cfg(target_os = "windows")]
+const RUN_VALUE: &str = "Ambient";
+
+#[cfg(target_os = "windows")]
+pub fn autostart_enabled() -> bool {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(RUN_KEY)
+        .and_then(|k| k.get_value::<String, _>(RUN_VALUE))
+        .is_ok()
+}
+
+#[cfg(target_os = "windows")]
+pub fn set_autostart(enabled: bool) -> Result<(), String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey(RUN_KEY)
+        .map_err(|e| format!("open Run key: {e}"))?;
+    if enabled {
+        let exe = std::env::current_exe().map_err(|e| format!("resolve exe path: {e}"))?;
+        // Quoted: the install path contains spaces (C:\Program Files\…).
+        let cmd = format!("\"{}\"", exe.display());
+        key.set_value(RUN_VALUE, &cmd)
+            .map_err(|e| format!("write Run entry: {e}"))
+    } else if key.get_value::<String, _>(RUN_VALUE).is_ok() {
+        key.delete_value(RUN_VALUE)
+            .map_err(|e| format!("remove Run entry: {e}"))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 pub fn autostart_enabled() -> bool {
     false
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 pub fn set_autostart(_enabled: bool) -> Result<(), String> {
-    Err("Start-on-login is currently only wired up for the Linux build.".to_string())
+    Err("Start-on-login is wired up for Linux and Windows. On macOS add \
+         Ambient to System Settings → General → Login Items."
+        .to_string())
 }
 
 // Compile-time icon for the desktop file's `Icon=` reference. ~73 KB

@@ -15,6 +15,14 @@ use tauri::{
 };
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
+/// Set once the user has explicitly chosen to exit (tray Quit, in-app
+/// uninstall). The ExitRequested guard below only vetoes code-less exit
+/// requests while this is false — so the tray survives a window close,
+/// but nothing can re-veto an exit the user asked for (e.g. a late
+/// last-window-destroyed request racing quit, or a session logoff after
+/// quit started on Windows).
+static QUITTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Android: the JVM pointer, captured in JNI_OnLoad — the one callback
 /// Android guarantees us when System.loadLibrary brings this cdylib in,
 /// and the only public route to the VM: JNI_GetCreatedJavaVMs is
@@ -53,14 +61,15 @@ async fn uninstall_self(purge: bool, app: AppHandle) -> Result<(), String> {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        QUITTING.store(true, std::sync::atomic::Ordering::SeqCst);
         solo_instance::cleanup();
         handle.exit(0);
     });
     Ok(())
 }
 
-/// Whether "start on login" is currently enabled (XDG autostart entry
-/// present). See integrate::autostart_*.
+/// Whether "start on login" is currently enabled (XDG autostart entry on
+/// Linux, HKCU Run value on Windows). See integrate::autostart_*.
 #[tauri::command]
 fn get_autostart() -> bool {
     integrate::autostart_enabled()
@@ -246,6 +255,23 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             live_mac::register(app.handle());
 
+            // Monitor lookup for the renderer / AI-resolution pickers. On
+            // Windows/macOS this is the only route (the randr fallbacks in
+            // core are Linux tools — without this, Windows rendered every
+            // pattern at the 1920×1080 fallback regardless of the actual
+            // screen). Monitor::size() is physical pixels.
+            let monitor_handle = app.handle().clone();
+            ambient_core::monitor::set_provider(move || {
+                let m = monitor_handle.primary_monitor().ok().flatten()?;
+                let size = m.size();
+                Some(ambient_core::monitor::MonitorInfo {
+                    width: size.width,
+                    height: size.height,
+                    scale: m.scale_factor() as f32,
+                    source: "tauri".to_string(),
+                })
+            });
+
             // Bridge ambient-core's app events onto the Tauri event bus.
             // Registered BEFORE core init so nothing fires into the void.
             // The tray-mode system notification derives from the same
@@ -274,6 +300,21 @@ pub fn run() {
                 .expect("resolve app_data_dir for state load");
             let needs_reval = ambient_core::state::init(app_data_dir);
 
+            // Windows/macOS: the live wallpaper renders in a webview window
+            // that dies with the process, so re-apply it at startup when
+            // settings say one is active. KDE needs no restore — the Plasma
+            // plugin persists in plasmashell across our restarts. Must be
+            // spawned after state::init so the settings singleton exists.
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            tauri::async_runtime::spawn(async {
+                let cfg = ambient_core::state::settings().get().await;
+                if let Some(live) = cfg.live_wallpaper {
+                    if let Err(e) = ambient_core::live::apply_live_pattern(live).await {
+                        tracing::warn!(error = %e, "restore live wallpaper at startup");
+                    }
+                }
+            });
+
             // License gate runs before the webview's first paint. Disk
             // load is synchronous (~ms); Polar revalidation runs in a
             // background task so cold launches don't pay the network
@@ -285,6 +326,11 @@ pub fn run() {
                     ambient_core::license::revalidate_background().await;
                 });
             }
+
+            // Startup cache-limit pass: catches a limit lowered while the
+            // app wasn't running and pre-limit libraries that already
+            // exceed the cap.
+            tauri::async_runtime::spawn(ambient_core::library::enforce_cache_limit());
 
             // Trial keys expire mid-session (the app lives in the tray for
             // days); this watcher revalidates at the key's expiry instant
@@ -344,7 +390,18 @@ pub fn run() {
                             });
                         }
                         "show" => show_main_window(app),
-                        "quit" => app.exit(0),
+                        "quit" => {
+                            QUITTING.store(true, std::sync::atomic::Ordering::SeqCst);
+                            // Windows: the live-wallpaper webview is parented
+                            // into explorer's WorkerW tree. Un-parent + destroy
+                            // it BEFORE exit — tao's shutdown destroying a
+                            // still-parented HWND can deadlock the message
+                            // pump, leaving a headless process that never
+                            // dies ("Quit didn't quit").
+                            #[cfg(target_os = "windows")]
+                            live_win::teardown(app);
+                            app.exit(0);
+                        }
                         _ => {}
                     });
 
@@ -433,9 +490,12 @@ pub fn run() {
             // Last-window-close would normally exit the process. Keep it
             // alive so the tray icon survives; the user explicitly quits
             // via the tray menu (which calls app.exit(0), bypassing this
-            // because ExitRequested.code is Some in that path).
+            // because ExitRequested.code is Some in that path). QUITTING
+            // additionally disarms the veto once an explicit quit has
+            // started, so no code-less request racing shutdown can pin
+            // the process alive.
             RunEvent::ExitRequested { code, api, .. } => {
-                if code.is_none() {
+                if code.is_none() && !QUITTING.load(std::sync::atomic::Ordering::SeqCst) {
                     api.prevent_exit();
                 }
             }

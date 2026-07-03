@@ -5,10 +5,7 @@
 // if Polar explicitly rejects; transient failures (5xx, network) keep
 // the user trusting the local cache.
 //
-// Storage: `ambient-license.json` in app_data_dir. First-run migration
-// lifts `license.state` out of the legacy tauri-plugin-store
-// `ambient.json` blob, mirroring the settings + library migration in
-// Phase 1.
+// Storage: `ambient-license.json` in app_data_dir.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -16,7 +13,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use crate::settings::{strip_keys_from_legacy, write_atomic};
+use crate::settings::write_atomic;
 use crate::util::ms_since_epoch;
 
 const POLAR_BASE: &str = "https://api.polar.sh";
@@ -108,12 +105,12 @@ impl LicenseState {
     }
 }
 
-/// Load license from disk (with legacy migration), but DON'T hit Polar.
-/// Returns (info, startup_state, needs_revalidation). Caller spawns
+/// Load license from disk, but DON'T hit Polar. Returns (info,
+/// startup_state, needs_revalidation). Caller spawns
 /// `revalidate_background` if needs_revalidation is true so the
 /// frontend mounts immediately on cached state.
 pub fn load_at_startup(app_data_dir: &Path) -> (Option<LicenseInfo>, StartupLicense, bool) {
-    let info = match load_or_migrate(app_data_dir) {
+    let info = match load_stored(app_data_dir) {
         Some(i) => i,
         None => return (None, StartupLicense::None, false),
     };
@@ -126,25 +123,11 @@ pub fn load_at_startup(app_data_dir: &Path) -> (Option<LicenseInfo>, StartupLice
     )
 }
 
-pub(crate) fn load_or_migrate(app_data_dir: &Path) -> Option<LicenseInfo> {
+pub(crate) fn load_stored(app_data_dir: &Path) -> Option<LicenseInfo> {
     let target = app_data_dir.join("ambient-license.json");
     if let Ok(bytes) = std::fs::read(&target) {
         if let Ok(info) = serde_json::from_slice::<LicenseInfo>(&bytes) {
             return Some(info);
-        }
-    }
-    let legacy_path = app_data_dir.join("ambient.json");
-    if let Ok(bytes) = std::fs::read(&legacy_path) {
-        if let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-            let extracted = value
-                .as_object_mut()
-                .and_then(|obj| obj.remove("license.state"))
-                .and_then(|v| serde_json::from_value::<LicenseInfo>(v).ok());
-            if let Some(info) = extracted {
-                let _ = write_atomic(&target, &info);
-                strip_keys_from_legacy(&legacy_path, value);
-                return Some(info);
-            }
         }
     }
     None
@@ -548,46 +531,11 @@ mod tests {
     }
 
     #[test]
-    fn load_or_migrate_returns_none_when_nothing_present() {
+    fn load_stored_returns_none_when_nothing_present() {
         let tmp = std::env::temp_dir().join("ambient-test-license-empty");
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
-        assert!(load_or_migrate(&tmp).is_none());
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
-
-    #[test]
-    fn load_or_migrate_lifts_license_from_legacy() {
-        let tmp = std::env::temp_dir().join("ambient-test-license-migrate");
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
-
-        let legacy = serde_json::json!({
-            "license.state": {
-                "key": "abc-uuid",
-                "email": "x@y.com",
-                "activatedAt": 1000,
-                "lastValidated": 2000
-            },
-            "patterns.config": { "type": "mesh" }
-        });
-        std::fs::write(
-            tmp.join("ambient.json"),
-            serde_json::to_string(&legacy).unwrap(),
-        )
-        .unwrap();
-
-        let loaded = load_or_migrate(&tmp).unwrap();
-        assert_eq!(loaded.key, "abc-uuid");
-        assert_eq!(loaded.email.as_deref(), Some("x@y.com"));
-        assert_eq!(loaded.last_validated, 2000);
-
-        assert!(tmp.join("ambient-license.json").exists());
-        let remaining: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(tmp.join("ambient.json")).unwrap()).unwrap();
-        assert!(remaining.get("license.state").is_none());
-        assert!(remaining.get("patterns.config").is_some());
-
+        assert!(load_stored(&tmp).is_none());
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

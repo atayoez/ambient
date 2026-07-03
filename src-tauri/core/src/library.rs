@@ -6,33 +6,23 @@
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-/// The directory new wallpapers are written to — the OS/DE-conventional
-/// wallpaper location, namespaced under an `Ambient/` subfolder so we
-/// only ever manage our own files and the native wallpaper pickers can
-/// browse to them:
-///   - KDE Plasma → ~/.local/share/wallpapers/Ambient (the KDE picker
-///     scans this tree)
-///   - everywhere else (GNOME/other Linux, macOS, Windows) →
-///     <Pictures>/Ambient
-/// Falls back to <app_data>/wallpapers if neither resolves.
+/// The directory new wallpapers are written to — the OS-conventional
+/// wallpaper location where one exists, namespaced under our own folder
+/// so we only ever manage our own files:
+///   - Linux (every DE) → ~/.local/share/wallpapers/Ambient — the XDG
+///     wallpaper tree; the KDE and GNOME pickers both scan it.
+///   - Windows / macOS → <app_data>/wallpapers. Neither OS has a
+///     per-user wallpaper directory, and since this dir is a size-capped
+///     cache (see enforce_cache_limit) it must NOT live in the user's
+///     Pictures — silently evicting files from a folder the user thinks
+///     of as their photos would be hostile.
 pub(crate) fn wallpaper_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "linux")]
     {
-        let de = std::env::var("XDG_CURRENT_DESKTOP")
-            .unwrap_or_default()
-            .to_lowercase();
-        if de.contains("kde") || de.contains("plasma") {
-            if let Ok(home) = std::env::var("HOME") {
-                return Ok(PathBuf::from(home).join(".local/share/wallpapers/Ambient"));
-            }
+        // XDG_DATA_HOME-aware (~/.local/share by default).
+        if let Some(base) = directories::BaseDirs::new() {
+            return Ok(base.data_dir().join("wallpapers").join("Ambient"));
         }
-    }
-    // XDG/known-folder Pictures lookup — the same dirs Tauri's
-    // app.path().picture_dir() resolved pre-extraction.
-    if let Some(pics) =
-        directories::UserDirs::new().and_then(|u| u.picture_dir().map(Path::to_path_buf))
-    {
-        return Ok(pics.join("Ambient"));
     }
     Ok(crate::state::data_dir().join("wallpapers"))
 }
@@ -61,8 +51,16 @@ pub(crate) async fn download_and_save(url: &str, filename: &str) -> Result<Strin
 /// header and parse provider-specific error bodies).
 pub(crate) fn save_image_bytes(bytes: &[u8], filename: &str) -> Result<String, String> {
     let target = wallpaper_target(filename)?;
-    std::fs::write(&target, bytes)
-        .map_err(|e| format!("write wallpaper to {:?}: {}", target, e))?;
+    // Temp-file + rename, not an in-place truncate: pattern files are
+    // content-addressed, so a re-apply can rewrite the exact file the OS
+    // wallpaper currently points at — a concurrent shell read during a
+    // truncate shows a torn image (Windows especially).
+    let tmp = target.with_extension("tmp");
+    std::fs::write(&tmp, bytes)
+        .map_err(|e| format!("write wallpaper to {:?}: {}", tmp, e))?;
+    std::fs::rename(&tmp, &target)
+        .map_err(|e| format!("finalize wallpaper {:?}: {}", target, e))?;
+    schedule_cache_enforcement();
 
     target
         .to_str()
@@ -70,31 +68,105 @@ pub(crate) fn save_image_bytes(bytes: &[u8], filename: &str) -> Result<String, S
         .ok_or_else(|| "saved wallpaper path is not valid UTF-8".into())
 }
 
-pub async fn list_wallpapers() -> Result<Vec<String>, String> {
-    // Scan the current OS wallpaper dir AND the legacy <app_data>/wallpapers
-    // location, so a library saved before wallpapers moved to the OS dir
-    // isn't orphan-swept on upgrade.
-    let mut dirs = vec![wallpaper_dir()?];
-    let legacy = crate::state::data_dir().join("wallpapers");
-    if !dirs.contains(&legacy) {
-        dirs.push(legacy);
+/// Best-effort deferred cache-limit pass, callable from the sync save
+/// paths (save_image_bytes, renderer::save_pixmap_16bit_png). Spawns onto
+/// the runtime when one is present — every real caller runs inside the
+/// shell's tokio runtime (async commands and their spawn_blocking
+/// threads both carry the runtime context).
+pub(crate) fn schedule_cache_enforcement() {
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn(enforce_cache_limit());
     }
+}
+
+/// Keep the total size of Ambient's saved wallpapers under the user's
+/// `cacheLimitGb` (0 = unlimited): scan the wallpaper dir, and while
+/// over the cap delete the oldest files (mtime order), their thumbnails,
+/// and their library rows. The currently-applied wallpaper is never
+/// evicted — the DE may hold only a reference to the file, and yanking
+/// it can blank the desktop on next login. Public: the shell also runs a
+/// pass at startup and when the user lowers the limit.
+pub async fn enforce_cache_limit() {
+    let cfg = crate::state::settings().get().await;
+    if cfg.cache_limit_gb == 0 {
+        return;
+    }
+    let limit = u64::from(cfg.cache_limit_gb) * 1024 * 1024 * 1024;
+    let keep = cfg.last_applied;
+
+    let evicted = tokio::task::spawn_blocking(move || {
+        let mut files: Vec<(PathBuf, u64, std::time::SystemTime)> = Vec::new();
+        if let Ok(dir) = wallpaper_dir() {
+            if let Ok(rd) = std::fs::read_dir(&dir) {
+                for entry in rd.flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        continue;
+                    }
+                    let Ok(meta) = entry.metadata() else {
+                        continue;
+                    };
+                    let mtime = meta
+                        .modified()
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    files.push((p, meta.len(), mtime));
+                }
+            }
+        }
+        let mut total: u64 = files.iter().map(|f| f.1).sum();
+        let mut evicted: Vec<String> = Vec::new();
+        if total <= limit {
+            return evicted;
+        }
+        files.sort_by_key(|f| f.2); // oldest first
+        for (path, size, _) in files {
+            if total <= limit {
+                break;
+            }
+            let path_str = path.to_string_lossy().into_owned();
+            if keep.as_deref() == Some(path_str.as_str()) {
+                continue;
+            }
+            if std::fs::remove_file(&path).is_ok() {
+                total = total.saturating_sub(size);
+                let _ = remove_thumbnail_for(&path_str);
+                evicted.push(path_str);
+            }
+        }
+        evicted
+    })
+    .await
+    .unwrap_or_default();
+
+    if evicted.is_empty() {
+        return;
+    }
+    tracing::info!(count = evicted.len(), "cache limit: evicted oldest wallpapers");
+    // Drop the evicted rows from the library index (each patch emits
+    // `library-changed`, so an open Library tab refreshes itself).
+    for path in evicted {
+        let _ = crate::state::library()
+            .patch(crate::library_store::LibraryOp::Remove { path })
+            .await;
+    }
+}
+
+pub async fn list_wallpapers() -> Result<Vec<String>, String> {
+    let dir = wallpaper_dir()?;
     // Directory scans are blocking fs IO — run them off the async
     // workers, mirroring get_or_create_thumbnail.
     tokio::task::spawn_blocking(move || {
         let mut out = Vec::new();
-        for dir in dirs {
-            let Ok(rd) = std::fs::read_dir(&dir) else {
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            return Ok(out);
+        };
+        for entry in rd.flatten() {
+            // Skip any nested dir — only image files.
+            if entry.path().is_dir() {
                 continue;
-            };
-            for entry in rd.flatten() {
-                // Skip the thumbs subdir / any nested dir — only image files.
-                if entry.path().is_dir() {
-                    continue;
-                }
-                if let Some(s) = entry.path().to_str() {
-                    out.push(s.to_string());
-                }
+            }
+            if let Some(s) = entry.path().to_str() {
+                out.push(s.to_string());
             }
         }
         Ok(out)
@@ -117,20 +189,6 @@ pub async fn delete_wallpaper(path: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-/// All directories Ambient may have written wallpapers to (current OS dir
-/// + legacy app-data location), for the bulk delete / scan paths.
-fn all_wallpaper_dirs() -> Vec<PathBuf> {
-    let mut dirs = match wallpaper_dir() {
-        Ok(d) => vec![d],
-        Err(_) => Vec::new(),
-    };
-    let legacy = crate::state::data_dir().join("wallpapers");
-    if !dirs.contains(&legacy) {
-        dirs.push(legacy);
-    }
-    dirs
-}
-
 /// Remove the whole WebP thumbnail cache (<app_data>/thumbs). Cheap,
 /// regenerable on demand — backs the Settings "Clear cache" action.
 fn clear_thumbs() -> Result<(), String> {
@@ -149,26 +207,25 @@ pub async fn clear_thumbnail_cache() -> Result<(), String> {
 }
 
 /// Settings → "Delete saved wallpapers": remove every wallpaper file
-/// Ambient has saved (both the current OS dir and the legacy location),
-/// wipe the thumbnail cache, and empty the library index. Returns how
-/// many image files were deleted. The currently-applied desktop wallpaper
-/// is the DE's own copy/reference, so the live desktop is unaffected.
+/// Ambient has saved, wipe the thumbnail cache, and empty the library
+/// index. Returns how many image files were deleted. The currently-applied
+/// desktop wallpaper is the DE's own copy/reference, so the live desktop
+/// is unaffected.
 pub async fn delete_local_wallpapers() -> Result<u32, String> {
     // The scan + per-file deletes are blocking fs IO — run them off the
     // async workers, mirroring get_or_create_thumbnail.
     let removed = tokio::task::spawn_blocking(|| {
         let mut removed = 0u32;
-        for dir in all_wallpaper_dirs() {
-            let Ok(rd) = std::fs::read_dir(&dir) else {
-                continue;
-            };
-            for entry in rd.flatten() {
-                let p = entry.path();
-                if p.is_dir() {
-                    continue; // skip any nested dir (e.g. a stray thumbs/)
-                }
-                if std::fs::remove_file(&p).is_ok() {
-                    removed += 1;
+        if let Ok(dir) = wallpaper_dir() {
+            if let Ok(rd) = std::fs::read_dir(&dir) {
+                for entry in rd.flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        continue; // skip any nested dir (e.g. a stray thumbs/)
+                    }
+                    if std::fs::remove_file(&p).is_ok() {
+                        removed += 1;
+                    }
                 }
             }
         }

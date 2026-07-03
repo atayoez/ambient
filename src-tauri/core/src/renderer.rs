@@ -2340,8 +2340,15 @@ fn save_pixmap_16bit_png(
             (a << 8) | a,
         ]);
     }
-    buf.save_with_format(&target, image::ImageFormat::Png)
+    // Temp-file + rename: this path is content-addressed, so a same-config
+    // re-apply rewrites the exact file the OS wallpaper points at — an
+    // in-place truncate risks a torn read by the shell mid-write.
+    let tmp = target.with_extension("tmp");
+    buf.save_with_format(&tmp, image::ImageFormat::Png)
         .map_err(|e| format!("write 16-bit PNG: {}", e))?;
+    std::fs::rename(&tmp, &target)
+        .map_err(|e| format!("finalize 16-bit PNG: {}", e))?;
+    crate::library::schedule_cache_enforcement();
 
     target
         .to_str()

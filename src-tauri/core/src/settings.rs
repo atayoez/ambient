@@ -4,12 +4,6 @@
 // watch channel (so the shell's rotation task can react), and fire a
 // `settings-changed` app event through the shell's event sink (so the
 // UI layer can re-render).
-//
-// Migration: on first launch after Phase 1, `load_or_default` lifts
-// the `settings` sub-object out of the legacy tauri-plugin-store
-// `ambient.json` and writes it into the new file, then strips that
-// key from the legacy file so per-tab draft state (patterns.config,
-// generate.prompt, etc.) keeps working through the JS plugin.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -104,85 +98,18 @@ pub(crate) fn write_atomic<T: serde::Serialize>(
     Ok(())
 }
 
-/// Load Settings from disk, migrating from the legacy tauri-plugin-store
-/// `ambient.json` shape if no new file exists. Falls back to defaults
-/// if neither source is parseable. Then runs the one-time customPresets
-/// migration (saved palettes moved off the retired plugin-store).
+/// Load Settings from ambient-settings.json, falling back to defaults
+/// when the file is missing or unparseable (a corrupted file is left in
+/// place rather than overwritten with a guess — the next successful
+/// patch rewrites it).
 pub fn load_or_default(app_data_dir: &Path) -> Settings {
-    let mut settings = load_base(app_data_dir);
-    migrate_custom_presets(&mut settings, app_data_dir);
-    settings
-}
-
-fn load_base(app_data_dir: &Path) -> Settings {
     let target = app_data_dir.join("ambient-settings.json");
-
-    // Already-migrated path.
     if let Ok(bytes) = std::fs::read(&target) {
         if let Ok(s) = serde_json::from_slice::<Settings>(&bytes) {
             return s;
         }
-        // Corrupted — fall through to legacy / defaults rather than
-        // overwriting the user's data with a guess.
     }
-
-    // Legacy plugin-store layout: { "settings": {...}, "library": [...], ... }
-    let legacy_path = app_data_dir.join("ambient.json");
-    if let Ok(bytes) = std::fs::read(&legacy_path) {
-        if let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-            let extracted = value
-                .as_object_mut()
-                .and_then(|obj| obj.remove("settings"))
-                .and_then(|v| serde_json::from_value::<Settings>(v).ok());
-            if let Some(settings) = extracted {
-                // Persist into the new file FIRST. If we crash between
-                // here and the legacy-strip below, next run finds the
-                // new file and skips legacy entirely — no data loss.
-                let _ = write_atomic(&target, &settings);
-                strip_keys_from_legacy(&legacy_path, value);
-                return settings;
-            }
-        }
-    }
-
     Settings::default()
-}
-
-/// Saved palettes used to live under the tauri-plugin-store
-/// `patterns.customPresets` key in `ambient.json`. That plugin is gone;
-/// this pulls the array into `Settings.custom_presets` once (when settings
-/// doesn't already carry them) so upgrading users keep their palettes.
-fn migrate_custom_presets(settings: &mut Settings, app_data_dir: &Path) {
-    if !settings.custom_presets.is_empty() {
-        return;
-    }
-    let legacy_path = app_data_dir.join("ambient.json");
-    let Ok(bytes) = std::fs::read(&legacy_path) else {
-        return;
-    };
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-        return;
-    };
-    let Some(arr) = value.get("patterns.customPresets").and_then(|v| v.as_array()) else {
-        return;
-    };
-    if arr.is_empty() {
-        return;
-    }
-    settings.custom_presets = arr.clone();
-    let _ = write_atomic(&app_data_dir.join("ambient-settings.json"), settings);
-}
-
-pub(crate) fn strip_keys_from_legacy(
-    legacy_path: &Path,
-    stripped_value: serde_json::Value,
-) {
-    if let Ok(json) = serde_json::to_string_pretty(&stripped_value) {
-        let tmp = legacy_path.with_extension("legacy-tmp");
-        if std::fs::write(&tmp, json).is_ok() {
-            let _ = std::fs::rename(&tmp, legacy_path);
-        }
-    }
 }
 
 #[cfg(test)]
@@ -250,62 +177,6 @@ mod tests {
     }
 
     #[test]
-    fn load_or_default_migrates_legacy_settings() {
-        let tmp_dir = std::env::temp_dir().join("ambient-test-migrate-settings");
-        let _ = std::fs::remove_dir_all(&tmp_dir);
-        std::fs::create_dir_all(&tmp_dir).unwrap();
-
-        // Write a legacy ambient.json containing a `settings` sub-object
-        // alongside an unrelated key that should survive the migration.
-        let legacy = serde_json::json!({
-            "settings": {
-                "source": "unsplash",
-                "unsplashKey": "abc123",
-                "pexelsKey": "",
-                "unsplashQuery": "mountains",
-                "pexelsQuery": "",
-                "genProvider": "pollinations",
-                "pollinationsModel": "flux",
-                "genResolution": "auto",
-                "openaiKey": "",
-                "openaiModel": "dall-e-3",
-                "rotationSource": "off",
-                "rotationIntervalMinutes": 45,
-                "themeMode": "dark",
-                "themeFollowLightPath": null,
-                "themeFollowDarkPath": null
-            },
-            "patterns.config": { "type": "mesh", "density": 40 }
-        });
-        std::fs::write(
-            tmp_dir.join("ambient.json"),
-            serde_json::to_string_pretty(&legacy).unwrap(),
-        )
-        .unwrap();
-
-        let loaded = load_or_default(&tmp_dir);
-        assert!(matches!(loaded.source, SourceKind::Unsplash));
-        // unsplashKey is no longer part of Settings (Phase 3 moved it
-        // to the OS keyring); serde silently drops the field on load.
-        assert_eq!(loaded.unsplash_query, "mountains");
-        assert_eq!(loaded.rotation_interval_minutes, 45);
-        assert!(matches!(loaded.theme_mode, ThemeMode::Dark));
-
-        // ambient-settings.json is now present
-        assert!(tmp_dir.join("ambient-settings.json").exists());
-
-        // Legacy file lost the `settings` key but kept `patterns.config`
-        let remaining: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(tmp_dir.join("ambient.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(remaining.get("settings").is_none());
-        assert!(remaining.get("patterns.config").is_some());
-
-        let _ = std::fs::remove_dir_all(&tmp_dir);
-    }
-
-    #[test]
     fn load_or_default_returns_defaults_when_nothing_present() {
         let tmp_dir = std::env::temp_dir().join("ambient-test-fresh-settings");
         let _ = std::fs::remove_dir_all(&tmp_dir);
@@ -319,25 +190,14 @@ mod tests {
     }
 
     #[test]
-    fn load_or_default_prefers_new_file_over_legacy() {
-        let tmp_dir = std::env::temp_dir().join("ambient-test-both-present");
+    fn load_or_default_reads_existing_file() {
+        let tmp_dir = std::env::temp_dir().join("ambient-test-existing-settings");
         let _ = std::fs::remove_dir_all(&tmp_dir);
         std::fs::create_dir_all(&tmp_dir).unwrap();
 
-        // New file says 99 min interval
-        let mut new_settings = Settings::default();
-        new_settings.rotation_interval_minutes = 99;
-        write_atomic(&tmp_dir.join("ambient-settings.json"), &new_settings).unwrap();
-
-        // Legacy says 11 min — should NOT win
-        let legacy = serde_json::json!({
-            "settings": serde_json::to_value(Settings::default()).unwrap(),
-        });
-        std::fs::write(
-            tmp_dir.join("ambient.json"),
-            serde_json::to_string(&legacy).unwrap(),
-        )
-        .unwrap();
+        let mut s = Settings::default();
+        s.rotation_interval_minutes = 99;
+        write_atomic(&tmp_dir.join("ambient-settings.json"), &s).unwrap();
 
         let loaded = load_or_default(&tmp_dir);
         assert_eq!(loaded.rotation_interval_minutes, 99);

@@ -152,6 +152,26 @@ pub struct Settings {
     // resolution + fps. `#[serde(default)]` → legacy stores land on Balanced.
     #[serde(default)]
     pub live_wallpaper_quality: LiveQuality,
+    // Saved-wallpaper cache cap in whole GB; 0 = unlimited. Enforced after
+    // every save (library::enforce_cache_limit): oldest files across the
+    // wallpaper dirs are evicted — thumbs and library rows too — until the
+    // total is back under the cap. The currently-applied wallpaper is never
+    // evicted. Named default (not 0) so legacy stores land on the cap.
+    #[serde(default = "default_cache_limit_gb")]
+    pub cache_limit_gb: u32,
+    // Global speed multiplier for live/animated wallpapers (shaders, emoji
+    // drift, the Ken Burns still drift). 1.0 = the shipped pace; stamped
+    // into the live spec by live::build_spec.
+    #[serde(default = "default_animation_speed")]
+    pub animation_speed: f32,
+}
+
+fn default_cache_limit_gb() -> u32 {
+    2
+}
+
+fn default_animation_speed() -> f32 {
+    1.0
 }
 
 // NOTE: these values must match DEFAULT_SETTINGS in src/lib/types.ts —
@@ -179,6 +199,8 @@ impl Default for Settings {
             live_wallpaper: None,
             last_pattern: None,
             live_wallpaper_quality: LiveQuality::default(),
+            cache_limit_gb: default_cache_limit_gb(),
+            animation_speed: default_animation_speed(),
         }
     }
 }
