@@ -117,22 +117,22 @@ fn edge(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
     (p.0 - b.0) * (a.1 - b.1) - (a.0 - b.0) * (p.1 - b.1)
 }
 
-/// Best-effort startup detection of the system's color scheme. Used to
-/// pick the right initial tray-icon variant before the frontend has
-/// matchMedia available (i.e. cold launch, window still painting).
-/// Returns `true` when the system is in dark mode, `false` for light or
-/// when detection fails. macOS callers can ignore this and rely on
-/// template inversion.
+/// Best-effort detection of the system's APP color scheme — drives the
+/// light/dark wallpaper pools (rotation::effective_dark). Returns `true`
+/// when the system is in dark mode, `false` for light or when detection
+/// fails. NOT used for the tray glyph: the tray sits on the taskbar/panel,
+/// whose theme can differ from the app theme (see windows_taskbar_dark /
+/// linux_panel_wants_light_glyph).
 #[cfg(not(target_os = "macos"))]
 pub fn is_system_dark() -> bool {
     #[cfg(target_os = "windows")]
     {
         // AppsUseLightTheme = 0 means dark, 1 means light. Missing key
-        // → fall back to dark (matches Windows 11 default + the prior
-        // icon color). Read via winreg, NOT a `reg query` shell-out: a
-        // GUI-subsystem process spawning a console child allocates a
-        // fresh console window, and this runs from the 5-minute
-        // theme-follow task — users saw a cmd window flash forever.
+        // → fall back to dark (matches Windows 11 default). Read via
+        // winreg, NOT a `reg query` shell-out: a GUI-subsystem process
+        // spawning a console child allocates a fresh console window, and
+        // this runs from the 5-minute theme-follow task — users saw a
+        // cmd window flash forever.
         use winreg::enums::HKEY_CURRENT_USER;
         use winreg::RegKey;
         let value: Result<u32, _> = RegKey::predef(HKEY_CURRENT_USER)
@@ -178,22 +178,147 @@ pub fn is_system_dark() -> bool {
     true
 }
 
-/// Should the Linux tray use the light (white) glyph? On Linux the tray
-/// lives in the panel/shell, whose theme is independent of everything we
-/// can reliably read:
-///   - `prefers-color-scheme` reflects the webview/GTK app theme, not the
-///     panel (a light app theme over a dark panel is a common KDE setup).
-///   - kdeglobals' color scheme describes window chrome, not the Plasma
-///     panel style — they routinely disagree (light windows, dark panel).
-/// There's no portable, dependable signal for the actual panel color, and
-/// guessing wrong paints a black glyph into a row of white panel icons.
-/// Since Linux panels are overwhelmingly dark (GNOME top bar, default +
-/// dark Breeze, most wlroots bars), we commit to the white glyph rather
-/// than detect. macOS uses template inversion and Windows reads the
-/// registry, so this only governs Linux.
+/// Whether the Windows TASKBAR (where the tray lives) is dark. This is
+/// `SystemUsesLightTheme`, NOT `AppsUseLightTheme` — "Windows mode" and
+/// "app mode" are separate toggles that users routinely split, and the
+/// tray glyph must contrast with the taskbar, not with app chrome.
+/// Missing key → dark (Windows 11 default).
+#[cfg(target_os = "windows")]
+pub fn windows_taskbar_dark() -> bool {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let Ok(key) = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
+    else {
+        return true;
+    };
+    match key.get_value::<u32, _>("SystemUsesLightTheme") {
+        Ok(v) => v == 0,
+        // Very old builds only have the apps key.
+        Err(_) => key
+            .get_value::<u32, _>("AppsUseLightTheme")
+            .map(|v| v == 0)
+            .unwrap_or(true),
+    }
+}
+
+/// Should the Linux tray use the light (white) glyph? The tray lives in
+/// the panel/shell, whose theme is independent of the app theme, so this
+/// is a per-desktop heuristic:
+///   - KDE Plasma: the panel is painted by the Plasma theme. An explicit
+///     breeze-dark/breeze-light pin in plasmarc decides directly; the
+///     "default" theme follows the color scheme, whose window-background
+///     luminance (kdeglobals) tells us light vs dark. Stock Plasma 6
+///     (nothing written yet) is Breeze LIGHT — the old always-white
+///     commitment painted an invisible glyph there.
+///   - GNOME: the top bar stays dark even in light mode → white glyph.
+///   - Everything else (wlroots bars, XFCE, …): overwhelmingly dark
+///     panels → white glyph.
 #[cfg(target_os = "linux")]
 pub fn linux_panel_wants_light_glyph() -> bool {
+    let de = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_lowercase();
+    if de.contains("kde") || de.contains("plasma") {
+        if let Some(dark) = kde_panel_dark() {
+            return dark;
+        }
+        // Nothing readable → stock Plasma 6 defaults, which are light.
+        return false;
+    }
     true
+}
+
+/// Best-effort KDE panel darkness. None when neither plasmarc nor
+/// kdeglobals yields a signal.
+#[cfg(target_os = "linux")]
+fn kde_panel_dark() -> Option<bool> {
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config"))
+        })?;
+    // Explicit Plasma-theme pin wins (System Settings → Plasma Style).
+    if let Ok(text) = std::fs::read_to_string(config.join("plasmarc")) {
+        if let Some(name) = ini_value(&text, "[Theme]", "name=") {
+            let n = name.to_lowercase();
+            if n.contains("dark") {
+                return Some(true);
+            }
+            if n.contains("light") {
+                return Some(false);
+            }
+            // "default" follows the color scheme — fall through.
+        }
+    }
+    // Default theme paints the panel with the color scheme's window
+    // background — its luminance is the ground truth.
+    let text = std::fs::read_to_string(config.join("kdeglobals")).ok()?;
+    if let Some(rgb) = ini_value(&text, "[Colors:Window]", "BackgroundNormal=") {
+        if let Some(dark) = rgb_is_dark(&rgb) {
+            return Some(dark);
+        }
+    }
+    // Palette missing but a scheme name is present (older writes).
+    ini_value(&text, "[General]", "ColorScheme=").map(|s| s.to_lowercase().contains("dark"))
+}
+
+/// Scan a KDE-style ini for `key` inside `section`. Sections end at the
+/// next `[...]` header; keys are matched as line prefixes.
+#[cfg(target_os = "linux")]
+fn ini_value(text: &str, section: &str, key: &str) -> Option<String> {
+    let mut in_section = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_section = line == section;
+            continue;
+        }
+        if in_section {
+            if let Some(v) = line.strip_prefix(key) {
+                return Some(v.trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// "r,g,b" (0-255 decimals, KDE color format) → is it a dark color?
+#[cfg(target_os = "linux")]
+fn rgb_is_dark(rgb: &str) -> Option<bool> {
+    let mut ch = rgb.split(',').map(|s| s.trim().parse::<u32>().ok());
+    let r = ch.next()??;
+    let g = ch.next()??;
+    let b = ch.next()??;
+    // Rec. 709 luma, integer-scaled; threshold at mid-gray.
+    let luma = (2126 * r + 7152 * g + 722 * b) / 10000;
+    Some(luma < 128)
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ini_value_scopes_to_section() {
+        let text = "[Theme]\nname=breeze-dark\n\n[Other]\nname=nope\n";
+        assert_eq!(ini_value(text, "[Theme]", "name=").as_deref(), Some("breeze-dark"));
+        assert_eq!(ini_value(text, "[Other]", "name=").as_deref(), Some("nope"));
+        assert_eq!(ini_value(text, "[Missing]", "name="), None);
+    }
+
+    #[test]
+    fn ini_value_stops_at_next_section() {
+        let text = "[Colors:Window]\nForegroundNormal=1,2,3\n[General]\nBackgroundNormal=9,9,9\n";
+        assert_eq!(ini_value(text, "[Colors:Window]", "BackgroundNormal="), None);
+    }
+
+    #[test]
+    fn rgb_is_dark_classifies_breeze_backgrounds() {
+        assert_eq!(rgb_is_dark("239,240,241"), Some(false)); // Breeze light window bg
+        assert_eq!(rgb_is_dark("42,46,50"), Some(true)); // Breeze dark window bg
+        assert_eq!(rgb_is_dark("garbage"), None);
+    }
 }
 
 /// Update the tray icon in response to a system theme change. Called
@@ -215,23 +340,29 @@ pub fn update_tray_theme(app: AppHandle, is_dark: bool) -> Result<(), String> {
         let _ = (app, is_dark);
         return Ok(());
     }
-    // Linux commits to one glyph for the whole session (see
-    // linux_panel_wants_light_glyph), so re-setting the identical icon on
-    // every prefers-color-scheme flip is pure tray churn — short-circuit
-    // like macOS does.
+    // Linux: the webview's prefers-color-scheme flip usually accompanies a
+    // global theme switch, so treat it as a wake-up and re-detect the
+    // PANEL darkness (the app theme itself is the wrong signal — a light
+    // app over a dark panel is a common KDE setup).
     #[cfg(all(desktop, target_os = "linux"))]
     {
-        let _ = (app, is_dark);
-        return Ok(());
-    }
-    #[cfg(all(desktop, target_os = "windows"))]
-    {
-        // Windows' tray host tracks the same theme the registry reports,
-        // so the webview's prefers-color-scheme signal is the right one.
+        let _ = is_dark;
         let tray = app
             .tray_by_id("main")
             .ok_or_else(|| "tray 'main' not registered".to_string())?;
-        let icon = symbolic_icon(!is_dark);
+        let icon = symbolic_icon(!linux_panel_wants_light_glyph());
+        tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(all(desktop, target_os = "windows"))]
+    {
+        // The webview reports the APP theme; the taskbar follows the
+        // separate "Windows mode" toggle — re-read the registry instead.
+        let _ = is_dark;
+        let tray = app
+            .tray_by_id("main")
+            .ok_or_else(|| "tray 'main' not registered".to_string())?;
+        let icon = symbolic_icon(!windows_taskbar_dark());
         tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
         Ok(())
     }

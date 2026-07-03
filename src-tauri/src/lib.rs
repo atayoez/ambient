@@ -408,21 +408,19 @@ pub fn run() {
                 // Symbolic monochrome glyph. macOS gets the white glyph
                 // + template flag and the system handles inversion
                 // against the menubar's effective theme. Windows/Linux
-                // tray hosts don't invert, so we detect the system's
-                // color scheme at launch and ship the right variant
-                // (dark glyph for light themes, white for dark). The
-                // frontend's useTrayThemeSync() hook keeps the icon in
-                // step with subsequent theme flips while the window is
+                // tray hosts don't invert, so we detect the TASKBAR /
+                // PANEL darkness at launch (not the app theme — the two
+                // are separate toggles on both platforms) and ship the
+                // matching variant: dark glyph on light bars, white on
+                // dark. The frontend's useTrayThemeSync() hook re-runs
+                // the same detection on theme flips while the window is
                 // open via the `update_tray_theme` command.
                 #[cfg(target_os = "macos")]
                 let glyph_light = true;
-                // Linux can't reliably read the panel theme, so it
-                // commits to the white glyph — see
-                // linux_panel_wants_light_glyph.
                 #[cfg(target_os = "linux")]
                 let glyph_light = tray_icon::linux_panel_wants_light_glyph();
                 #[cfg(target_os = "windows")]
-                let glyph_light = tray_icon::is_system_dark();
+                let glyph_light = tray_icon::windows_taskbar_dark();
                 tray = tray
                     .icon(tray_icon::symbolic_icon(!glyph_light))
                     .icon_as_template(true);
