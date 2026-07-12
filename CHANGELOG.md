@@ -15,6 +15,14 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.4.0] — 2026-07-12
+
+### Added
+
 - **Cache limit setting** (default 2 GB, 0 = unlimited): oldest saved
   wallpapers, thumbnails, and library entries are evicted automatically
   when the cache grows past the limit.
