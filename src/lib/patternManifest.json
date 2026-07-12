@@ -1,0 +1,147 @@
+{
+  "$comment": "Single source of truth for the per-pattern-type knob contract: UI order, labels, slider ranges, defaults, randomizer ranges, and shader-uniform packing. Consumed by: patterns.ts (PATTERN_TYPES / TYPE_DEFAULTS / randomizedModifiers / knob UI), liveShader.ts (p1/p2/p3 packing), shaders.ts (matrixCharset), core/build.rs (generated Rust knob defaults + charset), and gen-shaders.ts (uniform comment labels). `uniform` tags which shader slot a knob feeds (size rides its own u_size/gSize uniform; knobs without a tag are CPU/QML-only). `scale` is a display multiplier (0-1 knobs render as 0-100% sliders); `unit` is a display suffix only. For `choices` knobs the array index IS the numeric wire code the shaders decode — never reorder or insert, only append.",
+  "maxColors": 6,
+  "minColors": 2,
+  "matrixCharset": "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:<>*+=-",
+  "matrixTextMax": 15,
+  "types": [
+    {
+      "id": "mesh",
+      "label": "Mesh",
+      "knobs": [
+        { "key": "meshBubbles", "label": "Bubbles", "uniform": "p1", "min": 6, "max": 40, "default": 16, "int": true },
+        { "key": "meshSoftness", "label": "Softness", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "geometric",
+      "label": "Geometric",
+      "knobs": [
+        { "key": "density", "label": "Shape count", "uniform": "p1", "min": 10, "max": 200, "default": 40, "int": true },
+        { "key": "size", "label": "Size", "min": 12, "max": 120, "default": 60, "int": true },
+        {
+          "key": "geometricShape",
+          "label": "Shape",
+          "uniform": "p2",
+          "default": "mix",
+          "choices": [
+            { "id": "mix", "label": "Mix" },
+            { "id": "circles", "label": "Circles" },
+            { "id": "triangles", "label": "Triangles" },
+            { "id": "squares", "label": "Squares" },
+            { "id": "hexagons", "label": "Hexagons" },
+            { "id": "stars", "label": "Stars" },
+            { "id": "plus", "label": "Plus" }
+          ]
+        },
+        {
+          "key": "geometricFill",
+          "label": "Fill",
+          "uniform": "p3",
+          "default": "solid",
+          "choices": [
+            { "id": "solid", "label": "Solid" },
+            { "id": "outline", "label": "Outline" },
+            { "id": "mix", "label": "Mix" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dots",
+      "label": "Dots",
+      "knobs": [
+        {
+          "$comment": "density min matches the Rust renderer's floor (density.max(8.0)) — values below 8 are clamped, so exposing them in the slider was a dead zone.",
+          "key": "density", "label": "Density", "uniform": "p1", "min": 8, "max": 60, "default": 18, "int": true
+        },
+        { "key": "size", "label": "Size", "min": 6, "max": 80, "default": 28, "int": true },
+        { "key": "dotsJitter", "label": "Scatter", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" },
+        { "key": "dotsSizeVar", "label": "Size var.", "uniform": "p3", "min": 0, "max": 1, "default": 0.7, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "stripes",
+      "label": "Stripes",
+      "knobs": [
+        { "key": "size", "label": "Size", "min": 10, "max": 140, "default": 60, "int": true },
+        { "key": "stripesAngle", "label": "Angle", "uniform": "p1", "min": 0, "max": 90, "default": 30, "int": true, "unit": "°" },
+        { "key": "stripesWidthVar", "label": "Width var.", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "emoji",
+      "label": "Emoji",
+      "knobs": [
+        { "key": "size", "label": "Size", "min": 40, "max": 140, "default": 90, "int": true },
+        { "key": "emojiSpacing", "label": "Spacing", "min": 50, "max": 300, "default": 175, "int": true, "unit": "%" },
+        { "key": "emojiRotationMax", "label": "Rotation", "min": 0, "max": 90, "default": 34, "int": true, "unit": "°" },
+        { "key": "emojiSizeVar", "label": "Size var.", "min": 0, "max": 1, "default": 0.75, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "flower",
+      "label": "Flower",
+      "knobs": [
+        { "key": "size", "label": "Size", "min": 40, "max": 160, "default": 100, "int": true },
+        { "key": "flowerPetals", "label": "Petals", "uniform": "p1", "min": 5, "max": 40, "default": 12, "int": true },
+        { "key": "flowerTwist", "label": "Swirl", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "flow",
+      "label": "Flow",
+      "knobs": [
+        { "key": "size", "label": "Size", "min": 6, "max": 120, "default": 40, "int": true },
+        { "key": "flowLines", "label": "Lines", "uniform": "p1", "min": 6, "max": 120, "default": 28, "int": true },
+        { "key": "flowAmplitude", "label": "Amplitude", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" },
+        { "key": "flowFrequency", "label": "Frequency", "uniform": "p3", "min": 0, "max": 1, "default": 0.4, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "waves",
+      "label": "Waves",
+      "knobs": [
+        { "key": "wavesLayers", "label": "Layers", "uniform": "p1", "min": 3, "max": 20, "default": 7, "int": true },
+        { "key": "wavesAmplitude", "label": "Amplitude", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" },
+        { "key": "wavesFrequency", "label": "Frequency", "uniform": "p3", "min": 0, "max": 1, "default": 0.4, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "aurora",
+      "label": "Aurora",
+      "knobs": [
+        { "key": "auroraBands", "label": "Bands", "uniform": "p1", "min": 3, "max": 14, "default": 5, "int": true },
+        { "key": "auroraSpread", "label": "Spread", "uniform": "p3", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" },
+        { "key": "auroraAmplitude", "label": "Sway", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "bokeh",
+      "label": "Bokeh",
+      "knobs": [
+        { "key": "density", "label": "Count", "uniform": "p1", "min": 8, "max": 60, "default": 22, "int": true },
+        { "key": "size", "label": "Size", "min": 10, "max": 120, "default": 60, "int": true }
+      ]
+    },
+    {
+      "id": "matrix",
+      "label": "Matrix",
+      "knobs": [
+        { "key": "density", "label": "Columns", "uniform": "p1", "min": 16, "max": 96, "default": 48, "int": true },
+        { "key": "matrixText", "label": "Matrix rain text", "kind": "text", "placeholder": "Custom text (optional)", "maxLength": 15 },
+        { "key": "matrixTrail", "label": "Trail", "uniform": "p2", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" },
+        { "key": "matrixSpeed", "label": "Speed", "uniform": "p3", "min": 0, "max": 1, "default": 0.5, "scale": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "crt",
+      "label": "CRT Test",
+      "knobs": [
+        { "key": "crtScanlines", "label": "Scanlines", "uniform": "p1", "min": 0, "max": 1, "default": 0.6, "scale": 100, "unit": "%" },
+        { "key": "crtCurvature", "label": "Curvature", "uniform": "p2", "min": 0, "max": 1, "default": 0.4, "scale": 100, "unit": "%" },
+        { "key": "crtNoise", "label": "Noise", "uniform": "p3", "min": 0, "max": 1, "default": 0.25, "scale": 100, "unit": "%" }
+      ]
+    }
+  ]
+}

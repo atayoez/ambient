@@ -1,11 +1,12 @@
 // Pattern configuration types + UI-facing constants. The renderer
-// itself moved to Rust in Phase 5 (src-tauri/src/renderer.rs); this
+// itself moved to Rust in Phase 5 (src-tauri/core/src/renderer.rs); this
 // file is now configuration data plus a single invoke wrapper for
 // the Rust render_preview command. The deleted JS renderer used to
 // be ~450 LOC of Canvas drawing code.
 
 import { invoke } from '@tauri-apps/api/core';
 import colorPresetsJson from './colorPresets.json';
+import patternManifestJson from './patternManifest.json';
 import { FRAG_SHADERS } from './shaders';
 
 export type PatternType =
@@ -288,12 +289,78 @@ export function accentPreset(hex: string): ColorPreset | null {
 
 export const DEFAULT_EMOJIS = COLOR_PRESETS[0].emojis;
 
+// ---------------------------------------------------------------------
+// Pattern-type manifest
+// ---------------------------------------------------------------------
+
+// The whole per-type knob contract — UI order + labels, slider ranges,
+// defaults, randomizer ranges, and the p1/p2/p3 shader-uniform packing —
+// lives in patternManifest.json, the single source of truth shared with
+// Rust (core/build.rs compiles the same file into knob-default consts
+// used by the renderer and the live-spec stamping) and with the
+// generated shaders' doc comments (scripts/gen-shaders.ts). Everything
+// below is derived from it; nothing per-type is hand-listed here.
+
+export interface KnobChoice {
+  id: string;
+  label: string;
+}
+
+export interface KnobSpec {
+  key: string;
+  label: string;
+  /** Which shader uniform this knob feeds. The global `size` rides its
+   * own u_size/gSize uniform, and some knobs (emoji field) never reach
+   * a shader — both omit the tag. */
+  uniform?: 'p1' | 'p2' | 'p3';
+  min?: number;
+  max?: number;
+  default?: number | string;
+  /** Integer knob: sliders step whole values and Randomize rounds. */
+  int?: boolean;
+  /** Display multiplier — 0-1 knobs render as 0-100 "%" sliders. */
+  scale?: number;
+  /** Display suffix only (°, %); does not affect the stored value. */
+  unit?: string;
+  /** 'text' renders a free-text input and is excluded from Randomize. */
+  kind?: 'text';
+  placeholder?: string;
+  maxLength?: number;
+  /** Enum knob: the index in this list IS the numeric wire code the
+   * WebGL/QML shaders decode — never reorder or insert, only append. */
+  choices?: KnobChoice[];
+}
+
+export interface PatternTypeSpec {
+  id: PatternType;
+  label: string;
+  knobs: KnobSpec[];
+}
+
+const MANIFEST = patternManifestJson as unknown as {
+  maxColors: number;
+  minColors: number;
+  matrixCharset: string;
+  matrixTextMax: number;
+  types: PatternTypeSpec[];
+};
+
+export const PATTERN_MANIFEST = MANIFEST;
+
+/** Per-type knob specs, keyed by pattern type. Drives the knob UI in
+ * Patterns.tsx and the uniform packing in liveShader.ts. */
+export const TYPE_SPECS: Record<PatternType, PatternTypeSpec> = Object.fromEntries(
+  MANIFEST.types.map((t) => [t.id, t]),
+) as Record<PatternType, PatternTypeSpec>;
+
 // Palette size limits, counting the background: colors[0] is the
 // background, colors[1..] the foreground, so 6 total = bg + 5 foreground
 // chips and the minimum is bg + 1. Shared by Patterns.tsx (whole-palette
-// add/remove guards) and PaletteEditor.tsx (foreground-only view).
-export const MAX_COLORS = 6;
-export const MIN_COLORS = 2;
+// add/remove guards), PaletteEditor.tsx (foreground-only view), and the
+// shader palette arrays on every delivery target (WebGL / Qt / wgpu all
+// cap at the same manifest value).
+export const MAX_COLORS = MANIFEST.maxColors;
+export const MIN_COLORS = MANIFEST.minColors;
 
 // Copies (not aliases) of the preset arrays: config.colors / config.emojis
 // get mutated per-config downstream, and sharing the array with
@@ -310,240 +377,58 @@ export const DEFAULT_CONFIG: PatternConfig = {
 
 // Pattern types with a live fragment shader — the live-wallpaper subset.
 // Derived from FRAG_SHADERS in lib/shaders.ts (the single source of truth:
-// a type is animatable iff it ships a shader). Flow/Waves/Aurora drift their
-// sin/cos phase fields; Dots/Bokeh/Geometric move per element; Stripes scroll;
-// Flower counter-rotates its layers; Mesh drifts soft metaball blobs. Every
-// pattern animates as a shader except Emoji, which animates via its own glyph
-// field.
+// a type is animatable iff it ships a shader). Every pattern animates as a
+// shader except Emoji, which animates via its own glyph field.
 export const ANIMATABLE: PatternType[] = Object.keys(FRAG_SHADERS) as PatternType[];
 
-// User-facing metadata for each pattern type — single source of truth used
-// by the type picker UI and by library entries.
-export const PATTERN_TYPES: { id: PatternType; name: string }[] = [
-  { id: 'mesh', name: 'Mesh' },
-  { id: 'geometric', name: 'Geometric' },
-  { id: 'dots', name: 'Dots' },
-  { id: 'stripes', name: 'Stripes' },
-  { id: 'emoji', name: 'Emoji' },
-  { id: 'flower', name: 'Flower' },
-  { id: 'flow', name: 'Flow' },
-  { id: 'waves', name: 'Waves' },
-  { id: 'aurora', name: 'Aurora' },
-  { id: 'bokeh', name: 'Bokeh' },
-  { id: 'matrix', name: 'Matrix' },
-  { id: 'crt', name: 'CRT Test' },
-];
-
-// When the user switches pattern types we re-seed density/size + the
-// per-type knobs into values that look right for the new renderer. Each
-// entry seeds the type-specific defaults so the user always lands on a
-// good starting point even if they never touch the controls.
-export const TYPE_DEFAULTS: Record<PatternType, Partial<PatternConfig>> = {
-  mesh: { meshBubbles: 16, meshSoftness: 0.5 },
-  geometric: {
-    density: 40,
-    size: 60,
-    geometricShape: 'mix',
-    geometricFill: 'solid',
-  },
-  dots: { density: 18, size: 28, dotsJitter: 0.5, dotsSizeVar: 0.7 },
-  stripes: { size: 60, stripesAngle: 30, stripesWidthVar: 0.5 },
-  emoji: {
-    size: 90,
-    emojiRotationMax: 34,
-    emojiSizeVar: 0.75,
-    emojiSpacing: 175,
-  },
-  flower: {
-    size: 100,
-    flowerPetals: 12,
-    flowerTwist: 0.5,
-  },
-  flow: {
-    size: 40,
-    flowLines: 28,
-    flowAmplitude: 0.5,
-    flowFrequency: 0.4,
-  },
-  waves: {
-    wavesLayers: 7,
-    wavesAmplitude: 0.5,
-    wavesFrequency: 0.4,
-  },
-  aurora: {
-    auroraBands: 5,
-    auroraSpread: 0.5,
-    auroraAmplitude: 0.5,
-  },
-  bokeh: {
-    density: 22,
-    size: 60,
-  },
-  matrix: {
-    density: 48,
-    matrixTrail: 0.5,
-    matrixSpeed: 0.5,
-  },
-  crt: {
-    crtScanlines: 0.6,
-    crtCurvature: 0.4,
-    crtNoise: 0.25,
-  },
-};
-
-// Modifier ranges used by both the randomizer and (where applicable) the
-// UI knobs, so "Randomize" and the sliders stay in lockstep — every
-// modifier a generator exposes is also a variable Randomize re-rolls,
-// and vice versa. Per-type maps of knob → [min, max] (continuous 0–1
-// knobs are stored as 0..1; integer knobs round). The density/size
-// entries are ALSO the single source for SLIDER_RANGES below, so the
-// sliders can't desync from what Randomize rolls.
-type Knob = { min: number; max: number; int?: boolean };
-const MODIFIER_RANGES: Partial<Record<PatternType, Record<string, Knob>>> = {
-  mesh: {
-    meshBubbles: { min: 6, max: 40, int: true },
-    meshSoftness: { min: 0, max: 1 },
-  },
-  geometric: {
-    density: { min: 10, max: 200, int: true },
-    size: { min: 12, max: 120, int: true },
-  },
-  dots: {
-    // density min matches the Rust renderer's floor (`density.max(8.0)`)
-    // — values below 8 are clamped, so exposing them in the slider was
-    // a dead zone the user saw as a broken interval.
-    density: { min: 8, max: 60, int: true },
-    size: { min: 6, max: 80, int: true },
-    dotsJitter: { min: 0, max: 1 },
-    dotsSizeVar: { min: 0, max: 1 },
-  },
-  stripes: {
-    size: { min: 10, max: 140, int: true },
-    stripesAngle: { min: 0, max: 90, int: true },
-    stripesWidthVar: { min: 0, max: 1 },
-  },
-  emoji: {
-    size: { min: 40, max: 140, int: true },
-    emojiSpacing: { min: 50, max: 300, int: true },
-    emojiRotationMax: { min: 0, max: 90, int: true },
-    emojiSizeVar: { min: 0, max: 1 },
-  },
-  flower: {
-    size: { min: 40, max: 160, int: true },
-    flowerPetals: { min: 5, max: 40, int: true },
-    flowerTwist: { min: 0, max: 1 },
-  },
-  flow: {
-    size: { min: 6, max: 120, int: true },
-    flowLines: { min: 6, max: 120, int: true },
-    flowAmplitude: { min: 0, max: 1 },
-    flowFrequency: { min: 0, max: 1 },
-  },
-  waves: {
-    wavesLayers: { min: 3, max: 20, int: true },
-    wavesAmplitude: { min: 0, max: 1 },
-    wavesFrequency: { min: 0, max: 1 },
-  },
-  aurora: {
-    auroraBands: { min: 3, max: 14, int: true },
-    auroraSpread: { min: 0, max: 1 },
-    auroraAmplitude: { min: 0, max: 1 },
-  },
-  bokeh: {
-    density: { min: 8, max: 60, int: true },
-    size: { min: 10, max: 120, int: true },
-  },
-  matrix: {
-    density: { min: 16, max: 96, int: true },
-    matrixTrail: { min: 0, max: 1 },
-    matrixSpeed: { min: 0, max: 1 },
-  },
-  crt: {
-    crtScanlines: { min: 0, max: 1 },
-    crtCurvature: { min: 0, max: 1 },
-    crtNoise: { min: 0, max: 1 },
-  },
-};
-
-// Per-type slider ranges + labels, derived from MODIFIER_RANGES (a type
-// gets a density/size slider iff it has that knob there — same min/max).
-// Patterns without a given control omit it, and the UI hides the slider
-// so dragging always changes something visible. Only the density labels
-// are slider-specific.
-const DENSITY_LABELS: Partial<Record<PatternType, string>> = {
-  geometric: 'Shape count',
-  dots: 'Density',
-  bokeh: 'Count',
-  matrix: 'Columns',
-};
-
-export const SLIDER_RANGES: Partial<
-  Record<
-    PatternType,
-    {
-      density?: { min: number; max: number; label: string };
-      size?: { min: number; max: number };
-    }
-  >
-> = Object.fromEntries(
-  (Object.entries(MODIFIER_RANGES) as [PatternType, Record<string, Knob>][])
-    .map(([type, knobs]) => {
-      const entry: {
-        density?: { min: number; max: number; label: string };
-        size?: { min: number; max: number };
-      } = {};
-      if (knobs.density) {
-        entry.density = {
-          min: knobs.density.min,
-          max: knobs.density.max,
-          label: DENSITY_LABELS[type] ?? 'Density',
-        };
-      }
-      if (knobs.size) entry.size = { min: knobs.size.min, max: knobs.size.max };
-      return [type, entry] as const;
-    })
-    .filter(([, entry]) => entry.density || entry.size),
+// User-facing metadata for each pattern type — manifest order is the
+// type-picker order.
+export const PATTERN_TYPES: { id: PatternType; name: string }[] = MANIFEST.types.map(
+  (t) => ({ id: t.id, name: t.label }),
 );
 
-// Ordered geometric shape list — the single source for the Patterns UI
-// shape scroller, the Randomize choice set, and the live-shader shape
-// code (lib/liveShader.ts GEO_SHAPE_CODE). ORDER IS A WIRE CONTRACT: each
-// shape's index here is the numeric code the WebGL/QML shaders decode
-// ('mix' = 0, 'circles' = 1, … 'plus' = 6) — never reorder or insert,
-// only append.
-export const GEOMETRIC_SHAPES: { id: GeometricShape; label: string }[] = [
-  { id: 'mix', label: 'Mix' },
-  { id: 'circles', label: 'Circles' },
-  { id: 'triangles', label: 'Triangles' },
-  { id: 'squares', label: 'Squares' },
-  { id: 'hexagons', label: 'Hexagons' },
-  { id: 'stars', label: 'Stars' },
-  { id: 'plus', label: 'Plus' },
-];
+// When the user switches pattern types we seed every knob the type
+// exposes (including the global density/size where present) to its
+// manifest default, so the user always lands on a good starting point
+// even if they never touch the controls.
+export const TYPE_DEFAULTS: Record<
+  PatternType,
+  Partial<PatternConfig>
+> = Object.fromEntries(
+  MANIFEST.types.map((t) => [
+    t.id,
+    Object.fromEntries(
+      t.knobs
+        .filter((k) => k.kind !== 'text' && k.default !== undefined)
+        .map((k) => [k.key, k.default]),
+    ),
+  ]),
+) as unknown as Record<PatternType, Partial<PatternConfig>>;
 
-// Enum-valued modifiers that Randomize should also pick from.
-const MODIFIER_CHOICES: Partial<Record<PatternType, Record<string, string[]>>> = {
-  geometric: {
-    geometricShape: GEOMETRIC_SHAPES.map((s) => s.id),
-    geometricFill: ['solid', 'outline', 'mix'],
-  },
-};
+// Ordered geometric shape list — the manifest's choices for the
+// geometricShape knob. ORDER IS A WIRE CONTRACT: each shape's index is
+// the numeric code the WebGL/QML shaders decode ('mix' = 0, 'circles' =
+// 1, … 'plus' = 6) — never reorder or insert, only append.
+export const GEOMETRIC_SHAPES: KnobChoice[] =
+  TYPE_SPECS.geometric.knobs.find((k) => k.key === 'geometricShape')?.choices ?? [];
 
 // Roll a fresh value for every modifier the given pattern type exposes —
-// numeric knobs across their full range, enum knobs from their choice
-// set. The Randomize button spreads this over the current config (plus a
-// new seed), so a re-roll changes every variable the renderer reads, not
-// just the seed.
+// numeric knobs across their full manifest range, enum knobs from their
+// choice set; free-text knobs are left alone. The Randomize button
+// spreads this over the current config (plus a new seed), so a re-roll
+// changes every variable the renderer reads, not just the seed — and
+// because the same manifest drives the sliders, Randomize and the UI
+// can't desync.
 export function randomizedModifiers(type: PatternType): Partial<PatternConfig> {
   const out: Record<string, number | string> = {};
-  const knobs = MODIFIER_RANGES[type] ?? {};
-  for (const [key, k] of Object.entries(knobs)) {
-    const v = k.min + Math.random() * (k.max - k.min);
-    out[key] = k.int ? Math.round(v) : v;
-  }
-  const choices = MODIFIER_CHOICES[type] ?? {};
-  for (const [key, opts] of Object.entries(choices)) {
-    out[key] = opts[Math.floor(Math.random() * opts.length)];
+  for (const k of TYPE_SPECS[type]?.knobs ?? []) {
+    if (k.kind === 'text') continue;
+    if (k.choices) {
+      out[k.key] = k.choices[Math.floor(Math.random() * k.choices.length)].id;
+    } else if (k.min !== undefined && k.max !== undefined) {
+      const v = k.min + Math.random() * (k.max - k.min);
+      out[k.key] = k.int ? Math.round(v) : v;
+    }
   }
   return out as Partial<PatternConfig>;
 }

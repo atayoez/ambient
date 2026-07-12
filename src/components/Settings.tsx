@@ -8,16 +8,12 @@ import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useEffect, useState } from 'react';
+import { useSettings } from '../lib/appHooks';
 import { getStartupLicense, type LicenseInfo } from '../lib/license';
 import { useSecret } from '../lib/secrets';
-import { loadSettings, patchSettings } from '../lib/store';
+import { patchSettings } from '../lib/store';
 import { toast } from '../lib/toast';
-import {
-  type Settings as AppSettings,
-  DEFAULT_SETTINGS,
-  type LiveQuality,
-  type RotationSource,
-} from '../lib/types';
+import type { Settings as AppSettings, LiveQuality, RotationSource } from '../lib/types';
 import {
   canSelfUpdate,
   checkForUpdateManual,
@@ -85,7 +81,8 @@ function installLabel(p: InstallProgress): string {
 }
 
 export default function Settings() {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  // null until the Rust-owned settings load (a ~ms RAM read).
+  const [settings, setSettings] = useSettings();
   const [openaiKey, setOpenaiKey, openaiLoaded] = useSecret('openai_key');
   const [pollinationsKey, setPollinationsKey, pollinationsLoaded] =
     useSecret('pollinations_key');
@@ -93,9 +90,8 @@ export default function Settings() {
   const [pexelsKey, setPexelsKey, pexelsLoaded] = useSecret('pexels_key');
   const [wallhavenKey, setWallhavenKey, wallhavenLoaded] = useSecret('wallhaven_key');
   const [autostart, setAutostart] = useState(false);
-  const [intervalDraft, setIntervalDraft] = useState(
-    String(DEFAULT_SETTINGS.rotationIntervalMinutes),
-  );
+  // Seeded from settings once they load (see the effect below).
+  const [intervalDraft, setIntervalDraft] = useState('');
   const [version, setVersion] = useState('');
   const [update, setUpdate] = useState<UpdateState>({ kind: 'idle' });
   const [selfUpdate, setSelfUpdate] = useState(false);
@@ -116,16 +112,21 @@ export default function Settings() {
     void getStartupLicense().then((s) => {
       if (s.status === 'valid') setAccount(s.info);
     });
-    void loadSettings().then((s) => {
-      setSettings(s);
-      setIntervalDraft(String(s.rotationIntervalMinutes));
-    });
     void invoke<boolean>('get_autostart')
       .then(setAutostart)
       .catch(() => {});
     void getVersion().then(setVersion);
     void canSelfUpdate().then(setSelfUpdate);
   }, []);
+
+  // Seed the rotation-interval draft from the loaded settings, once —
+  // later settings updates must not clobber a mid-edit draft.
+  const intervalSeeded = intervalDraft !== '';
+  useEffect(() => {
+    if (settings && !intervalSeeded) {
+      setIntervalDraft(String(settings.rotationIntervalMinutes));
+    }
+  }, [settings, intervalSeeded]);
 
   // patchSettings → Rust emits `settings-changed`, which App.tsx forwards
   // onto the typed bus — other tabs refresh without a manual dispatch.
@@ -167,6 +168,7 @@ export default function Settings() {
   }
 
   function commitInterval() {
+    if (!settings) return;
     const n = Number.parseInt(intervalDraft, 10);
     const clamped = Math.max(5, Number.isFinite(n) && n > 0 ? n : 60);
     setIntervalDraft(String(clamped));
@@ -259,6 +261,10 @@ export default function Settings() {
   const trialDaysLeft = account?.expiresAt
     ? Math.max(0, Math.ceil((account.expiresAt - Date.now()) / 86_400_000))
     : null;
+
+  // Settings haven't loaded yet (first frame) — all hooks are above, so
+  // the early return is safe.
+  if (!settings) return null;
 
   return (
     <div className="settings">

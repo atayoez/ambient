@@ -4,7 +4,11 @@
 // system theme updates consumers on the next frame.
 import { useEffect, useState } from 'react';
 
-export type ThemeMode = 'auto' | 'light' | 'dark';
+// Re-exported from the ts-rs generated bindings (Rust owns the enum —
+// core/src/types.rs ThemeMode); helpers below are TS-only.
+export type { ThemeMode } from './generated/ThemeMode';
+
+import type { ThemeMode } from './generated/ThemeMode';
 
 function prefersDarkNow(): boolean {
   return (

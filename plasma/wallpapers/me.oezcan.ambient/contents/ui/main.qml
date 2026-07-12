@@ -36,64 +36,16 @@ WallpaperItem {
     function colorAt(i) { return i < pcolors.length ? pcolors[i] : "transparent"; }
     // typeof guard (not `|| default`) so a legitimate 0 isn't replaced.
     function num(value, fallback) { return (typeof value === "number") ? value : fallback; }
-    // Geometric's enums encode to numbers for the shader (see liveShader.ts).
-    function geoShapeCode(s) {
-        if (s === "circles") return 1;
-        if (s === "triangles") return 2;
-        if (s === "squares") return 3;
-        if (s === "hexagons") return 4;
-        if (s === "stars") return 5;
-        if (s === "plus") return 6;
-        return 0; // mix / unset
-    }
-    function geoFillCode(s) {
-        if (s === "outline") return 1;
-        if (s === "mix") return 2;
-        return 0; // solid / unset
-    }
-    // Matrix custom text → glyph-index slots. The charset string is the
-    // wire contract with the baked FONT in matrix.frag — mirrored from
-    // MATRIX_CHARSET in src/lib/shaders.ts (regenerate together).
-    readonly property string matrixCharset: "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:<>*+=-"
-    readonly property var matrixSlots: {
-        var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        var text = (patternType === "matrix" && typeof spec.matrixText === "string")
-            ? spec.matrixText.toUpperCase() : "";
-        var n = 0;
-        for (var i = 0; i < text.length && n < 15; i++) {
-            var idx = matrixCharset.indexOf(text.charAt(i));
-            if (idx >= 0) out[n++] = idx;
-        }
-        out[15] = n;
-        return out;
-    }
 
-    function knob(which) {
-        var k;
-        if (patternType === "flow")
-            k = [num(spec.flowLines, 28), num(spec.flowAmplitude, 0.5), num(spec.flowFrequency, 0.4)];
-        else if (patternType === "waves")
-            k = [num(spec.wavesLayers, 7), num(spec.wavesAmplitude, 0.5), num(spec.wavesFrequency, 0.4)];
-        else if (patternType === "dots")
-            k = [num(spec.density, 18), num(spec.dotsJitter, 0.5), num(spec.dotsSizeVar, 0.7)];
-        else if (patternType === "bokeh")
-            k = [num(spec.density, 22), 0, 0];
-        else if (patternType === "stripes")
-            k = [num(spec.stripesAngle, 30), num(spec.stripesWidthVar, 0.5), 0];
-        else if (patternType === "geometric")
-            k = [num(spec.density, 40), geoShapeCode(spec.geometricShape), geoFillCode(spec.geometricFill)];
-        else if (patternType === "flower")
-            k = [num(spec.flowerPetals, 12), num(spec.flowerTwist, 0.5), 0];
-        else if (patternType === "matrix")
-            k = [num(spec.density, 48), num(spec.matrixTrail, 0.5), num(spec.matrixSpeed, 0.5)];
-        else if (patternType === "crt")
-            k = [num(spec.crtScanlines, 0.6), num(spec.crtCurvature, 0.4), num(spec.crtNoise, 0.25)];
-        else if (patternType === "mesh")
-            k = [num(spec.meshBubbles, 16), num(spec.meshSoftness, 0.5), 0];
-        else
-            k = [num(spec.auroraBands, 5), num(spec.auroraAmplitude, 0.5), num(spec.auroraSpread, 0.5)];
-        return k[which];
-    }
+    // The app resolves every per-type knob into the shader's p1/p2/p3
+    // uniforms (and the matrix text glyph slots) before writing the spec —
+    // see live.rs build_spec, driven by patternManifest.json. This QML no
+    // longer carries any knob mapping, defaults, or the matrix charset:
+    // the plugin and spec always ship together (install_plugin rewrites
+    // both on every apply), so the stamped values are always present.
+    readonly property var textSlots: (spec.textSlots instanceof Array && spec.textSlots.length === 16)
+        ? spec.textSlots
+        : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     // Solid base (the spec's background colour) shows while the shader
     // compiles, and guarantees an opaque desktop if it ever fails to load.
@@ -110,8 +62,9 @@ WallpaperItem {
     // upscales — together cutting GPU work ~20-40x with no visible loss.
     property real iTime: 0
     // Render quality (resolution + fps caps) the app stamped into the spec
-    // from the user's Settings; fall back to the Balanced defaults (1280px,
-    // 30fps). maxRenderEdge == 0 means uncapped (Native).
+    // from the user's Settings; the fallbacks mirror LiveQuality::Balanced
+    // in core/src/types.rs (1280px / 30fps) for a spec that predates the
+    // fields. maxRenderEdge == 0 means uncapped (Native).
     readonly property int maxRenderEdge: num(spec.maxRenderEdge, 1280)
     readonly property int targetFps: Math.max(1, num(spec.fps, 30))
     readonly property int frameMs: Math.max(8, Math.round(1000 / targetFps))
@@ -154,13 +107,13 @@ WallpaperItem {
         property color c5: root.colorAt(5)
         property real seed: root.num(root.spec.seed, 0)
         property real gSize: root.num(root.spec.size, 80)
-        property real p1: root.knob(0)
-        property real p2: root.knob(1)
-        property real p3: root.knob(2)
-        property vector4d t0: Qt.vector4d(root.matrixSlots[0], root.matrixSlots[1], root.matrixSlots[2], root.matrixSlots[3])
-        property vector4d t1: Qt.vector4d(root.matrixSlots[4], root.matrixSlots[5], root.matrixSlots[6], root.matrixSlots[7])
-        property vector4d t2: Qt.vector4d(root.matrixSlots[8], root.matrixSlots[9], root.matrixSlots[10], root.matrixSlots[11])
-        property vector4d t3: Qt.vector4d(root.matrixSlots[12], root.matrixSlots[13], root.matrixSlots[14], root.matrixSlots[15])
+        property real p1: root.num(root.spec.p1, 0)
+        property real p2: root.num(root.spec.p2, 0)
+        property real p3: root.num(root.spec.p3, 0)
+        property vector4d t0: Qt.vector4d(root.textSlots[0], root.textSlots[1], root.textSlots[2], root.textSlots[3])
+        property vector4d t1: Qt.vector4d(root.textSlots[4], root.textSlots[5], root.textSlots[6], root.textSlots[7])
+        property vector4d t2: Qt.vector4d(root.textSlots[8], root.textSlots[9], root.textSlots[10], root.textSlots[11])
+        property vector4d t3: Qt.vector4d(root.textSlots[12], root.textSlots[13], root.textSlots[14], root.textSlots[15])
 
         // Our own pass-through vertex shader (see wallpaper.vert) — the
         // built-in one fails to link on the GL backend Plasma uses.

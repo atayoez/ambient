@@ -1,11 +1,14 @@
 // Live wallpaper backdrop — the real thing.
 //
-// This is a vanilla-JS port of the app's WebGL2 live-shader engine
-// (src/lib/shaders.ts + liveShader.ts): the SAME GLSL fragment shaders the
-// desktop app runs as live wallpapers, rendered full-bleed behind the whole
-// site so the homepage literally *is* a live wallpaper. It autoplays through
-// a curated set of patterns, crossfades on switch, and publishes each one's
-// tint onto :root so every liquid-glass surface re-tints to match.
+// The GLSL comes from shaders.gen.js (window.AMBIENT_SHADERS), GENERATED
+// from the app's src/lib/shaders.ts by scripts/gen-shaders.ts — the SAME
+// fragment shaders the desktop app runs as live wallpapers, rendered
+// full-bleed behind the whole site so the homepage literally *is* a live
+// wallpaper. This file is only the runner + curated presets; it carries no
+// shader source of its own (the old hand-copied GLSL drifted from the app).
+// It autoplays through a curated set of patterns, crossfades on switch, and
+// publishes each one's tint onto :root so every liquid-glass surface
+// re-tints to match.
 //
 // Progressive enhancement: if WebGL2 is unavailable or the visitor prefers
 // reduced motion, this bails and the static CSS backdrop (wallpapers.js)
@@ -18,121 +21,18 @@
     window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---- GLSL (verbatim from the app's shaders.ts) --------------------
+  // ---- GLSL (generated bundle) --------------------------------------
 
-  var VERT =
-    '#version 300 es\n' +
-    'in vec2 a_pos;\n' +
-    'void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }\n';
+  var GEN = window.AMBIENT_SHADERS;
+  if (!GEN) return; // bundle missing → the static CSS backdrop stays
 
-  var HEAD =
-    '#version 300 es\n' +
-    'precision highp float;\n' +
-    'uniform vec2 u_resolution;\n' +
-    'uniform float u_time;\n' +
-    'uniform vec3 u_colors[8];\n' +
-    'uniform int u_colorCount;\n' +
-    'uniform float u_seed;\n' +
-    'uniform float u_size;\n' +
-    'uniform float u_p1;\n' +
-    'uniform float u_p2;\n' +
-    'uniform float u_p3;\n' +
-    'out vec4 fragColor;\n' +
-    'const float TWO_PI = 6.28318530718;\n' +
-    'uniform vec4 u_t0;\n' +
-    'uniform vec4 u_t1;\n' +
-    'uniform vec4 u_t2;\n' +
-    'uniform vec4 u_t3;\n' +
-    'float hash(float n){return fract(sin(n*12.9898+u_seed*0.013)*43758.5453123);}\n' +
-    'float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7))+u_seed*0.013)*43758.5453);}\n' +
-    'vec3 paletteColor(int i){int plen=u_colorCount-1;if(plen<1)return u_colors[0];int idx=i-(i/plen)*plen;return u_colors[1+idx];}\n';
+  var VERT = GEN.vert;
+  var FRAG = GEN.frags;
+  var MAX_COLORS = GEN.maxColors;
+  var MATRIX_CHARSET = GEN.matrixCharset;
 
-  var AURORA =
-    'const float SPEED=0.20;void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 p=vec2(gl_FragCoord.x,h-gl_FragCoord.y);float v=p.y/h;' +
-    'int bands=int(max(u_p1,2.0));float bandsF=float(bands);float spread=clamp(u_p3,0.0,1.0);float amp=clamp(u_p2,0.0,1.0);float curtainW=w*(0.05+spread*0.15);float sway=amp*w*0.1;float gphase=hash(1.0)*TWO_PI;vec3 col=u_colors[0];' +
-    'for(int band=0;band<16;band++){if(band>=bands)break;float fb=float(band);float bx=(fb+0.5)/bandsF*w+(hash(fb+2.0)-0.5)*(w/bandsF)*0.5;float depth=bandsF>1.0?fb/(bandsF-1.0):0.5;float phase=gphase+fb*0.9+u_time*SPEED*mix(0.45,1.3,depth);float hw=curtainW*(0.6+hash(fb+9.0)*0.7)*0.5;float cx=bx+sway*(sin(phase+v*1.6*TWO_PI)+0.4*sin(phase*1.9+v*TWO_PI));float dx=abs(p.x-cx);float hf=1.0-smoothstep(hw*0.25,hw,dx);float va;if(v<0.45)va=mix(0.0,0.75,v/0.45);else if(v<0.75)va=mix(0.75,0.5,(v-0.45)/0.30);else va=mix(0.5,0.0,(v-0.75)/0.25);col=mix(col,paletteColor(band),va*hf);}' +
-    'fragColor=vec4(col,1.0);}';
-
-  var FLOW =
-    'const float SPEED=0.22;void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 p=vec2(gl_FragCoord.x,h-gl_FragCoord.y);float u=p.x/w;' +
-    'float scale=max(w,h)/1920.0;float thickness=max(u_size*scale*0.12,1.0);float cycles=0.5+clamp(u_p3,0.0,1.0)*2.5;float ampPx=clamp(u_p2,0.0,1.0)*h*0.16;int lines=int(max(u_p1,1.0));float linesF=float(lines);float gphase=hash(1.0)*TWO_PI;vec3 col=u_colors[0];' +
-    'for(int i=0;i<128;i++){if(i>=lines)break;float li=float(i);float baseline=(li+0.5)/linesF*h;float depth=(li+0.5)/linesF;float phase=gphase+li*0.22+u_time*SPEED*mix(0.45,1.3,depth);float ampI=ampPx*(0.8+hash(li+3.0)*0.4);float a=sin(phase+u*cycles*TWO_PI);float b=sin(phase*1.7+u*cycles*1.9*TWO_PI);float wy=baseline+ampI*(a+0.4*b)*0.7;float d=abs(p.y-wy);float aa=1.0-smoothstep(thickness*0.5-1.0,thickness*0.5+1.0,d);if(aa>0.0){vec3 lc=mix(paletteColor(i),paletteColor(i+1),u);col=mix(col,lc,aa*0.7);}}' +
-    'fragColor=vec4(col,1.0);}';
-
-  var WAVES =
-    'const float SPEED=0.16;void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 p=vec2(gl_FragCoord.x,h-gl_FragCoord.y);float u=p.x/w;' +
-    'float cycles=0.5+clamp(u_p3,0.0,1.0)*2.5;float ampPx=clamp(u_p2,0.0,1.0)*h*0.11;int layers=int(max(u_p1,2.0));float gphase=hash(1.0)*TWO_PI;vec3 col=u_colors[0];' +
-    'for(int layer=0;layer<24;layer++){if(layer>=layers)break;float t=layers>1?float(layer)/float(layers-1):0.5;float baseline=h*(0.12+t*0.78);float phase=gphase+float(layer)*0.7+u_time*SPEED*mix(0.45,1.3,t);float ampL=ampPx*(0.6+hash(float(layer)+5.0)*0.6);float a=sin(phase+u*cycles*TWO_PI);float b=sin(phase*1.6+u*cycles*2.1*TWO_PI);float wy=baseline+ampL*(a+0.35*b);float cover=smoothstep(wy-1.0,wy+1.0,p.y);if(cover>0.0){float gtop=baseline-ampL;float tg=clamp((p.y-gtop)/max(h-gtop,1.0),0.0,1.0);vec3 lc=mix(paletteColor(layer),paletteColor(layer+1),tg);col=mix(col,lc,cover);}}' +
-    'fragColor=vec4(col,1.0);}';
-
-  var BOKEH =
-    'void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 frag=vec2(gl_FragCoord.x,h-gl_FragCoord.y);' +
-    'float scale=max(w,h)/1920.0;int count=int(clamp(u_p1,4.0,64.0));float baseR=max(u_size*scale*2.2,8.0);float minDim=min(w,h);vec3 col=u_colors[0];' +
-    'for(int i=0;i<64;i++){if(i>=count)break;float fi=float(i)+1.0;float hx=hash(fi*2.0);float hy=hash(fi*2.0+1.0);float hr=hash(fi+19.0);float ha=hash(fi+41.0);float hs=hash(fi+7.0);float hf=hash(fi+23.0);float hsp=hash(fi+53.0);' +
-    'float rad=baseR*mix(0.4,1.5,hr);float riseSpeed=minDim*(0.018+hs*0.05);float span=h+2.0*rad;float cy=mod(hy*h-u_time*riseSpeed,span)-rad;float swirlAmp=rad*mix(0.3,1.0,hf);float swirlFreq=0.3+hsp*0.6;float cx=hx*w+swirlAmp*sin(u_time*swirlFreq+hsp*TWO_PI);vec2 center=vec2(cx,cy);float dd=distance(frag,center)/max(rad,1.0);float core=mix(0.45,1.0,smoothstep(0.0,0.72,dd));float edge=1.0-smoothstep(0.86,1.0,dd);float a=core*edge*mix(0.16,0.5,ha);if(a<=0.0)continue;col=mix(col,paletteColor(i),a);}' +
-    'fragColor=vec4(col,1.0);}';
-
-  var FLOWER_HELPERS =
-    'const float PI=3.14159265359;vec3 paletteRing(float pos){int plen=u_colorCount-1;if(plen<1)return u_colors[0];float fp=float(plen);float pp=pos-fp*floor(pos/fp);int i0=int(pp);int i1=i0+1;if(i1>=plen)i1=0;return mix(u_colors[1+i0],u_colors[1+i1],pp-float(i0));}vec3 drawLayer(vec3 col,vec2 frag,vec2 center,float petals,float r0,float len,float hw,float rot,float alpha){vec2 d=frag-center;float ang=atan(d.y,d.x);float rho=length(d);float seg=TWO_PI/petals;float baseIdx=floor((ang-rot)/seg+0.5);float colorsPerRev=float(max(u_colorCount-1,1));for(int k=-1;k<=1;k++){float pk=baseIdx+float(k);float la=ang-(rot+pk*seg);la=atan(sin(la),cos(la));float along=rho*cos(la);float lat=rho*sin(la);float u=(along-r0)/len;float uc=clamp(u,0.0,1.0);float wlat=hw*pow(max(sin(PI*uc),0.0),0.55);float latd=abs(lat);float aaLat=clamp(fwidth(latd),1.0,4.0);float cov=(1.0-smoothstep(wlat-aaLat,wlat+aaLat,latd))*step(0.0,u)*step(u,1.0);float pidx=pk-petals*floor(pk/petals);float cpos=(pidx/petals)*colorsPerRev;float cspan=colorsPerRev/petals;vec3 pcol=paletteRing(cpos+uc*cspan);float rimW=aaLat*2.0+wlat*0.10;float rim=smoothstep(wlat-rimW,wlat,latd);float plum=dot(pcol,vec3(0.299,0.587,0.114));vec3 edgeCol=clamp(mix(vec3(plum),pcol,1.3),0.0,1.0)*0.6;pcol=mix(pcol,edgeCol,rim*0.85);col=mix(col,pcol,alpha*cov);}return col;}';
-
-  var FLOWER =
-    'void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 frag=vec2(gl_FragCoord.x,h-gl_FragCoord.y);float minDim=min(w,h);' +
-    'float petals=clamp(u_p1,3.0,64.0);float twist=clamp(u_p2,0.0,1.0);float sizeScale=max(u_size,10.0)/100.0;vec2 center=vec2(w*0.5,h*0.5);float baseR=minDim*0.02;float reach=min(minDim*0.5*sizeScale,minDim*0.46);float globalRot=hash(3.0)*TWO_PI;float hwFactor=mix(0.95,1.4,twist);vec3 col=u_colors[0];' +
-    'float cpr=float(max(u_colorCount-1,1));float glowR=reach*0.5;float gt=clamp(distance(frag,center)/max(glowR,1.0),0.0,1.0);col=mix(col,paletteRing(0.0),0.5*pow(1.0-gt,1.6));float len0=reach;float len1=reach*0.62;float hw0=len0*sin(PI/petals)*hwFactor;float hw1=len1*sin(PI/petals)*hwFactor;col=drawLayer(col,frag,center,petals,baseR,len0,hw0,globalRot+u_time*0.10,1.0);col=drawLayer(col,frag,center,petals,baseR,len1,hw1,globalRot+PI/petals-u_time*0.14,1.0);float cr=reach*0.10;col=mix(col,paletteRing(cpr*0.5),1.0-smoothstep(cr*0.7,cr,distance(frag,center)));' +
-    'fragColor=vec4(col,1.0);}';
-
-  // Matrix digital rain — same baked 5x7 glyph font as the app (see
-  // src/lib/shaders.ts MATRIX_MAIN; regenerate together).
-  var MATRIX =
-    'const int FONT_N=88;\n' +
-    'const uvec2 FONT[88] = uvec2[88](uvec2(71447071u, 2u), uvec2(102672u, 0u), uvec2(285788132u, 6u), uvec2(138547359u, 31u), uvec2(312882120u, 12u), uvec2(623530948u, 25u), uvec2(142479812u, 4u), uvec2(142920644u, 2u), uvec2(138718146u, 2u), uvec2(554189343u, 31u), uvec2(277162314u, 4u), uvec2(143148034u, 2u), uvec2(616702238u, 17u), uvec2(69564994u, 28u), uvec2(142887473u, 2u), uvec2(143051716u, 2u), uvec2(138547342u, 2u), uvec2(142886564u, 2u), uvec2(138574862u, 2u), uvec2(35030049u, 1u), uvec2(4357252u, 2u), uvec2(14u, 31u), uvec2(751184414u, 3u), uvec2(141697476u, 4u), uvec2(138682896u, 3u), uvec2(587802954u, 17u), uvec2(34649121u, 31u), uvec2(142885407u, 2u), uvec2(538224838u, 16u), uvec2(726798788u, 4u), uvec2(138748447u, 8u), uvec2(101059086u, 8u), uvec2(1009059844u, 17u), uvec2(616966416u, 1u), uvec2(139432078u, 28u), uvec2(138829634u, 4u), uvec2(277094670u, 31u), uvec2(554648095u, 31u), uvec2(277380110u, 6u), uvec2(285787697u, 4u), uvec2(191043782u, 13u), uvec2(177767457u, 3u), uvec2(588826175u, 17u), uvec2(277366335u, 6u), uvec2(142622785u, 3u), uvec2(588826158u, 14u), uvec2(138547334u, 31u), uvec2(209994254u, 31u), uvec2(554058254u, 31u), uvec2(301279624u, 8u), uvec2(554186830u, 15u), uvec2(589136958u, 14u), uvec2(138551583u, 4u), uvec2(588728878u, 30u), uvec2(558679598u, 15u), uvec2(585443460u, 17u), uvec2(588752431u, 15u), uvec2(34636862u, 30u), uvec2(588826159u, 15u), uvec2(35095615u, 31u), uvec2(35095615u, 1u), uvec2(589071422u, 30u), uvec2(589284913u, 17u), uvec2(1073741823u, 31u), uvec2(554189328u, 31u), uvec2(311661881u, 17u), uvec2(34636833u, 31u), uvec2(725478961u, 17u), uvec2(865783409u, 17u), uvec2(588826158u, 14u), uvec2(35112511u, 1u), uvec2(488162862u, 24u), uvec2(307742255u, 17u), uvec2(554044462u, 31u), uvec2(138547359u, 4u), uvec2(588826161u, 14u), uvec2(145031729u, 4u), uvec2(344512165u, 10u), uvec2(346175825u, 17u), uvec2(138553361u, 4u), uvec2(69345566u, 31u), uvec2(414u, 30u), uvec2(408983952u, 16u), uvec2(214446273u, 1u), uvec2(350745732u, 10u), uvec2(139432068u, 4u), uvec2(31u, 31u), uvec2(1073741823u, 31u));\n' +
-    'float glyphPx(int idx,int col,int row){uvec2 g=FONT[idx-(idx/FONT_N)*FONT_N];uint bits=(row<6)?(g.x>>uint(row*5)):g.y;return float((bits>>uint(col))&1u);}\n' +
-    'void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 frag=vec2(gl_FragCoord.x,h-gl_FragCoord.y);' +
-    'float cols=max(u_p1,8.0);float trail=mix(5.0,30.0,clamp(u_p2,0.0,1.0));float speedK=mix(0.25,1.6,clamp(u_p3,0.0,1.0));' +
-    'float cellW=w/cols;float cellH=cellW*1.5;vec2 cell=vec2(cellW,cellH);vec2 gid=floor(frag/cell);float rows=h/cellH;' +
-    'float colR=hash(gid.x*7.31);float speed=(2.0+colR*6.0)*speedK;float offset=hash(gid.x*13.7)*977.0;' +
-    'float cycle=rows+trail;float head=mod(u_time*speed+offset,cycle);float age=head-gid.y;float bright=(age>=0.0)?clamp(1.0-age/trail,0.0,1.0):0.0;bright*=bright;' +
-    'int textCount=int(u_t3.w+0.5);int idx;' +
-    'if(textCount>0){int slot=int(mod(gid.y+floor(offset),float(textCount)));float v=(slot<4)?u_t0[slot]:(slot<8)?u_t1[slot-4]:(slot<12)?u_t2[slot-8]:u_t3[slot-12];idx=int(v+0.5);}' +
-    'else{float tick=floor(u_time*(0.5+hash21(gid)*2.5));idx=int(hash21(gid*3.17+tick*0.618)*float(FONT_N));}' +
-    'vec2 f=fract(frag/cell);vec2 sub=floor(f*vec2(6.0,8.0));float lit=0.0;' +
-    'if(sub.x<5.0&&sub.y<7.0){lit=glyphPx(idx,int(sub.x),int(sub.y));}' +
-    'vec3 rain=paletteColor(int(colR*101.0));float headGlow=step(age,1.0)*step(0.0,age);vec3 glyph=mix(rain,vec3(1.0),headGlow*0.75);' +
-    'vec3 col=mix(u_colors[0],glyph,bright*lit);fragColor=vec4(col,1.0);}';
-
-  // CRT test card — SMPTE bars + curvature, scanlines, hum bar, static
-  // bursts, mains flicker, H-sync tears (see shaders.ts CRT_MAIN).
-  var CRT =
-    'vec3 smpteBar(float u){int i=int(clamp(u,0.0,0.999)*7.0);if(i==0)return vec3(0.75,0.75,0.75);if(i==1)return vec3(0.75,0.75,0.0);if(i==2)return vec3(0.0,0.75,0.75);if(i==3)return vec3(0.0,0.75,0.0);if(i==4)return vec3(0.75,0.0,0.75);if(i==5)return vec3(0.75,0.0,0.0);return vec3(0.0,0.0,0.75);}\n' +
-    'vec3 castellation(float u){int i=int(clamp(u,0.0,0.999)*7.0);if(i==0)return vec3(0.0,0.0,0.75);if(i==2)return vec3(0.75,0.0,0.75);if(i==4)return vec3(0.0,0.75,0.75);if(i==6)return vec3(0.75,0.75,0.75);return vec3(0.0);}\n' +
-    'vec3 bottomStrip(float u){if(u<0.125)return vec3(0.0,0.129,0.298);if(u<0.25)return vec3(1.0);if(u<0.375)return vec3(0.192,0.0,0.42);if(u<0.625)return vec3(0.0);if(u<0.708)return vec3(0.015);if(u<0.791)return vec3(0.045);if(u<0.875)return vec3(0.09);return vec3(0.0);}\n' +
-    'void main(){float w=u_resolution.x;float h=u_resolution.y;vec2 frag=vec2(gl_FragCoord.x,h-gl_FragCoord.y);vec2 uv=frag/vec2(w,h);' +
-    'float curv=clamp(u_p2,0.0,1.0);vec2 cc=uv*2.0-1.0;cc*=1.0+curv*0.16*dot(cc,cc);uv=(cc+1.0)*0.5;' +
-    'if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0){fragColor=vec4(u_colors[0]*0.25,1.0);return;}' +
-    'float burst=hash(floor(u_time*0.5)+31.0);float burstOn=step(0.72,burst)*step(fract(u_time*0.5),0.12);float shear=burstOn*(hash21(vec2(floor(uv.y*90.0),floor(u_time*24.0)))-0.5)*0.06;uv.x=clamp(uv.x+shear,0.0,1.0);' +
-    'vec3 col;if(uv.y<0.67){col=smpteBar(uv.x);}else if(uv.y<0.75){col=castellation(uv.x);}else{col=bottomStrip(uv.x);}' +
-    'float scanStrength=clamp(u_p1,0.0,1.0);float scan=1.0-scanStrength*0.3*(0.5+0.5*sin(frag.y*3.14159));' +
-    'float band=fract(uv.y*0.9-u_time*0.11);float roll=1.0+0.10*exp(-pow((band-0.5)*6.0,2.0))+0.03*sin(TWO_PI*(uv.y*1.4-u_time*0.16));' +
-    'float noiseAmt=clamp(u_p3,0.0,1.0);float staticBand=exp(-pow((fract(uv.y+u_time*0.043)-0.5)*10.0,2.0));float n=(hash21(frag+fract(u_time)*vec2(917.3,113.7))-0.5)*noiseAmt*(0.16+staticBand*0.5);' +
-    'float flicker=1.0+0.02*sin(u_time*47.0)+0.012*sin(u_time*13.7);float vig=1.0-(0.15+curv*0.25)*dot(cc,cc);' +
-    'col=col*scan*roll*vig*flicker+n;fragColor=vec4(col,1.0);}';
-
-  var FRAG = {
-    aurora: HEAD + AURORA,
-    flow: HEAD + FLOW,
-    waves: HEAD + WAVES,
-    bokeh: HEAD + BOKEH,
-    flower: HEAD + FLOWER_HELPERS + FLOWER,
-    matrix: HEAD + MATRIX,
-    crt: HEAD + CRT,
-  };
-
-  // Matrix charset — index order matches the baked FONT (mirrors
-  // MATRIX_CHARSET in src/lib/shaders.ts).
-  var MATRIX_CHARSET =
-    'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:<>*+=-';
   function matrixSlots(text) {
-    var out = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    var out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     var n = 0;
     var chars = (text || '').toUpperCase();
     for (var i = 0; i < chars.length && n < 15; i++) {
@@ -245,7 +145,7 @@
     var program = null;
     var activeType = null;
     var u = {};
-    var colorBuf = new Float32Array(8 * 3);
+    var colorBuf = new Float32Array(MAX_COLORS * 3);
     var UNI = ['u_resolution', 'u_time', 'u_colors', 'u_colorCount', 'u_seed', 'u_size', 'u_p1', 'u_p2', 'u_p3', 'u_t0', 'u_t1', 'u_t2', 'u_t3'];
 
     function compile(kind, src) {
@@ -320,14 +220,14 @@
         }
         var list = [wp.base].concat(wp.colors);
         var last = list[list.length - 1];
-        for (var k = 0; k < 8; k++) {
+        for (var k = 0; k < MAX_COLORS; k++) {
           var c = hexRgb(list[k] || last);
           colorBuf[k * 3] = c[0];
           colorBuf[k * 3 + 1] = c[1];
           colorBuf[k * 3 + 2] = c[2];
         }
         current = wp;
-        current._count = list.length;
+        current._count = Math.min(list.length, MAX_COLORS);
       }
       if (publishTint !== false) {
         var root = document.documentElement;

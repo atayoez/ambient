@@ -29,7 +29,12 @@ describe('events', () => {
   it('passes a Wallpaper detail through', () => {
     const handler = vi.fn();
     const unsub = listen('wallpaper-rotated', handler);
-    const wp = { path: '/x.png', source: 'nasa-apod' as const, addedAt: 1 };
+    const wp = {
+      path: '/x.png',
+      source: 'nasa-apod' as const,
+      addedAt: 1,
+      mode: 'both' as const,
+    };
     dispatch('wallpaper-rotated', wp);
     expect(handler).toHaveBeenCalledWith(wp);
     unsub();

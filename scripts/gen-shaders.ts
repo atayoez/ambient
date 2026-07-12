@@ -19,30 +19,66 @@
 // semantic contract is that the palette is capped at 6 colours (c0 = bg),
 // which matches the app's 6-colour palette limit and main.qml's clamp.
 
-import { FRAG_SHADERS } from '../src/lib/shaders';
+import patternManifest from '../src/lib/patternManifest.json';
+import { FRAG_SHADERS, VERT_SHADER } from '../src/lib/shaders';
 
 const SHADER_DIR = new URL(
   '../plasma/wallpapers/me.oezcan.ambient/contents/shaders/',
   import.meta.url,
 ).pathname;
 
-// Per-type knob labels — purely cosmetic, mirrors main.qml's knob() mapping.
-const KNOBS: Record<string, [string, string, string]> = {
-  flow: ['lines', 'amplitude 0..1', 'frequency 0..1'],
-  waves: ['layers', 'amplitude 0..1', 'frequency 0..1'],
-  aurora: ['bands', 'sway 0..1', 'spread 0..1'],
-  dots: ['density', 'jitter 0..1', 'size variance 0..1'],
-  bokeh: ['count', 'unused', 'unused'],
-  stripes: ['angle (deg)', 'width variance 0..1', 'unused'],
-  geometric: ['density', 'shape code', 'fill code'],
-  flower: ['petal count', 'twist (fullness) 0..1', 'unused'],
-  mesh: ['bubble count', 'softness 0..1', 'unused'],
-  matrix: ['columns', 'trail 0..1', 'speed 0..1'],
-  crt: ['scanlines 0..1', 'curvature 0..1', 'noise 0..1'],
-};
+// The marketing site's live backdrop runs the same WebGL shaders as the
+// app. It's vanilla JS loaded via <script>, so we emit the shader source
+// as a generated global (website/shaders.gen.js) that live-shader.js
+// consumes — the site used to hand-copy the GLSL and drifted.
+const SITE_BUNDLE_PATH = new URL('../website/shaders.gen.js', import.meta.url).pathname;
+
+function siteBundle(): string {
+  const payload = {
+    vert: VERT_SHADER,
+    maxColors: patternManifest.maxColors,
+    matrixCharset: patternManifest.matrixCharset,
+    frags: FRAG_SHADERS,
+  };
+  return (
+    '// GENERATED from src/lib/shaders.ts by scripts/gen-shaders.ts — DO NOT EDIT.\n' +
+    '// Run `bun run gen:shaders` after changing the shader source. The app and\n' +
+    '// the site backdrop are one shader source now, so they can no longer drift.\n' +
+    `window.AMBIENT_SHADERS = ${JSON.stringify(payload)};\n`
+  );
+}
+
+// Per-type knob labels for the UBO doc comments — purely cosmetic, derived
+// from the manifest's uniform tags (the same tags that drive the app's
+// packing in liveShader.ts and the Rust spec stamping).
+function knobLabels(type: string): [string, string, string] {
+  const spec = patternManifest.types.find((t) => t.id === type);
+  if (!spec) return ['p1', 'p2', 'p3'];
+  const out: [string, string, string] = ['unused', 'unused', 'unused'];
+  for (const k of spec.knobs) {
+    const knob = k as {
+      uniform?: string;
+      label: string;
+      choices?: unknown[];
+      scale?: number;
+      unit?: string;
+    };
+    const slot = { p1: 0, p2: 1, p3: 2 }[knob.uniform ?? ''];
+    if (slot === undefined) continue;
+    const label = knob.label.toLowerCase();
+    out[slot] = knob.choices
+      ? `${label} code`
+      : knob.scale
+        ? `${label} 0..1`
+        : knob.unit === '°'
+          ? `${label} (deg)`
+          : label;
+  }
+  return out;
+}
 
 function header(type: string): string {
-  const [k1, k2, k3] = KNOBS[type] ?? ['p1', 'p2', 'p3'];
+  const [k1, k2, k3] = knobLabels(type);
   return `// GENERATED from src/lib/shaders.ts by scripts/gen-shaders.ts — DO NOT EDIT.
 // Run \`bun run gen:shaders\` after changing the shader source. The WebGL
 // (app/desktop/Android) and this Qt/RHI (KDE Plasma) shader are one source
@@ -177,6 +213,20 @@ if (!check) {
   const vertPath = `${SHADER_DIR}wallpaper.vert`;
   bake(vertPath, `${vertPath}.qsb`);
   console.log('baked wallpaper.vert.qsb');
+}
+
+// Website live-backdrop bundle.
+if (check) {
+  const existing = await Bun.file(SITE_BUNDLE_PATH)
+    .text()
+    .catch(() => '');
+  if (existing !== siteBundle()) {
+    console.error('stale: website/shaders.gen.js differs from src/lib/shaders.ts');
+    stale++;
+  }
+} else {
+  await Bun.write(SITE_BUNDLE_PATH, siteBundle());
+  console.log('generated website/shaders.gen.js');
 }
 
 if (check && stale > 0) {

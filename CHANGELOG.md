@@ -15,9 +15,33 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Cache limit setting** (default 2 GB, 0 = unlimited): oldest saved
+  wallpapers, thumbnails, and library entries are evicted automatically
+  when the cache grows past the limit.
+- **Animation speed setting** (0.25×–2×): scales every live wallpaper —
+  shader motion, emoji drift, and Ken Burns pan alike.
+
 ### Changed
 
+- Saved wallpapers move out of your Pictures folder into the system
+  wallpaper location (`~/.local/share/wallpapers/Ambient` on Linux, the
+  app data folder on Windows/macOS). Upgrades behave as fresh installs.
+- Live wallpapers on Windows/macOS now honor the quality setting instead
+  of a fixed preview cap.
+
 ### Fixed
+
+- The tray icon now follows the taskbar/panel theme instead of the app
+  theme — no more wrong-color glyph on light taskbars (Windows) or
+  light Plasma panels (KDE).
+- Windows: no more console windows flashing while the app checks the
+  system theme or accent color.
+- Windows: quitting from the tray while a live wallpaper is running
+  actually exits the app, and the live wallpaper is restored after a
+  restart.
+- Windows: wallpapers render at the monitor's real resolution on
+  HiDPI/4K displays.
+- Windows: start-on-login works via the registry Run key.
 
 ## [1.3.0] — 2026-07-02
 

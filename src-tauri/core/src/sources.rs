@@ -1,10 +1,17 @@
-// Image-source fetchers (NASA APOD, Unsplash, Pexels) running entirely
-// in Rust. Phase 3 collapsed the pre-existing two-step pattern
-// (JS: get URL from source API → JS: invoke download command) into a
-// single Rust command — `fetch_source_wallpaper` reads settings, pulls
-// the relevant key from the OS keyring (via secrets.rs), calls the
-// source API, downloads the image, prepends to the library, and
+// Image-source fetchers (NASA APOD, Bing, Unsplash, Pexels, Wallhaven,
+// Picsum) running entirely in Rust. Phase 3 collapsed the pre-existing
+// two-step pattern (JS: get URL from source API → JS: invoke download
+// command) into a single Rust command — `fetch_source_wallpaper` reads
+// settings, pulls the relevant key from the OS keyring (via secrets.rs),
+// calls the source API, downloads the image, prepends to the library, and
 // returns the new Wallpaper entry to the frontend.
+//
+// Every JSON-API source goes through ONE driver (`fetch_via_api`): a
+// source contributes an `ApiRequest` (url + params + headers) and an
+// extractor closure (response JSON → image url/filename/title); the
+// driver owns the client, the HTTP/JSON error mapping, the download, and
+// the Wallpaper construction. Adding a source = one request builder + one
+// extractor + a SourceKind arm, not another copy of the pipeline.
 
 use std::sync::LazyLock;
 
@@ -13,7 +20,7 @@ use tokio::sync::RwLock;
 use crate::library::download_and_save;
 use crate::library_store::prepend_entry;
 use crate::secrets;
-use crate::types::{Settings, SourceKind, Wallpaper};
+use crate::types::{Settings, SourceKind, Wallpaper, WallpaperMode};
 use crate::util::{local_today_key, ms_since_epoch};
 
 const HTTP_TIMEOUT_SECS: u64 = 30;
@@ -44,6 +51,71 @@ fn source_name(kind: SourceKind) -> &'static str {
         SourceKind::Wallhaven => "wallhaven",
         SourceKind::Picsum => "picsum",
     }
+}
+
+fn wallpaper_entry(kind: SourceKind, path: String, title: Option<String>) -> Wallpaper {
+    Wallpaper {
+        path,
+        source: source_name(kind).to_string(),
+        added_at: ms_since_epoch(),
+        prompt: None,
+        title,
+        mode: WallpaperMode::Both,
+    }
+}
+
+// --- shared JSON-API driver -------------------------------------------
+
+/// The per-source half of a fetch: where to ask and with what.
+struct ApiRequest {
+    /// Human name for error prefixes ("NASA APOD request: …").
+    label: &'static str,
+    url: String,
+    params: Vec<(&'static str, String)>,
+    headers: Vec<(&'static str, String)>,
+}
+
+/// What an extractor pulls out of the response JSON.
+struct ApiImage {
+    url: String,
+    filename: String,
+    title: Option<String>,
+}
+
+/// One pipeline for every JSON-API source: request → status/error mapping
+/// → extract → download → library-shaped Wallpaper. `on_error` maps a
+/// non-2xx (status, parsed body) to a user-facing message — sources with
+/// no special cases pass `http_error(label)`.
+async fn fetch_via_api(
+    kind: SourceKind,
+    req: ApiRequest,
+    extract: impl FnOnce(&serde_json::Value) -> Result<ApiImage, String>,
+    on_error: impl FnOnce(reqwest::StatusCode, &serde_json::Value) -> String,
+) -> Result<Wallpaper, String> {
+    let client = http_client()?;
+    let mut builder = client.get(&req.url).query(&req.params);
+    for (name, value) in &req.headers {
+        builder = builder.header(*name, value);
+    }
+    let res = builder
+        .send()
+        .await
+        .map_err(|e| format!("{} request: {}", req.label, e))?;
+    let status = res.status();
+    // Parse leniently — error bodies may not be JSON at all, and the
+    // extractor produces the source-specific message on a missing field.
+    let body: serde_json::Value = res.json().await.unwrap_or(serde_json::Value::Null);
+    if !status.is_success() {
+        return Err(on_error(status, &body));
+    }
+    let img = extract(&body)?;
+    let local_path = download_and_save(&img.url, &img.filename).await?;
+    Ok(wallpaper_entry(kind, local_path, img.title))
+}
+
+/// Default non-2xx mapping: "<label> HTTP <status>".
+fn http_error(label: &'static str) -> impl FnOnce(reqwest::StatusCode, &serde_json::Value) -> String {
+    move |status, _| format!("{} HTTP {}", label, status)
 }
 
 pub async fn fetch_source_wallpaper() -> Result<Wallpaper, String> {
@@ -77,259 +149,212 @@ async fn fetch_nasa_apod() -> Result<Wallpaper, String> {
                 if let Some(existing) = lib.iter().find(|w| w.path == c.path) {
                     return Ok(existing.clone());
                 }
-                return Ok(Wallpaper {
-                    path: c.path.clone(),
-                    source: source_name(SourceKind::NasaApod).to_string(),
-                    added_at: ms_since_epoch(),
-                    prompt: None,
-                    title: c.title.clone(),
-                    mode: crate::types::WallpaperMode::Both,
-                });
+                return Ok(wallpaper_entry(
+                    SourceKind::NasaApod,
+                    c.path.clone(),
+                    c.title.clone(),
+                ));
             }
         }
     }
 
-    // Fresh fetch
-    let client = http_client()?;
-    let res = client
-        .get("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY")
-        .send()
-        .await
-        .map_err(|e| format!("NASA APOD request: {}", e))?;
-
-    if res.status().as_u16() == 429 {
-        return Err(
-            "NASA's shared DEMO_KEY is rate-limited right now. Try again in a few minutes — Ambient only refreshes once a day, so this should be rare."
-                .to_string(),
-        );
-    }
-    if !res.status().is_success() {
-        return Err(format!("NASA APOD HTTP {}", res.status()));
-    }
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .map_err(|e| format!("parse NASA APOD response: {}", e))?;
-    let url = body
-        .get("hdurl")
-        .or_else(|| body.get("url"))
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            "NASA APOD: no image URL returned (today might be a video).".to_string()
-        })?;
-    let date = body
-        .get("date")
-        .and_then(|v| v.as_str())
-        .unwrap_or(today.as_str());
-    let title = body
-        .get("title")
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let filename = format!("nasa-{}.jpg", date);
-
-    let local_path = download_and_save(url, &filename).await?;
+    let entry = fetch_via_api(
+        SourceKind::NasaApod,
+        ApiRequest {
+            label: "NASA APOD",
+            url: "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY".to_string(),
+            params: vec![],
+            headers: vec![],
+        },
+        |body| {
+            let url = body
+                .get("hdurl")
+                .or_else(|| body.get("url"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    "NASA APOD: no image URL returned (today might be a video)."
+                        .to_string()
+                })?;
+            let date = body
+                .get("date")
+                .and_then(|v| v.as_str())
+                .unwrap_or("today");
+            Ok(ApiImage {
+                url: url.to_string(),
+                filename: format!("nasa-{}.jpg", date),
+                title: body.get("title").and_then(|v| v.as_str()).map(String::from),
+            })
+        },
+        |status, _| {
+            if status.as_u16() == 429 {
+                "NASA's shared DEMO_KEY is rate-limited right now. Try again in a few minutes — Ambient only refreshes once a day, so this should be rare."
+                    .to_string()
+            } else {
+                format!("NASA APOD HTTP {}", status)
+            }
+        },
+    )
+    .await?;
 
     *APOD_CACHE.write().await = Some(ApodCache {
         date: today,
-        path: local_path.clone(),
-        title: title.clone(),
+        path: entry.path.clone(),
+        title: entry.title.clone(),
     });
-
-    Ok(Wallpaper {
-        path: local_path,
-        source: source_name(SourceKind::NasaApod).to_string(),
-        added_at: ms_since_epoch(),
-        prompt: None,
-        title,
-        mode: crate::types::WallpaperMode::Both,
-    })
+    Ok(entry)
 }
 
 async fn fetch_unsplash(settings: &Settings) -> Result<Wallpaper, String> {
     let key = secrets::get("unsplash_key")?
         .ok_or_else(|| "Set your Unsplash API key in Sources first.".to_string())?;
 
-    let client = http_client()?;
-    let mut params: Vec<(&str, &str)> = vec![("orientation", "landscape")];
+    let mut params: Vec<(&'static str, String)> =
+        vec![("orientation", "landscape".to_string())];
     let query = settings.unsplash_query.trim();
     if !query.is_empty() {
-        params.push(("query", query));
+        params.push(("query", query.to_string()));
     }
-    let res = client
-        .get("https://api.unsplash.com/photos/random")
-        .query(&params)
-        .header("Authorization", format!("Client-ID {}", key))
-        .send()
-        .await
-        .map_err(|e| format!("Unsplash request: {}", e))?;
 
-    let status = res.status();
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .unwrap_or(serde_json::Value::Null);
-    if !status.is_success() {
-        let msg = body
-            .get("errors")
-            .and_then(|e| e.as_array())
-            .and_then(|a| a.first())
-            .and_then(|f| f.as_str())
-            .map(String::from)
-            .unwrap_or_else(|| format!("Unsplash {}", status));
-        return Err(msg);
-    }
-    let img_url = body
-        .pointer("/urls/full")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Unsplash: no image URL in response".to_string())?;
-    let id = body
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
-    let title = body
-        .get("alt_description")
-        .or_else(|| body.get("description"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let filename = format!("unsplash-{}.jpg", id);
-
-    let local_path = download_and_save(img_url, &filename).await?;
-
-    Ok(Wallpaper {
-        path: local_path,
-        source: source_name(SourceKind::Unsplash).to_string(),
-        added_at: ms_since_epoch(),
-        prompt: None,
-        title,
-        mode: crate::types::WallpaperMode::Both,
-    })
+    fetch_via_api(
+        SourceKind::Unsplash,
+        ApiRequest {
+            label: "Unsplash",
+            url: "https://api.unsplash.com/photos/random".to_string(),
+            params,
+            headers: vec![("Authorization", format!("Client-ID {}", key))],
+        },
+        |body| {
+            let url = body
+                .pointer("/urls/full")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Unsplash: no image URL in response".to_string())?;
+            let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+            Ok(ApiImage {
+                url: url.to_string(),
+                filename: format!("unsplash-{}.jpg", id),
+                title: body
+                    .get("alt_description")
+                    .or_else(|| body.get("description"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+            })
+        },
+        // Unsplash puts a human-readable reason in errors[0].
+        |status, body| {
+            body.get("errors")
+                .and_then(|e| e.as_array())
+                .and_then(|a| a.first())
+                .and_then(|f| f.as_str())
+                .map(String::from)
+                .unwrap_or_else(|| format!("Unsplash {}", status))
+        },
+    )
+    .await
 }
 
 async fn fetch_pexels(settings: &Settings) -> Result<Wallpaper, String> {
     let key = secrets::get("pexels_key")?
         .ok_or_else(|| "Set your Pexels API key in Sources first.".to_string())?;
 
-    let client = http_client()?;
     let query = settings.pexels_query.trim();
-    let (url, params): (&str, Vec<(&str, &str)>) = if query.is_empty() {
+    let (url, params): (&str, Vec<(&'static str, String)>) = if query.is_empty() {
         (
             "https://api.pexels.com/v1/curated",
-            vec![("per_page", "1")],
+            vec![("per_page", "1".to_string())],
         )
     } else {
         (
             "https://api.pexels.com/v1/search",
             vec![
-                ("per_page", "1"),
-                ("orientation", "landscape"),
-                ("query", query),
+                ("per_page", "1".to_string()),
+                ("orientation", "landscape".to_string()),
+                ("query", query.to_string()),
             ],
         )
     };
 
-    let res = client
-        .get(url)
-        .query(&params)
-        .header("Authorization", &key)
-        .send()
-        .await
-        .map_err(|e| format!("Pexels request: {}", e))?;
-
-    let status = res.status();
-    if !status.is_success() {
-        return Err(format!("Pexels {}", status));
-    }
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .map_err(|e| format!("parse Pexels response: {}", e))?;
-    let photo = body
-        .get("photos")
-        .and_then(|p| p.as_array())
-        .and_then(|a| a.first())
-        .ok_or_else(|| "Pexels: no photo for this query.".to_string())?;
-    let img_url = photo
-        .pointer("/src/original")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Pexels: no image URL in response".to_string())?;
-    let id = photo
-        .get("id")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-    let title = photo
-        .get("alt")
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let filename = format!("pexels-{}.jpg", id);
-
-    let local_path = download_and_save(img_url, &filename).await?;
-
-    Ok(Wallpaper {
-        path: local_path,
-        source: source_name(SourceKind::Pexels).to_string(),
-        added_at: ms_since_epoch(),
-        prompt: None,
-        title,
-        mode: crate::types::WallpaperMode::Both,
-    })
+    fetch_via_api(
+        SourceKind::Pexels,
+        ApiRequest {
+            label: "Pexels",
+            url: url.to_string(),
+            params,
+            headers: vec![("Authorization", key)],
+        },
+        |body| {
+            let photo = body
+                .get("photos")
+                .and_then(|p| p.as_array())
+                .and_then(|a| a.first())
+                .ok_or_else(|| "Pexels: no photo for this query.".to_string())?;
+            let url = photo
+                .pointer("/src/original")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Pexels: no image URL in response".to_string())?;
+            let id = photo
+                .get("id")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            Ok(ApiImage {
+                url: url.to_string(),
+                filename: format!("pexels-{}.jpg", id),
+                title: photo.get("alt").and_then(|v| v.as_str()).map(String::from),
+            })
+        },
+        http_error("Pexels"),
+    )
+    .await
 }
 
 // Bing's Photo of the Day — a fresh curated landscape daily, no key.
 async fn fetch_bing() -> Result<Wallpaper, String> {
-    let client = http_client()?;
-    let res = client
-        .get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US")
-        .send()
-        .await
-        .map_err(|e| format!("Bing request: {}", e))?;
-    if !res.status().is_success() {
-        return Err(format!("Bing HTTP {}", res.status()));
-    }
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .map_err(|e| format!("parse Bing response: {}", e))?;
-    let img = body
-        .pointer("/images/0")
-        .ok_or_else(|| "Bing: no image in response".to_string())?;
-    // The API returns a site-relative path (already at 1920x1080); resolve
-    // it against the host.
-    let path = img
-        .get("url")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Bing: no image URL".to_string())?;
-    let img_url = format!("https://www.bing.com{}", path);
-    let date = img
-        .get("startdate")
-        .and_then(|v| v.as_str())
-        .unwrap_or("today");
-    let title = img
-        .get("copyright")
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let filename = format!("bing-{}.jpg", date);
-    let local_path = download_and_save(&img_url, &filename).await?;
-    Ok(Wallpaper {
-        path: local_path,
-        source: source_name(SourceKind::Bing).to_string(),
-        added_at: ms_since_epoch(),
-        prompt: None,
-        title,
-        mode: crate::types::WallpaperMode::Both,
-    })
+    fetch_via_api(
+        SourceKind::Bing,
+        ApiRequest {
+            label: "Bing",
+            url: "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US"
+                .to_string(),
+            params: vec![],
+            headers: vec![],
+        },
+        |body| {
+            let img = body
+                .pointer("/images/0")
+                .ok_or_else(|| "Bing: no image in response".to_string())?;
+            // The API returns a site-relative path (already at 1920x1080);
+            // resolve it against the host.
+            let path = img
+                .get("url")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Bing: no image URL".to_string())?;
+            let date = img
+                .get("startdate")
+                .and_then(|v| v.as_str())
+                .unwrap_or("today");
+            Ok(ApiImage {
+                url: format!("https://www.bing.com{}", path),
+                filename: format!("bing-{}.jpg", date),
+                title: img
+                    .get("copyright")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+            })
+        },
+        http_error("Bing"),
+    )
+    .await
 }
 
 // Wallhaven — random SFW "general" result, optionally search-filtered.
 // The API key is optional (anonymous SFW works); a key raises rate limits
 // and ties results to the user's account.
 async fn fetch_wallhaven(settings: &Settings) -> Result<Wallpaper, String> {
-    let client = http_client()?;
     // Empty (legacy settings) falls back to safe defaults.
     let nonempty = |s: &str, default: &'static str| {
         let t = s.trim();
         if t.is_empty() { default.to_string() } else { t.to_string() }
     };
-    let mut params: Vec<(&str, String)> = vec![
+    let mut params: Vec<(&'static str, String)> = vec![
         ("categories", nonempty(&settings.wallhaven_categories, "100")),
         // Cap purity at sfw+sketchy — NSFW would need the user's key and a
         // deliberate opt-in we don't expose. "111" is clamped to "110".
@@ -352,41 +377,39 @@ async fn fetch_wallhaven(settings: &Settings) -> Result<Wallpaper, String> {
             params.push(("apikey", key));
         }
     }
-    let res = client
-        .get("https://wallhaven.cc/api/v1/search")
-        .query(&params)
-        .send()
-        .await
-        .map_err(|e| format!("Wallhaven request: {}", e))?;
-    if !res.status().is_success() {
-        return Err(format!("Wallhaven HTTP {}", res.status()));
-    }
-    let body: serde_json::Value = res
-        .json()
-        .await
-        .map_err(|e| format!("parse Wallhaven response: {}", e))?;
-    let first = body
-        .pointer("/data/0")
-        .ok_or_else(|| "Wallhaven: no results for that search.".to_string())?;
-    let img_url = first
-        .get("path")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Wallhaven: no image path".to_string())?;
-    let id = first.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let ext = if img_url.ends_with(".png") { "png" } else { "jpg" };
-    let filename = format!("wallhaven-{}.{}", id, ext);
-    let local_path = download_and_save(img_url, &filename).await?;
-    Ok(Wallpaper {
-        path: local_path,
-        source: source_name(SourceKind::Wallhaven).to_string(),
-        added_at: ms_since_epoch(),
-        prompt: None,
-        title: None,
-        mode: crate::types::WallpaperMode::Both,
-    })
+
+    fetch_via_api(
+        SourceKind::Wallhaven,
+        ApiRequest {
+            label: "Wallhaven",
+            url: "https://wallhaven.cc/api/v1/search".to_string(),
+            params,
+            headers: vec![],
+        },
+        |body| {
+            let first = body
+                .pointer("/data/0")
+                .ok_or_else(|| "Wallhaven: no results for that search.".to_string())?;
+            let url = first
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Wallhaven: no image path".to_string())?;
+            let id = first.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let ext = if url.ends_with(".png") { "png" } else { "jpg" };
+            Ok(ApiImage {
+                url: url.to_string(),
+                filename: format!("wallhaven-{}.{}", id, ext),
+                title: None,
+            })
+        },
+        http_error("Wallhaven"),
+    )
+    .await
 }
 
-// Lorem Picsum — a random photo at the screen's native resolution. No key.
+// Lorem Picsum — a random photo at the screen's native resolution. No key,
+// no JSON API: the URL redirects straight to an image, so this one stays
+// off the JSON driver.
 async fn fetch_picsum() -> Result<Wallpaper, String> {
     let (w, h) = crate::monitor::get_primary_monitor_pixels()
         .map(|m| (m.width, m.height))
@@ -396,14 +419,7 @@ async fn fetch_picsum() -> Result<Wallpaper, String> {
     let url = format!("https://picsum.photos/{}/{}", w, h);
     let filename = format!("picsum-{}.jpg", ms_since_epoch());
     let local_path = download_and_save(&url, &filename).await?;
-    Ok(Wallpaper {
-        path: local_path,
-        source: source_name(SourceKind::Picsum).to_string(),
-        added_at: ms_since_epoch(),
-        prompt: None,
-        title: None,
-        mode: crate::types::WallpaperMode::Both,
-    })
+    Ok(wallpaper_entry(SourceKind::Picsum, local_path, None))
 }
 
 #[cfg(test)]

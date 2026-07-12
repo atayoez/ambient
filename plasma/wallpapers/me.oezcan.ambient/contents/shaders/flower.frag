@@ -24,8 +24,8 @@ layout(std140, binding = 0) uniform buf {
     vec4 c5;
     float seed;
     float gSize;
-    float p1; // petal count
-    float p2; // twist (fullness) 0..1
+    float p1; // petals
+    float p2; // swirl 0..1
     float p3; // unused
     vec4 t0; // matrix text glyph indices 0-3
     vec4 t1; // 4-7

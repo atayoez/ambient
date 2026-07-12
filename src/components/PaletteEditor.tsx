@@ -4,10 +4,15 @@
 // emoji picker popover state lives here so the click-outside +
 // escape-to-close behaviour is colocated with the trigger.
 
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { MAX_COLORS, MIN_COLORS, type PatternType } from '../lib/patterns';
-import EmojiPicker from './EmojiPicker';
 import { PlusIcon, XIcon } from './Icons';
+
+// Lazy: the picker only mounts while its popover is open, and its chunk
+// carries the full grouped emoji table (~50 KB of data in
+// lib/emojiCategories.json) — code-splitting it keeps all of that off
+// the startup path.
+const EmojiPicker = lazy(() => import('./EmojiPicker'));
 
 interface PaletteEditorProps {
   type: PatternType;
@@ -112,13 +117,15 @@ export default function PaletteEditor({
             +
           </button>
           {pickerOpen && (
-            <EmojiPicker
-              onPick={(emoji) => {
-                if (editIndex === null) onAddEmoji(emoji);
-                else onReplaceEmoji(editIndex, emoji);
-                setPickerOpen(false);
-              }}
-            />
+            <Suspense fallback={null}>
+              <EmojiPicker
+                onPick={(emoji) => {
+                  if (editIndex === null) onAddEmoji(emoji);
+                  else onReplaceEmoji(editIndex, emoji);
+                  setPickerOpen(false);
+                }}
+              />
+            </Suspense>
           )}
         </div>
       </div>

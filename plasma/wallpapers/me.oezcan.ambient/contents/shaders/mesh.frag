@@ -24,7 +24,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 c5;
     float seed;
     float gSize;
-    float p1; // bubble count
+    float p1; // bubbles
     float p2; // softness 0..1
     float p3; // unused
     vec4 t0; // matrix text glyph indices 0-3

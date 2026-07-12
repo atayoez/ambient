@@ -1,6 +1,11 @@
 // i18n + currency controller for the Ambient marketing site.
 // en / de / tr translations + region-based currency detection.
 // Lang choice persists in localStorage; the site is dark-only.
+//
+// Release-specific copy uses the {VERSION} placeholder (substituted like
+// {PRICE}) so a version bump is one edit to SITE_VERSION below — the
+// feature words themselves still change per release, but the number can't
+// go stale in one language and not another.
 
 (function () {
   'use strict';
@@ -10,7 +15,7 @@
     en: {
       nav: { features: 'Features', pricing: 'Pricing', download: 'Download', about: 'About' },
       hero: {
-        eyebrow: 'Matrix rain & CRT patterns, new in 1.3',
+        eyebrow: 'Matrix rain & CRT patterns, new in {VERSION}',
         title: 'Wallpapers',
         titleAccent: 'that move with you.',
         sub: "A small desktop app for your wallpaper. It just got live wallpapers that actually move, and this whole page is one of them. You also get pattern generators, a few photo sources, and an AI generator if you'd rather just describe what you want.",
@@ -22,7 +27,7 @@
         eyebrow: "What's in it",
         patterns: {
           title: 'Twelve pattern generators',
-          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, emoji walls — and new in 1.3, Matrix rain (with your own text) and a CRT test card. Tweak the knobs or hit shuffle until one clicks.',
+          body: 'Mesh gradients, dots, stripes, geometric shapes, flowing lines, waves, aurora, bokeh, petals, emoji walls — and new in {VERSION}, Matrix rain (with your own text) and a CRT test card. Tweak the knobs or hit shuffle until one clicks.',
         },
         sources: {
           title: 'Curated photo sources',
@@ -171,7 +176,7 @@
     de: {
       nav: { features: 'Funktionen', pricing: 'Preis', download: 'Download', about: 'Über' },
       hero: {
-        eyebrow: 'Matrix-Regen & CRT-Muster, neu in 1.3',
+        eyebrow: 'Matrix-Regen & CRT-Muster, neu in {VERSION}',
         title: 'Hintergrundbilder,',
         titleAccent: 'die mit dir mitziehen.',
         sub: 'Eine kleine Desktop-App für dein Hintergrundbild. Neu sind lebende Hintergründe, die sich wirklich bewegen, und diese ganze Seite ist einer davon. Dazu gibt es Muster-Generatoren, ein paar Bildquellen und einen KI-Generator, falls du lieber einfach beschreibst was du willst.',
@@ -183,7 +188,7 @@
         eyebrow: 'Was drin steckt',
         patterns: {
           title: 'Zwölf Muster-Generatoren',
-          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter, Emoji-Wallpaper — und neu in 1.3: Matrix-Regen (mit eigenem Text) und ein CRT-Testbild. An den Reglern drehen oder mischen, bis eins passt.',
+          body: 'Mesh-Gradienten, Punkte, Streifen, geometrische Formen, fließende Linien, Wellen, Aurora, Bokeh, Blütenblätter, Emoji-Wallpaper — und neu in {VERSION}: Matrix-Regen (mit eigenem Text) und ein CRT-Testbild. An den Reglern drehen oder mischen, bis eins passt.',
         },
         sources: {
           title: 'Kuratierte Bildquellen',
@@ -332,7 +337,7 @@
     tr: {
       nav: { features: 'Özellikler', pricing: 'Fiyat', download: 'İndir', about: 'Hakkımda' },
       hero: {
-        eyebrow: "Matrix yağmuru ve CRT desenleri, 1.3'te yeni",
+        eyebrow: "Matrix yağmuru ve CRT desenleri, {VERSION}'te yeni",
         title: 'Seninle hareket eden',
         titleAccent: 'duvar kağıtları.',
         sub: 'Duvar kağıdın için küçük bir masaüstü uygulaması. Artık gerçekten hareket eden canlı duvar kağıtları var, bu sayfanın tamamı da onlardan biri. Ayrıca desen üreticileri, birkaç fotoğraf kaynağı ve istersen ne yazarsan onu üreten bir AI üretici.',
@@ -344,7 +349,7 @@
         eyebrow: 'İçinde neler var',
         patterns: {
           title: 'On iki desen üreticisi',
-          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar, emoji duvar kağıtları — ve 1.3 ile yeni: Matrix yağmuru (kendi metninle) ve CRT test deseni. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
+          body: 'Mesh gradientleri, noktalar, çizgiler, geometrik şekiller, akan çizgiler, dalgalar, aurora, bokeh, yapraklar, emoji duvar kağıtları — ve {VERSION} ile yeni: Matrix yağmuru (kendi metninle) ve CRT test deseni. Ayarlarla oyna ya da karıştır, biri tutana kadar.',
         },
         sources: {
           title: 'Seçili fotoğraf kaynakları',
@@ -568,6 +573,14 @@
     }, dict);
   }
 
+  // The marketing feature-version — bump alongside a release whose copy
+  // references it (the {VERSION} placeholder in the strings above).
+  var SITE_VERSION = '1.3';
+
+  function fill(v, price) {
+    return v.split('{PRICE}').join(price).split('{VERSION}').join(SITE_VERSION);
+  }
+
   function applyLanguage(lang) {
     var dict = I18N[lang] || I18N.en;
     var price = priceString();
@@ -576,12 +589,12 @@
 
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n'));
-      if (typeof v === 'string') el.textContent = v.split('{PRICE}').join(price);
+      if (typeof v === 'string') el.textContent = fill(v, price);
     });
 
     document.querySelectorAll('[data-i18n-html]').forEach(function (el) {
       var v = lookup(dict, el.getAttribute('data-i18n-html'));
-      if (typeof v === 'string') el.innerHTML = v.split('{PRICE}').join(price);
+      if (typeof v === 'string') el.innerHTML = fill(v, price);
     });
 
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {

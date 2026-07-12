@@ -4,8 +4,17 @@
 // its existing PascalCase interfaces unchanged.
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+// Every wire type below also derives ts_rs::TS and exports a TypeScript
+// declaration into src/lib/generated/ (re-exported by src/lib/types.ts),
+// so the frontend types are GENERATED from these structs instead of
+// hand-mirrored. Regenerate with `bun run gen:types` (runs the ts-rs
+// export tests); CI can diff the generated files to catch drift.
+const TS_EXPORT_DIR: &str = "../../../src/lib/generated/";
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "kebab-case")]
 pub enum SourceKind {
     NasaApod,
@@ -16,14 +25,16 @@ pub enum SourceKind {
     Picsum,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "lowercase")]
 pub enum GenProvider {
     Pollinations,
     Openai,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "lowercase")]
 pub enum RotationSource {
     Off,
@@ -31,7 +42,8 @@ pub enum RotationSource {
     Library,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "lowercase")]
 pub enum ThemeMode {
     Auto,
@@ -43,7 +55,8 @@ pub enum ThemeMode {
 /// system theme; `Light`/`Dark` restrict it. The rotation / "Next" pools
 /// are derived from these tags — a light-tagged wallpaper is auto-included
 /// in the light pool.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "lowercase")]
 pub enum WallpaperMode {
     #[default]
@@ -68,7 +81,8 @@ impl WallpaperMode {
 /// the KDE plugin shader's internal render resolution (long edge in px; 0 =
 /// uncapped) and frame rate. `resolve()` produces the numbers the plugin
 /// reads from the spec.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "lowercase")]
 pub enum LiveQuality {
     Performance,
@@ -90,7 +104,8 @@ impl LiveQuality {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub source: SourceKind,
@@ -134,6 +149,7 @@ pub struct Settings {
     // app has one source of truth for real data (drafts stay in the
     // webview's localStorage). `#[serde(default)]` for legacy stores.
     #[serde(default)]
+    #[ts(type = "Array<{ id: string; name: string; colors: string[]; emojis: string[] }>")]
     pub custom_presets: Vec<serde_json::Value>,
     // The active live (animated) wallpaper's PatternConfig, or None when a
     // static wallpaper is set. Kept here (not a separate file) so the
@@ -141,12 +157,14 @@ pub struct Settings {
     // stand down while a live wallpaper owns the desktop. Opaque JSON —
     // Rust only persists it and checks presence; the KDE plugin renders it.
     #[serde(default)]
+    #[ts(type = "unknown")]
     pub live_wallpaper: Option<serde_json::Value>,
     // The last committed static pattern's PatternConfig. Stamped by
     // renderer::apply_pattern so the tray "Random wallpaper" action can
     // re-roll the current pattern's seed without the webview running.
     // Opaque JSON for the same reason as live_wallpaper.
     #[serde(default)]
+    #[ts(type = "unknown")]
     pub last_pattern: Option<serde_json::Value>,
     // Live-wallpaper render quality — caps the KDE plugin shader's internal
     // resolution + fps. `#[serde(default)]` → legacy stores land on Balanced.
@@ -205,7 +223,8 @@ impl Default for Settings {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "camelCase")]
 pub struct Wallpaper {
     pub path: String,
@@ -214,10 +233,15 @@ pub struct Wallpaper {
     // Rust code branches on it; the TS layer presents it as a label,
     // so a String avoids future-proofing churn when new sources arrive.
     pub source: String,
+    // ts-rs maps u64 → bigint by default, but the wire is a JSON number
+    // (ms since epoch, safely < 2^53) and the TS side does arithmetic on it.
+    #[ts(type = "number")]
     pub added_at: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub title: Option<String>,
     // Light/dark eligibility tag. Defaults to Both for legacy entries.
     #[serde(default)]

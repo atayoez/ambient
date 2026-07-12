@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSystemAccentColor } from '../lib/appHooks';
 import {
   useDebouncedValue,
@@ -11,24 +11,17 @@ import {
   accentPreset,
   COLOR_PRESETS,
   type ColorPreset,
-  type CustomPreset,
-  customToColorPreset,
   DEFAULT_CONFIG,
-  GEOMETRIC_SHAPES,
   getPreset,
-  MAX_COLORS,
-  MIN_COLORS,
+  type KnobSpec,
   PATTERN_TYPES,
   type PatternConfig,
   type PatternType,
   randomizedModifiers,
-  randomPalette,
   renderPreview,
-  SLIDER_RANGES,
-  SYSTEM_PRESET_ID,
   TYPE_DEFAULTS,
+  TYPE_SPECS,
 } from '../lib/patterns';
-import { loadSettings, patchSettings } from '../lib/store';
 import { isDarkForMode, type ThemeMode, useSystemDark } from '../lib/theme';
 import {
   ControlRow,
@@ -43,6 +36,7 @@ import LivePreview from './LivePreview';
 import PaletteEditor from './PaletteEditor';
 import { THEME_MODE_OPTIONS } from './themeOptions';
 import { useApplyPattern } from './useApplyPattern';
+import { usePalette } from './usePalette';
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
@@ -64,13 +58,64 @@ function pickInitialConfig(dark: boolean): PatternConfig {
   };
 }
 
-const FILL_OPTIONS = [
-  { id: 'solid', label: 'Solid' },
-  { id: 'outline', label: 'Outline' },
-  { id: 'mix', label: 'Mix' },
-];
-
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+// One manifest knob → its control. Enum knobs render an OptionScroller
+// (choice order = shader wire code, from the manifest), free-text knobs
+// a text input, numeric knobs a slider. `scale` maps 0-1 stored values
+// onto 0-100 "%" sliders; `unit` is a display suffix only. Adding a knob
+// to patternManifest.json is all it takes to get UI, Randomize coverage,
+// and shader packing — nothing per-type lives here anymore.
+function KnobControl({
+  knob,
+  config,
+  patch,
+}: {
+  knob: KnobSpec;
+  config: PatternConfig;
+  patch: (p: Partial<PatternConfig>) => void;
+}) {
+  const raw = (config as unknown as Record<string, unknown>)[knob.key] ?? knob.default;
+  if (knob.choices) {
+    return (
+      <OptionScroller
+        label={knob.label}
+        options={knob.choices}
+        value={(raw ?? '') as string}
+        onChange={(v) => patch({ [knob.key]: v } as Partial<PatternConfig>)}
+        ariaLabel={knob.label}
+      />
+    );
+  }
+  if (knob.kind === 'text') {
+    return (
+      <input
+        type="text"
+        className="matrix-text"
+        value={(raw as string | undefined) ?? ''}
+        onChange={(e) => patch({ [knob.key]: e.target.value } as Partial<PatternConfig>)}
+        placeholder={knob.placeholder}
+        maxLength={knob.maxLength}
+        spellCheck={false}
+        aria-label={knob.label}
+      />
+    );
+  }
+  const scale = knob.scale ?? 1;
+  const min = (knob.min ?? 0) * scale;
+  const max = (knob.max ?? 1) * scale;
+  const value = typeof raw === 'number' ? raw : 0;
+  return (
+    <ControlRow
+      label={knob.label}
+      value={clamp(Math.round(value * scale), min, max)}
+      suffix={knob.unit}
+      min={min}
+      max={max}
+      onChange={(v) => patch({ [knob.key]: v / scale } as Partial<PatternConfig>)}
+    />
+  );
+}
 
 // `active` — whether this is the visible tab. Tabs stay mounted after
 // their first visit, so the window-level shortcuts below must only be
@@ -103,65 +148,8 @@ export default function Patterns({ active = true }: { active?: boolean }) {
     [accentHex],
   );
 
-  // User-saved palettes (colors + emojis) — real data, so Rust-owned
-  // settings (not the localStorage draft KV). Loaded once on mount;
-  // edits update local state and patch settings. Patterns is the only
-  // editor, so no settings-changed subscription is needed. `setCustomPresets`
-  // keeps the functional-update signature the mutators below rely on.
-  const [customPresets, setCustomPresetsState] = useState<CustomPreset[]>([]);
-  const customPresetsRef = useRef<CustomPreset[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void loadSettings().then((s) => {
-      if (cancelled) return;
-      customPresetsRef.current = s.customPresets ?? [];
-      setCustomPresetsState(s.customPresets ?? []);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  const setCustomPresets = useCallback(
-    (update: CustomPreset[] | ((prev: CustomPreset[]) => CustomPreset[])) => {
-      const next =
-        typeof update === 'function' ? update(customPresetsRef.current) : update;
-      customPresetsRef.current = next;
-      setCustomPresetsState(next);
-      // patchSettings → Rust emits `settings-changed`, which App.tsx
-      // forwards onto the typed bus — no manual dispatch needed.
-      void patchSettings({ customPresets: next });
-    },
-    [],
-  );
-
-  // Resolve a colorPresetId across all three sources: the live accent
-  // preset, the user's custom palettes, then the curated built-ins.
-  // Returns undefined when the id maps to nothing anymore (accent gone,
-  // custom deleted) — callers treat that as "demote to a free palette".
-  const resolvePreset = useCallback(
-    (id: string | undefined): ColorPreset | undefined => {
-      if (!id) return undefined;
-      if (id === SYSTEM_PRESET_ID) return systemPreset ?? undefined;
-      const custom = customPresets.find((p) => p.id === id);
-      if (custom) return customToColorPreset(custom);
-      return getPreset(id);
-    },
-    [systemPreset, customPresets],
-  );
-
-  // Picker order: system accent (when present) → custom palettes
-  // (deletable) → curated set. `removable` drives the delete affordance.
-  const displayPresets = useMemo(
-    () => [
-      ...(systemPreset ? [{ preset: systemPreset, removable: false }] : []),
-      ...customPresets.map((c) => ({
-        preset: customToColorPreset(c),
-        removable: true,
-      })),
-      ...COLOR_PRESETS.map((p) => ({ preset: p, removable: false })),
-    ],
-    [systemPreset, customPresets],
-  );
+  // The theme that palette variants resolve against (auto follows the OS).
+  const effectiveDark = isDarkForMode(themeMode, systemDark);
 
   // Apply pipeline (busy/status + the render-save-set flow). Terminal
   // outcomes surface as toasts; `status` is just in-progress text.
@@ -237,23 +225,6 @@ export default function Patterns({ active = true }: { active?: boolean }) {
       });
   }, [previewConfig, previewSize.w, previewSize.h]);
 
-  // Re-apply the active preset's variant when the resolved theme flips.
-  // Custom palettes (where the user manually edited a chip and
-  // colorPresetId got cleared) survive the swap unchanged.
-  const effectiveDark = isDarkForMode(themeMode, systemDark);
-  useEffect(() => {
-    setConfig((c) => {
-      if (!c.colorPresetId) return c;
-      const preset = resolvePreset(c.colorPresetId);
-      // Active preset vanished (accent removed between launches, or a
-      // custom palette deleted) → keep the current colors but drop the
-      // dangling id, so it becomes a free palette instead of snapping
-      // to a curated default on the next theme flip.
-      if (!preset) return { ...c, colorPresetId: undefined };
-      return { ...c, colors: [...(effectiveDark ? preset.dark : preset.light)] };
-    });
-  }, [effectiveDark, resolvePreset, setConfig]);
-
   function patch(p: Partial<PatternConfig>) {
     setConfig((c) => ({ ...c, ...p }));
   }
@@ -262,109 +233,31 @@ export default function Patterns({ active = true }: { active?: boolean }) {
     patch({ type: id, ...TYPE_DEFAULTS[id] });
   }
 
+  // Everything palette: saved custom presets (Rust-owned settings),
+  // preset resolution/picker order, edit handlers, the theme-variant
+  // swap, and the color reroll. See usePalette.ts.
+  const {
+    displayPresets,
+    activeCustom,
+    applyPreset,
+    savePalette,
+    deleteCustomPreset,
+    renameCustomPreset,
+    setColor,
+    addColor,
+    removeColor,
+    addEmoji,
+    removeEmoji,
+    replaceEmoji,
+    rerollColors,
+  } = usePalette({ config, setConfig, patch, effectiveDark, systemPreset });
+
   // Randomize re-rolls EVERY modifier the current generator exposes
   // (counts, sizes, knobs, shape/fill, swirl, …) plus the seed — not
   // just the seed. The set of randomized variables is kept in lockstep
   // with the exposed sliders via randomizedModifiers() in patterns.ts.
   function reroll() {
     patch({ ...randomizedModifiers(config.type), seed: randomSeed() });
-  }
-
-  // Randomize just the colours — a fresh random palette tuned for the
-  // current theme. Clears colorPresetId so it's treated as custom.
-  function rerollColors() {
-    patch({ colors: randomPalette(effectiveDark), colorPresetId: undefined });
-  }
-
-  // Any direct palette edit (chip color change, add, remove) marks the
-  // palette as custom by clearing colorPresetId — that way the theme-
-  // swap effect leaves the user's customization alone.
-  function setColor(i: number, color: string) {
-    patch({
-      colors: config.colors.map((x, idx) => (idx === i ? color : x)),
-      colorPresetId: undefined,
-    });
-  }
-
-  function addColor() {
-    if (config.colors.length >= MAX_COLORS) return;
-    patch({
-      colors: [...config.colors, '#ffffff'],
-      colorPresetId: undefined,
-    });
-  }
-
-  function removeColor(i: number) {
-    if (config.colors.length <= MIN_COLORS) return;
-    patch({
-      colors: config.colors.filter((_, idx) => idx !== i),
-      colorPresetId: undefined,
-    });
-  }
-
-  // Emoji edits mark the palette custom too (matching the color-edit
-  // handlers), so the theme swap leaves it alone and "Save palette"
-  // lights up — a glyph tweak is as much a customization as a hue tweak.
-  function removeEmoji(i: number) {
-    if (config.emojis.length <= 1) return;
-    patch({
-      emojis: config.emojis.filter((_, idx) => idx !== i),
-      colorPresetId: undefined,
-    });
-  }
-
-  function addEmoji(emoji: string) {
-    patch({ emojis: [...config.emojis, emoji], colorPresetId: undefined });
-  }
-
-  function replaceEmoji(i: number, emoji: string) {
-    patch({
-      emojis: config.emojis.map((x, idx) => (idx === i ? emoji : x)),
-      colorPresetId: undefined,
-    });
-  }
-
-  // Capture the current colors + emojis as a named, reusable palette.
-  // Auto-named "Custom N" with N skipping any in-use number so deletes
-  // don't produce duplicate labels. The new palette becomes active.
-  function savePalette() {
-    const used = new Set(customPresets.map((p) => p.name));
-    let n = customPresets.length + 1;
-    while (used.has(`Custom ${n}`)) n++;
-    const preset: CustomPreset = {
-      id: `custom-${crypto.randomUUID()}`,
-      name: `Custom ${n}`,
-      colors: [...config.colors],
-      emojis: [...config.emojis],
-    };
-    setCustomPresets((list) => [...list, preset]);
-    patch({ colorPresetId: preset.id });
-  }
-
-  function deleteCustomPreset(id: string) {
-    setCustomPresets((list) => list.filter((p) => p.id !== id));
-    // If the deleted palette was active, drop the dangling id but keep
-    // its colors on screen (now a free palette).
-    setConfig((c) => (c.colorPresetId === id ? { ...c, colorPresetId: undefined } : c));
-  }
-
-  function renameCustomPreset(id: string, name: string) {
-    setCustomPresets((list) => list.map((p) => (p.id === id ? { ...p, name } : p)));
-  }
-
-  // Selecting a preset sets BOTH the colors (light or dark variant for
-  // the current theme) AND the emojis. The Emoji pattern type picks up
-  // the new emojis on the next render; users who've customized the
-  // emoji string after picking a preset will see those overwritten —
-  // explicit re-pick = explicit reset.
-  function applyPreset(id: string) {
-    const preset = resolvePreset(id);
-    if (!preset) return;
-    patch({
-      colorPresetId: id,
-      colors: [...(effectiveDark ? preset.dark : preset.light)],
-      emojis: [...preset.emojis],
-    });
   }
 
   // Cmd/Ctrl+Enter applies, Cmd/Ctrl+Shift+R re-rolls. Apple desktop
@@ -376,10 +269,6 @@ export default function Patterns({ active = true }: { active?: boolean }) {
   });
   useKeydown('r', () => reroll(), { cmdOrCtrl: true, shift: true, enabled: active });
 
-  const ranges = SLIDER_RANGES[config.type] ?? {};
-  const densityRange = ranges.density;
-  const sizeRange = ranges.size;
-
   const paletteOptions = displayPresets.map(({ preset }) => ({
     id: preset.id,
     label: preset.name,
@@ -387,10 +276,6 @@ export default function Patterns({ active = true }: { active?: boolean }) {
   const activeRemovable = displayPresets.some(
     (d) => d.removable && d.preset.id === config.colorPresetId,
   );
-  // The custom palette currently selected (if any) — drives the rename
-  // field below the palette scroller.
-  const activeCustom = customPresets.find((p) => p.id === config.colorPresetId);
-
   return (
     <div className="patterns">
       {/* Full-bleed live preview is the backdrop; the floating glass
@@ -518,293 +403,9 @@ export default function Patterns({ active = true }: { active?: boolean }) {
           </button>
 
           <div className="pat-sliders">
-            {densityRange && (
-              <ControlRow
-                label={densityRange.label}
-                value={clamp(config.density, densityRange.min, densityRange.max)}
-                min={densityRange.min}
-                max={densityRange.max}
-                onChange={(v) => patch({ density: v })}
-              />
-            )}
-            {sizeRange && (
-              <ControlRow
-                label="Size"
-                value={clamp(config.size, sizeRange.min, sizeRange.max)}
-                min={sizeRange.min}
-                max={sizeRange.max}
-                onChange={(v) => patch({ size: v })}
-              />
-            )}
-            {config.type === 'mesh' && (
-              <>
-                <ControlRow
-                  label="Bubbles"
-                  value={config.meshBubbles ?? 16}
-                  min={6}
-                  max={40}
-                  onChange={(v) => patch({ meshBubbles: v })}
-                />
-                <ControlRow
-                  label="Softness"
-                  value={Math.round((config.meshSoftness ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ meshSoftness: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'geometric' && (
-              <>
-                <OptionScroller
-                  label="Shape"
-                  options={GEOMETRIC_SHAPES}
-                  value={(config.geometricShape ?? 'mix') as string}
-                  onChange={(v) =>
-                    patch({ geometricShape: v as PatternConfig['geometricShape'] })
-                  }
-                  ariaLabel="Shape"
-                />
-                <OptionScroller
-                  label="Fill"
-                  options={FILL_OPTIONS}
-                  value={(config.geometricFill ?? 'solid') as string}
-                  onChange={(v) =>
-                    patch({ geometricFill: v as PatternConfig['geometricFill'] })
-                  }
-                  ariaLabel="Fill"
-                />
-              </>
-            )}
-            {config.type === 'dots' && (
-              <>
-                <ControlRow
-                  label="Scatter"
-                  value={Math.round((config.dotsJitter ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ dotsJitter: v / 100 })}
-                />
-                <ControlRow
-                  label="Size var."
-                  value={Math.round((config.dotsSizeVar ?? 0.7) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ dotsSizeVar: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'stripes' && (
-              <>
-                <ControlRow
-                  label="Angle"
-                  value={clamp(config.stripesAngle ?? 30, 0, 90)}
-                  suffix="°"
-                  min={0}
-                  max={90}
-                  onChange={(v) => patch({ stripesAngle: v })}
-                />
-                <ControlRow
-                  label="Width var."
-                  value={Math.round((config.stripesWidthVar ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ stripesWidthVar: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'emoji' && (
-              <>
-                <ControlRow
-                  label="Spacing"
-                  value={clamp(config.emojiSpacing ?? 175, 50, 300)}
-                  suffix="%"
-                  min={50}
-                  max={300}
-                  onChange={(v) => patch({ emojiSpacing: v })}
-                />
-                <ControlRow
-                  label="Rotation"
-                  value={config.emojiRotationMax ?? 34}
-                  suffix="°"
-                  min={0}
-                  max={90}
-                  onChange={(v) => patch({ emojiRotationMax: v })}
-                />
-                <ControlRow
-                  label="Size var."
-                  value={Math.round((config.emojiSizeVar ?? 0.75) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ emojiSizeVar: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'flower' && (
-              <>
-                <ControlRow
-                  label="Petals"
-                  value={config.flowerPetals ?? 12}
-                  min={5}
-                  max={40}
-                  onChange={(v) => patch({ flowerPetals: v })}
-                />
-                <ControlRow
-                  label="Swirl"
-                  value={Math.round((config.flowerTwist ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ flowerTwist: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'flow' && (
-              <>
-                <ControlRow
-                  label="Lines"
-                  value={config.flowLines ?? 28}
-                  min={6}
-                  max={120}
-                  onChange={(v) => patch({ flowLines: v })}
-                />
-                <ControlRow
-                  label="Amplitude"
-                  value={Math.round((config.flowAmplitude ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ flowAmplitude: v / 100 })}
-                />
-                <ControlRow
-                  label="Frequency"
-                  value={Math.round((config.flowFrequency ?? 0.4) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ flowFrequency: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'waves' && (
-              <>
-                <ControlRow
-                  label="Layers"
-                  value={config.wavesLayers ?? 7}
-                  min={3}
-                  max={20}
-                  onChange={(v) => patch({ wavesLayers: v })}
-                />
-                <ControlRow
-                  label="Amplitude"
-                  value={Math.round((config.wavesAmplitude ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ wavesAmplitude: v / 100 })}
-                />
-                <ControlRow
-                  label="Frequency"
-                  value={Math.round((config.wavesFrequency ?? 0.4) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ wavesFrequency: v / 100 })}
-                />
-              </>
-            )}
-            {config.type === 'aurora' && (
-              <>
-                <ControlRow
-                  label="Bands"
-                  value={config.auroraBands ?? 5}
-                  min={3}
-                  max={14}
-                  onChange={(v) => patch({ auroraBands: v })}
-                />
-                <ControlRow
-                  label="Spread"
-                  value={Math.round((config.auroraSpread ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ auroraSpread: v / 100 })}
-                />
-                <ControlRow
-                  label="Sway"
-                  value={Math.round((config.auroraAmplitude ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ auroraAmplitude: v / 100 })}
-                />
-              </>
-            )}
-
-            {config.type === 'matrix' && (
-              <>
-                <input
-                  type="text"
-                  className="matrix-text"
-                  value={config.matrixText ?? ''}
-                  onChange={(e) => patch({ matrixText: e.target.value })}
-                  placeholder="Custom text (optional)"
-                  maxLength={15}
-                  spellCheck={false}
-                  aria-label="Matrix rain text"
-                />
-                <ControlRow
-                  label="Trail"
-                  value={Math.round((config.matrixTrail ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ matrixTrail: v / 100 })}
-                />
-                <ControlRow
-                  label="Speed"
-                  value={Math.round((config.matrixSpeed ?? 0.5) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ matrixSpeed: v / 100 })}
-                />
-              </>
-            )}
-
-            {config.type === 'crt' && (
-              <>
-                <ControlRow
-                  label="Scanlines"
-                  value={Math.round((config.crtScanlines ?? 0.6) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ crtScanlines: v / 100 })}
-                />
-                <ControlRow
-                  label="Curvature"
-                  value={Math.round((config.crtCurvature ?? 0.4) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ crtCurvature: v / 100 })}
-                />
-                <ControlRow
-                  label="Noise"
-                  value={Math.round((config.crtNoise ?? 0.25) * 100)}
-                  suffix="%"
-                  min={0}
-                  max={100}
-                  onChange={(v) => patch({ crtNoise: v / 100 })}
-                />
-              </>
-            )}
+            {(TYPE_SPECS[config.type]?.knobs ?? []).map((k) => (
+              <KnobControl key={k.key} knob={k} config={config} patch={patch} />
+            ))}
 
             {/* Randomizers live in the control pane — both are
                 per-pattern now (the modifiers + the palette), not global

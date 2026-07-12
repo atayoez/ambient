@@ -16,6 +16,11 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
+[build-dependencies]
+# build.rs parses src/lib/patternManifest.json into generated knob-default
+# consts (pattern_manifest.rs). Same crate as the runtime dep below.
+serde_json = "1"
+
 [dependencies]
 # Rust-side HTTP client for license validation, source APIs (NASA,
 # Bing, Unsplash, Pexels, Wallhaven, Picsum), AI generation
@@ -55,6 +60,7 @@ keyring-core = "1"
 directories = "6"
 # secrets.rs fallback warn!.
 tracing = "0.1"
+ts-rs = { version = "12.0.1", features = ["serde-json-impl"] }
 
 # Cross-platform OS wallpaper-set — desktop OSes only. Mobile targets
 # route through the shell-registered setter instead

@@ -17,7 +17,7 @@ Repo: [github.com/atayoez/ambient](https://github.com/atayoez/ambient) (propriet
 - `assets/` — `app-icon.svg` + `app-icon.png` (1024×1024 cosmic squircle with an aurora ribbon across the lower half). The only brand mark Ambient has.
 - `preview/` — 24 static HTML cards covering every primitive (palettes, surfaces, type, radii, shadows, blur, motion, buttons, inputs, chips, tabs, library cards, empty/status/toast, iconography). Use these for visual cross-reference.
 - `ui_kits/desktop_app/` — a full click-through React recreation of the Ambient window. `index.html` boots without a build step. Read its `README.md` for component coverage.
-- `reference/` — read-only copies of the original Ambient source (CSS + key component JSX + README). Source of truth.
+- `reference/` — a FROZEN v0-era snapshot of the Ambient source (CSS + key component JSX + README), kept for design-archaeology only. It predates most of the current app (12 pattern types, the live-wallpaper system, the website, the settings architecture) — for anything current, the live code under `src/` and `design-system/colors_and_type.css` is the source of truth, not these copies.
 
 ## When you're asked to design
 

@@ -25,8 +25,8 @@ layout(std140, binding = 0) uniform buf {
     float seed;
     float gSize;
     float p1; // density
-    float p2; // jitter 0..1
-    float p3; // size variance 0..1
+    float p2; // scatter 0..1
+    float p3; // size var. 0..1
     vec4 t0; // matrix text glyph indices 0-3
     vec4 t1; // 4-7
     vec4 t2; // 8-11

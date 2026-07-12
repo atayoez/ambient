@@ -1,5 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useRef, useState } from 'react';
+import { useSettings } from '../lib/appHooks';
 import { listen } from '../lib/events';
 import {
   useDebouncedCallback,
@@ -8,13 +9,8 @@ import {
 } from '../lib/hooks';
 import { useSecret } from '../lib/secrets';
 import { fetchSourceWallpaper } from '../lib/sources';
-import { loadLibrary, loadSettings } from '../lib/store';
-import {
-  DEFAULT_SETTINGS,
-  type Settings,
-  type SourceKind,
-  type Wallpaper,
-} from '../lib/types';
+import { loadLibrary } from '../lib/store';
+import type { Settings, SourceKind, Wallpaper } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
 import { Field, IconButton, OptionScroller, StatusInline, toast } from '../ui';
 import { CheckIcon, RefreshIcon } from './Icons';
@@ -109,7 +105,8 @@ async function mostRecentFromSource(source: SourceKind): Promise<Wallpaper | nul
 // `active` — whether this is the visible tab; gates the window-level
 // shortcuts below (tabs stay mounted after their first visit).
 export default function Sources({ active = true }: { active?: boolean }) {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  // null until the Rust-owned settings load (a ~ms RAM read).
+  const [settings, setSettings] = useSettings();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
@@ -134,22 +131,25 @@ export default function Sources({ active = true }: { active?: boolean }) {
   // One search draft for whichever source is active (commit-on-Enter/blur).
   const [queryDraft, setQueryDraft] = useState('');
 
-  function canFetch(s: Settings = settings): boolean {
+  function canFetch(s: Settings | null = settings): boolean {
+    if (!s) return false; // settings not loaded yet
     const meta = sourceMeta(s.source);
     if (meta.requiresKey === 'unsplash_key') return unsplashKey.trim().length > 0;
     if (meta.requiresKey === 'pexels_key') return pexelsKey.trim().length > 0;
     return true; // NASA, Bing, Picsum, Wallhaven (key optional)
   }
 
+  // Once the settings land (useSettings), do the one-time cache lookup
+  // for the active source. The ref gate keeps this from re-running on
+  // later optimistic settings updates.
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (!settings || initializedRef.current) return;
+    initializedRef.current = true;
+    prevSource.current = settings.source;
     let cancelled = false;
     (async () => {
-      const s = await loadSettings();
-      if (cancelled) return;
-      setSettings(s);
-      prevSource.current = s.source;
-
-      const recent = await mostRecentFromSource(s.source);
+      const recent = await mostRecentFromSource(settings.source);
       if (cancelled) return;
       if (recent) {
         setPreviewPath(recent.path);
@@ -164,7 +164,7 @@ export default function Sources({ active = true }: { active?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [settings]);
 
   // Auto-fetch on first mount once secrets have loaded (Unsplash/Pexels
   // need the key in local state to satisfy canFetch). Also gated on the
@@ -178,25 +178,26 @@ export default function Sources({ active = true }: { active?: boolean }) {
     autoFetchedRef.current = true;
     void fetchNew(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secretsLoaded, cacheChecked, previewPath, settings.source]);
+  }, [secretsLoaded, cacheChecked, previewPath, settings?.source]);
 
   useEffect(() => {
-    if (prevSource.current === null) return;
+    if (!settings || prevSource.current === null) return;
     if (prevSource.current === settings.source) return;
-    prevSource.current = settings.source;
+    const source = settings.source;
+    prevSource.current = source;
     void (async () => {
       // Switching source shows that source's cached image instantly if we
       // have one; otherwise auto-fetch a fresh one (debounced, so flicking
       // through the scroller only fetches the source you settle on). This
       // is why landing on a fresh source like Wallhaven now loads a
       // preview instead of sitting empty.
-      const recent = await mostRecentFromSource(settings.source);
+      const recent = await mostRecentFromSource(source);
       setPreviewPath(recent?.path ?? null);
       setPreviewMeta(recent ?? null);
       if (!recent) scheduleAutoFetch();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.source]);
+  }, [settings?.source]);
 
   useEffect(() => {
     // When rotation fires from outside the Sources tab (auto-rotate timer
@@ -214,16 +215,18 @@ export default function Sources({ active = true }: { active?: boolean }) {
   // Mirror the active source's stored query into the draft whenever the
   // source (or any stored query) changes.
   useEffect(() => {
+    if (!settings) return;
     const field = sourceMeta(settings.source).queryField;
     setQueryDraft(field ? settings[field] : '');
   }, [
-    settings.source,
-    settings.unsplashQuery,
-    settings.pexelsQuery,
-    settings.wallhavenQuery,
+    settings?.source,
+    settings?.unsplashQuery,
+    settings?.pexelsQuery,
+    settings?.wallhavenQuery,
   ]);
 
   function commitQuery() {
+    if (!settings) return;
     const field = sourceMeta(settings.source).queryField;
     if (!field) return;
     const trimmed = queryDraft.trim();
@@ -242,7 +245,7 @@ export default function Sources({ active = true }: { active?: boolean }) {
   const queuePatch = useDebouncedSettingsPatch(() => toast.success('Saved'));
 
   function update(patch: Partial<Settings>) {
-    setSettings((s) => ({ ...s, ...patch }));
+    setSettings((s) => (s ? { ...s, ...patch } : s));
     queuePatch(patch);
   }
 
@@ -310,6 +313,10 @@ export default function Sources({ active = true }: { active?: boolean }) {
     shift: true,
     enabled: active,
   });
+
+  // Settings haven't loaded yet (first frame) — all hooks are above, so
+  // the early return is safe.
+  if (!settings) return null;
 
   const meta = sourceMeta(settings.source);
   const emptyMessage = canFetch(settings)

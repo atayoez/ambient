@@ -1,9 +1,9 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSettings } from '../lib/appHooks';
 import { listen } from '../lib/events';
 import {
   loadLibrary,
-  loadSettings,
   patchSettings,
   removeFromLibrary,
   removeLibraryOrphans,
@@ -11,12 +11,7 @@ import {
 } from '../lib/store';
 import type { ThemeMode } from '../lib/theme';
 import { toast } from '../lib/toast';
-import {
-  DEFAULT_SETTINGS,
-  type Settings,
-  type Wallpaper,
-  type WallpaperMode,
-} from '../lib/types';
+import type { Wallpaper, WallpaperMode } from '../lib/types';
 import { deleteWallpaper, listLocalWallpapers, setWallpaper } from '../lib/wallpaper';
 import { Button, IconButton, OptionScroller, SegmentedIcons } from '../ui';
 import { CheckIcon, MoonIcon, SunIcon, TrashIcon, XIcon } from './Icons';
@@ -37,8 +32,11 @@ export default function Library() {
   // useApplyPattern uses this same ref pattern).
   const busyRef = useRef(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const currentPath = settings.lastApplied ?? null;
+  // Rust-owned settings, kept live via settings-changed (rotation and the
+  // tray stamp lastApplied). Null for the first frame — the library list
+  // renders regardless; only the applied-badge/theme chip wait on it.
+  const [settings, setSettings] = useSettings({ subscribe: true });
+  const currentPath = settings?.lastApplied ?? null;
   // Which wallpaper the carousel is showing. Null until the library loads;
   // defaults to the applied one so you land on what's live.
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -62,21 +60,6 @@ export default function Library() {
     })();
     return () => {
       cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function reload() {
-      const s = await loadSettings();
-      if (cancelled) return;
-      setSettings(s);
-    }
-    void reload();
-    const unsub = listen('settings-changed', () => void reload());
-    return () => {
-      cancelled = true;
-      unsub();
     };
   }, []);
 
@@ -256,7 +239,7 @@ export default function Library() {
             <span className="opt-scroller-eyebrow">Theme</span>
             <SegmentedIcons
               options={THEME_MODE_OPTIONS}
-              value={settings.themeMode}
+              value={settings?.themeMode ?? 'auto'}
               onChange={onChangeThemeMode}
               ariaLabel="Theme mode"
             />

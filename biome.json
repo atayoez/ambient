@@ -54,6 +54,7 @@
       "design-system/**/*.css",
       "vite.config.ts",
       "*.json",
+      "!src/lib/generated",
       "!!**/dist",
       "!!**/build-dir",
       "!!**/src-tauri/target",

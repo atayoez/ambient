@@ -11,9 +11,56 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen as listenTauri } from '@tauri-apps/api/event';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
+import { listen } from './events';
 import { getStartupLicense, type LicenseInfo } from './license';
+import { loadSettings } from './store';
+import type { Settings } from './types';
 import { checkForUpdate, type UpdateInfo } from './updater';
+
+// ---------------------------------------------------------------------
+// Settings (Rust-owned): load + optional live subscription
+// ---------------------------------------------------------------------
+
+// One shared way to get the Rust-owned Settings into a component: null
+// until the first get_settings resolves (a ~ms RAM read — render nothing
+// or a skeleton for that frame), then the loaded value. This replaced the
+// per-component copies that seeded useState with a hand-mirrored
+// DEFAULT_SETTINGS object; Rust's serde defaults (types.rs) are the only
+// source of default values now.
+//
+// Pass { subscribe: true } to also reload on the settings-changed bus
+// event. Writers that keep optimistic local state + debounced patches
+// should NOT subscribe — reloading on their own event echo could clobber
+// a newer local value with the older persisted one mid-debounce.
+export function useSettings(
+  opts: { subscribe?: boolean } = {},
+): [Settings | null, Dispatch<SetStateAction<Settings | null>>] {
+  const { subscribe = false } = opts;
+  const [settings, setSettings] = useState<Settings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      void loadSettings().then((s) => {
+        if (!cancelled) setSettings(s);
+      });
+    load();
+    const unsub = subscribe ? listen('settings-changed', load) : null;
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
+  }, [subscribe]);
+
+  return [settings, setSettings];
+}
 
 // ---------------------------------------------------------------------
 // License gate

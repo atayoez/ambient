@@ -25,7 +25,7 @@ layout(std140, binding = 0) uniform buf {
     float seed;
     float gSize;
     float p1; // angle (deg)
-    float p2; // width variance 0..1
+    float p2; // width var. 0..1
     float p3; // unused
     vec4 t0; // matrix text glyph indices 0-3
     vec4 t1; // 4-7

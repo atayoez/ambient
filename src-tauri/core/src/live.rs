@@ -86,6 +86,25 @@ async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
         // Timer, WebGL runner, emoji drift) scale their clocks by it.
         obj.insert("speed".to_string(), serde_json::json!(settings.animation_speed));
     }
+
+    // Resolve the per-type knobs into the shader's p1/p2/p3 uniforms (and
+    // the matrix text glyph slots) HERE, so the KDE plugin's QML reads
+    // plain numbers instead of carrying its own copy of the knob→uniform
+    // mapping and defaults. One resolver (renderer::knobs, driven by
+    // patternManifest.json) serves the GPU still path and every live spec.
+    if let Ok(cfg) = serde_json::from_value::<crate::renderer::PatternConfig>(config.clone()) {
+        let (p1, p2, p3) = crate::renderer::knobs(&cfg);
+        let slots: Vec<f32> = crate::renderer::matrix_text_slots(cfg.matrix_text.as_deref())
+            .into_iter()
+            .flatten()
+            .collect();
+        if let Some(obj) = spec_value.as_object_mut() {
+            obj.insert("p1".to_string(), serde_json::json!(p1));
+            obj.insert("p2".to_string(), serde_json::json!(p2));
+            obj.insert("p3".to_string(), serde_json::json!(p3));
+            obj.insert("textSlots".to_string(), serde_json::json!(slots));
+        }
+    }
     serde_json::to_string(&spec_value).map_err(|e| format!("serialize live spec: {e}"))
 }
 

@@ -24,7 +24,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 c5;
     float seed;
     float gSize;
-    float p1; // density
+    float p1; // shape count
     float p2; // shape code
     float p3; // fill code
     vec4 t0; // matrix text glyph indices 0-3

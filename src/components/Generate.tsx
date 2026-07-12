@@ -1,14 +1,10 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 import { generateWallpaper, pollinationsModels } from '../lib/aigen';
+import { useSettings } from '../lib/appHooks';
 import { useDebouncedSettingsPatch, useDraftState, useKeydown } from '../lib/hooks';
-import { loadSettings, patchSettings } from '../lib/store';
-import {
-  DEFAULT_SETTINGS,
-  type GenProvider,
-  type GenResolution,
-  type Settings,
-} from '../lib/types';
+import { patchSettings } from '../lib/store';
+import type { GenProvider, GenResolution, Settings } from '../lib/types';
 import { setWallpaper } from '../lib/wallpaper';
 import { Field, IconButton, OptionScroller, StatusInline, toast } from '../ui';
 import { WandIcon } from './Icons';
@@ -36,7 +32,8 @@ const DEFAULT_PROMPT = 'a calm misty mountain valley at dawn, painterly, soft li
 // `active` — whether this is the visible tab; gates the window-level
 // Cmd+Enter shortcut (tabs stay mounted after their first visit).
 export default function Generate({ active = true }: { active?: boolean }) {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  // null until the Rust-owned settings load (a ~ms RAM read).
+  const [settings, setSettings] = useSettings();
   const [models, setModels] = useState<string[]>(FALLBACK_MODELS);
   // generate.prompt + generate.lastResult are draft state: typing into
   // the prompt or getting a result back stays in memory until the user
@@ -53,7 +50,6 @@ export default function Generate({ active = true }: { active?: boolean }) {
   );
 
   useEffect(() => {
-    loadSettings().then(setSettings);
     // Pull Pollinations' live model catalogue. The set is server-owned
     // (it has shrunk over time), so we render exactly what's offered
     // instead of a hardcoded list. Best-effort: keep the fallback on
@@ -68,27 +64,28 @@ export default function Generate({ active = true }: { active?: boolean }) {
   // If the stored model isn't in the live list (service dropped it, or
   // it was the old made-up default), fall back to the first offered one
   // so the scroller shows a real, selectable value.
-  const activeModel = models.includes(settings.pollinationsModel)
-    ? settings.pollinationsModel
-    : (models[0] ?? 'flux');
+  const activeModel =
+    settings && models.includes(settings.pollinationsModel)
+      ? settings.pollinationsModel
+      : (models[0] ?? 'flux');
 
   // Persist the reconciliation: when the live list lands and the stored
   // model isn't in it, write the first real one back so generation uses
   // what the scroller shows (the Rust side reads settings, not activeModel).
   useEffect(() => {
-    if (models.length && !models.includes(settings.pollinationsModel)) {
+    if (settings && models.length && !models.includes(settings.pollinationsModel)) {
       void patchSettings({ pollinationsModel: models[0] }).then(() => {
-        setSettings((s) => ({ ...s, pollinationsModel: models[0] }));
+        setSettings((s) => (s ? { ...s, pollinationsModel: models[0] } : s));
       });
     }
-  }, [models, settings.pollinationsModel]);
+  }, [models, settings, setSettings]);
 
   // Coalesced 400ms settings writes; the Rust-emitted settings-changed
   // event (bridged in App.tsx) notifies every other consumer.
   const queuePatch = useDebouncedSettingsPatch();
 
   function update(patch: Partial<Settings>) {
-    setSettings((s) => ({ ...s, ...patch }));
+    setSettings((s) => (s ? { ...s, ...patch } : s));
     queuePatch(patch);
   }
 
@@ -120,6 +117,10 @@ export default function Generate({ active = true }: { active?: boolean }) {
   // Cmd/Ctrl+Enter kicks off a generation from anywhere in the tab —
   // but only while this is the visible tab.
   useKeydown('Enter', () => void go(), { cmdOrCtrl: true, enabled: active });
+
+  // Settings haven't loaded yet (first frame) — nothing meaningful to
+  // show. All hooks are above, so the early return is safe.
+  if (!settings) return null;
 
   return (
     <div className="generate">

@@ -5,8 +5,8 @@
 // window (WebGL) and Android (GLES). Degrades cleanly: returns null when
 // WebGL2 is unavailable so callers can fall back to the static <img>.
 
-import { GEOMETRIC_SHAPES, type PatternConfig, type PatternType } from './patterns';
-import { FRAG_SHADERS, matrixTextSlots, VERT_SHADER } from './shaders';
+import { type PatternConfig, type PatternType, TYPE_SPECS } from './patterns';
+import { FRAG_SHADERS, matrixTextSlots, SHADER_MAX_COLORS, VERT_SHADER } from './shaders';
 
 // Preview defaults, used when the config doesn't carry explicit caps:
 // cap the backing resolution — wallpaper-smoothness isn't needed for an
@@ -67,49 +67,33 @@ function hexToRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-// Geometric's shape pool + fill mode are enums; the shader takes numbers, so
-// encode them into p2/p3 here (decoded in shaders.ts / main.qml GEOMETRIC).
-// Derived from GEOMETRIC_SHAPES: the index in that list IS the numeric code
-// the Rust/QML side decodes ('mix' = 0 … 'plus' = 6) — the list's order is
-// a wire contract, see the comment on GEOMETRIC_SHAPES in patterns.ts.
-const GEO_SHAPE_CODE: Record<string, number> = Object.fromEntries(
-  GEOMETRIC_SHAPES.map((s, i) => [s.id, i]),
-);
-const GEO_FILL_CODE: Record<string, number> = { solid: 0, outline: 1, mix: 2 };
+// Per-type knob mapping → (p1, p2, p3), driven entirely by the manifest's
+// uniform tags (patternManifest.json via TYPE_SPECS). Enum knobs encode as
+// their choice index — the index IS the numeric wire code the shaders
+// decode, see the manifest comment. Numeric knobs pass through, falling
+// back to their manifest default when a persisted config predates the
+// field. The Rust packer (renderer::knobs) resolves the same manifest, so
+// the two can't drift.
+const UNIFORM_SLOT = { p1: 0, p2: 1, p3: 2 } as const;
 
-// Per-type knob mapping → (p1, p2, p3). Mirrors the uniform contract in
-// shaders.ts. Defaults match the Rust renderer's unwrap_or values.
 function knobs(c: PatternConfig): [number, number, number] {
-  switch (c.type) {
-    case 'flow':
-      return [c.flowLines ?? 28, c.flowAmplitude ?? 0.5, c.flowFrequency ?? 0.4];
-    case 'waves':
-      return [c.wavesLayers ?? 7, c.wavesAmplitude ?? 0.5, c.wavesFrequency ?? 0.4];
-    case 'aurora':
-      return [c.auroraBands ?? 5, c.auroraAmplitude ?? 0.5, c.auroraSpread ?? 0.5];
-    case 'dots':
-      return [c.density ?? 18, c.dotsJitter ?? 0.5, c.dotsSizeVar ?? 0.7];
-    case 'bokeh':
-      return [c.density ?? 22, 0, 0];
-    case 'stripes':
-      return [c.stripesAngle ?? 30, c.stripesWidthVar ?? 0.5, 0];
-    case 'geometric':
-      return [
-        c.density ?? 40,
-        GEO_SHAPE_CODE[c.geometricShape ?? 'mix'] ?? 0,
-        GEO_FILL_CODE[c.geometricFill ?? 'solid'] ?? 0,
-      ];
-    case 'flower':
-      return [c.flowerPetals ?? 12, c.flowerTwist ?? 0.5, 0];
-    case 'mesh':
-      return [c.meshBubbles ?? 16, c.meshSoftness ?? 0.5, 0];
-    case 'matrix':
-      return [c.density ?? 48, c.matrixTrail ?? 0.5, c.matrixSpeed ?? 0.5];
-    case 'crt':
-      return [c.crtScanlines ?? 0.6, c.crtCurvature ?? 0.4, c.crtNoise ?? 0.25];
-    default:
-      return [1, 0.5, 0.5];
+  const out: [number, number, number] = [0, 0, 0];
+  const spec = TYPE_SPECS[c.type];
+  if (!spec) return out;
+  for (const k of spec.knobs) {
+    if (!k.uniform) continue;
+    const raw = (c as unknown as Record<string, unknown>)[k.key] ?? k.default;
+    out[UNIFORM_SLOT[k.uniform]] = k.choices
+      ? // Unknown/legacy enum value → code 0 (mix/solid), like the old maps.
+        Math.max(
+          0,
+          k.choices.findIndex((ch) => ch.id === raw),
+        )
+      : typeof raw === 'number'
+        ? raw
+        : 0;
   }
+  return out;
 }
 
 function compileShader(
@@ -160,7 +144,7 @@ export function startLiveShader(
   let timeSec = 0;
   let lastRenderMs = -1;
   let disposed = false;
-  const colorBuf = new Float32Array(8 * 3);
+  const colorBuf = new Float32Array(SHADER_MAX_COLORS * 3);
 
   const vbo = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -236,7 +220,7 @@ export function startLiveShader(
 
     const list = config.colors ?? [];
     const last = list.length > 0 ? list[list.length - 1] : '#000000';
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < SHADER_MAX_COLORS; i++) {
       const [r, g, b] = hexToRgb(list[i] ?? last);
       colorBuf[i * 3] = r;
       colorBuf[i * 3 + 1] = g;
@@ -246,7 +230,10 @@ export function startLiveShader(
     gl.uniform2f(uniforms.u_resolution ?? null, canvas.width, canvas.height);
     gl.uniform1f(uniforms.u_time ?? null, timeSec);
     gl.uniform3fv(uniforms.u_colors ?? null, colorBuf);
-    gl.uniform1i(uniforms.u_colorCount ?? null, Math.max(1, Math.min(8, list.length)));
+    gl.uniform1i(
+      uniforms.u_colorCount ?? null,
+      Math.max(1, Math.min(SHADER_MAX_COLORS, list.length)),
+    );
     gl.uniform1f(uniforms.u_seed ?? null, config.seed ?? 0);
     gl.uniform1f(uniforms.u_size ?? null, config.size ?? 80);
     gl.uniform1f(uniforms.u_p1 ?? null, p1);
