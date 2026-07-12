@@ -45,6 +45,10 @@ WRANGLER="bunx wrangler@4"
 
 if [[ -n "$CI_RUN" ]]; then
   echo "==> Downloading CI artifacts from run $CI_RUN"
+  # Wipe the previous download first: filenames differ across versions
+  # (Ambient_1.3.0_*.dmg vs 1.4.0), so a merge would leave both and
+  # stage() grabs whichever find returns first.
+  rm -rf "$SRC/ambient-macos-latest-aarch64"
   gh run download "$CI_RUN" --dir "$SRC" --pattern 'ambient-*' || echo "   (no CI artifacts; continuing partial)"
 fi
 

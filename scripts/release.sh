@@ -179,6 +179,12 @@ fi
 # at the previous release until CI's macOS build is folded in (the
 # scheduled publish-macos run, or `publish-local.sh $VERSION --ci-run <id>`).
 
+# A previous release's --ci-run download leaves its macOS artifacts in
+# build-out/; publish-local.sh stages whatever it finds there, which would
+# ship the OLD macOS binary under this version's filenames. Wipe it so
+# macOS genuinely stays "previous release" in the manifest until fold-in.
+rm -rf "$REPO_ROOT/build-out/ambient-macos-latest-aarch64"
+
 echo "==> Building local platforms (Linux + Windows)"
 bash "$REPO_ROOT/scripts/build-local.sh"
 
