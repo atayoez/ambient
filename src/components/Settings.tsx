@@ -13,7 +13,14 @@ import { getStartupLicense, type LicenseInfo } from '../lib/license';
 import { useSecret } from '../lib/secrets';
 import { patchSettings } from '../lib/store';
 import { toast } from '../lib/toast';
-import type { Settings as AppSettings, LiveQuality, RotationSource } from '../lib/types';
+import type {
+  Settings as AppSettings,
+  ClockPosition,
+  ClockSize,
+  LiveClock,
+  LiveQuality,
+  RotationSource,
+} from '../lib/types';
 import {
   canSelfUpdate,
   checkForUpdateManual,
@@ -53,6 +60,24 @@ const SPEED_OPTIONS: { id: string; label: string }[] = [
   { id: '1', label: '1×' },
   { id: '1.5', label: '1.5×' },
   { id: '2', label: '2×' },
+];
+
+// Live-clock overlay. Ids are the Rust enums' serde names (types.rs).
+const CLOCK_POSITION_OPTIONS: { id: ClockPosition; label: string }[] = [
+  { id: 'top-left', label: 'Top left' },
+  { id: 'top-right', label: 'Top right' },
+  { id: 'center', label: 'Center' },
+  { id: 'bottom-left', label: 'Bottom left' },
+  { id: 'bottom-right', label: 'Bottom right' },
+];
+const CLOCK_SIZE_OPTIONS: { id: ClockSize; label: string }[] = [
+  { id: 'small', label: 'Small' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'large', label: 'Large' },
+];
+const CLOCK_FORMAT_OPTIONS: { id: '24' | '12'; label: string }[] = [
+  { id: '24', label: '24-hour' },
+  { id: '12', label: '12-hour' },
 ];
 
 // Saved-wallpaper cache cap. Rust evicts oldest-first past the limit
@@ -153,6 +178,14 @@ export default function Settings() {
 
   async function setAnimationSpeed(v: string) {
     await patch({ animationSpeed: Number(v) });
+    await reapplyLive();
+  }
+
+  // The clock is one nested object; patch it whole so Rust's struct
+  // deserialization never sees a partial. Re-apply so the desktop updates.
+  async function setClock(p: Partial<LiveClock>) {
+    if (!settings) return;
+    await patch({ liveClock: { ...settings.liveClock, ...p } });
     await reapplyLive();
   }
 
@@ -392,6 +425,73 @@ export default function Settings() {
               ariaLabel="Live wallpaper animation speed"
             />
           </div>
+          <div className="set-row">
+            <span>Live clock</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={settings.liveClock.enabled}
+                onChange={(e) => void setClock({ enabled: e.target.checked })}
+                aria-label="Show a clock on the live wallpaper"
+              />
+              <span className="switch-track" />
+            </label>
+          </div>
+          {settings.liveClock.enabled && (
+            <>
+              <div className="set-row">
+                <span>Clock position</span>
+                <OptionScroller
+                  options={CLOCK_POSITION_OPTIONS}
+                  value={settings.liveClock.position}
+                  onChange={(v) => void setClock({ position: v })}
+                  ariaLabel="Live clock position"
+                />
+              </div>
+              <div className="set-row">
+                <span>Clock size</span>
+                <OptionScroller
+                  options={CLOCK_SIZE_OPTIONS}
+                  value={settings.liveClock.size}
+                  onChange={(v) => void setClock({ size: v })}
+                  ariaLabel="Live clock size"
+                />
+              </div>
+              <div className="set-row">
+                <span>Time format</span>
+                <OptionScroller
+                  options={CLOCK_FORMAT_OPTIONS}
+                  value={settings.liveClock.hour12 ? '12' : '24'}
+                  onChange={(v) => void setClock({ hour12: v === '12' })}
+                  ariaLabel="Live clock time format"
+                />
+              </div>
+              <div className="set-row">
+                <span>Show seconds</span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={settings.liveClock.showSeconds}
+                    onChange={(e) => void setClock({ showSeconds: e.target.checked })}
+                    aria-label="Show seconds on the live clock"
+                  />
+                  <span className="switch-track" />
+                </label>
+              </div>
+              <div className="set-row">
+                <span>Show date</span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={settings.liveClock.showDate}
+                    onChange={(e) => void setClock({ showDate: e.target.checked })}
+                    aria-label="Show the date under the live clock"
+                  />
+                  <span className="switch-track" />
+                </label>
+              </div>
+            </>
+          )}
           <div className="set-row">
             <span>Wallpaper cache limit</span>
             <OptionScroller

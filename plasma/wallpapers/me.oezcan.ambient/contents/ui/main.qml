@@ -34,6 +34,11 @@ WallpaperItem {
         ? spec.colors : ["#000000"]
 
     function colorAt(i) { return i < pcolors.length ? pcolors[i] : "transparent"; }
+    // sRGB relative luminance of a colour string (light-vs-dark text pick).
+    function luminance(c) {
+        var k = Qt.color(c);
+        return 0.2126 * k.r + 0.7152 * k.g + 0.0722 * k.b;
+    }
     // typeof guard (not `|| default`) so a legitimate 0 isn't replaced.
     function num(value, fallback) { return (typeof value === "number") ? value : fallback; }
 
@@ -249,6 +254,77 @@ WallpaperItem {
                     text: emojiField.glyphs[tile.index % emojiField.glyphs.length]
                     font.pixelSize: tile.px
                 }
+            }
+        }
+    }
+
+    // Live clock overlay. Mirrors ClockOverlay.tsx (the desktop-layer webview
+    // on Windows / macOS / other Linux draws the same thing) from the `clock`
+    // block the app stamps into the spec from Settings → Desktop. Sized off
+    // the shorter screen edge so it reads the same on any monitor: time =
+    // 6/9/14% (small/medium/large), date 30% of that, 4% edge padding.
+    Item {
+        id: liveClock
+        anchors.fill: parent
+        readonly property var cfg: (root.spec.clock && typeof root.spec.clock === "object") ? root.spec.clock : ({})
+        visible: cfg.enabled === true
+        readonly property string position: (typeof cfg.position === "string") ? cfg.position : "top-right"
+        readonly property bool atLeft: position.indexOf("left") >= 0
+        readonly property bool atRight: position.indexOf("right") >= 0
+        readonly property bool atTop: position.indexOf("top") >= 0
+        readonly property bool atBottom: position.indexOf("bottom") >= 0
+        readonly property real unit: Math.min(width, height) / 100
+        readonly property real timePx: unit * (cfg.size === "small" ? 6 : (cfg.size === "large" ? 14 : 9))
+        readonly property real pad: unit * 4
+        // Dark text on light base colours, light text otherwise — the same
+        // rule as the webview overlay, so both deliveries look alike.
+        readonly property bool onLight: root.luminance(root.colorAt(0)) > 0.6
+        readonly property color ink: onLight ? "#1a1a1f" : "#ffffff"
+        readonly property color inkShadow: onLight ? "#40ffffff" : "#80000000"
+        readonly property string timeFormat: (cfg.hour12 === true ? "h:mm" : "HH:mm")
+            + (cfg.showSeconds === true ? ":ss" : "")
+            + (cfg.hour12 === true ? " AP" : "")
+        property date now: new Date()
+
+        Timer {
+            interval: 1000
+            repeat: true
+            running: liveClock.visible
+            triggeredOnStart: true
+            onTriggered: liveClock.now = new Date()
+        }
+
+        Column {
+            spacing: liveClock.timePx * 0.12
+            x: liveClock.atLeft ? liveClock.pad
+               : (liveClock.atRight ? liveClock.width - width - liveClock.pad
+                                    : (liveClock.width - width) / 2)
+            y: liveClock.atTop ? liveClock.pad
+               : (liveClock.atBottom ? liveClock.height - height - liveClock.pad
+                                     : (liveClock.height - height) / 2)
+
+            Text {
+                text: Qt.formatTime(liveClock.now, liveClock.timeFormat)
+                font.pixelSize: liveClock.timePx
+                font.weight: Font.DemiBold
+                font.letterSpacing: -liveClock.timePx * 0.02
+                color: liveClock.ink
+                style: Text.Raised
+                styleColor: liveClock.inkShadow
+                anchors.right: liveClock.atRight ? parent.right : undefined
+                anchors.horizontalCenter: (!liveClock.atLeft && !liveClock.atRight) ? parent.horizontalCenter : undefined
+            }
+            Text {
+                visible: liveClock.cfg.showDate !== false
+                text: Qt.formatDate(liveClock.now, "dddd, d MMMM")
+                font.pixelSize: liveClock.timePx * 0.3
+                font.weight: Font.Medium
+                color: liveClock.ink
+                opacity: 0.85
+                style: Text.Raised
+                styleColor: liveClock.inkShadow
+                anchors.right: liveClock.atRight ? parent.right : undefined
+                anchors.horizontalCenter: (!liveClock.atLeft && !liveClock.atRight) ? parent.horizontalCenter : undefined
             }
         }
     }

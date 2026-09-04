@@ -1679,6 +1679,52 @@ button.primary.icon-btn {
 
 
 
+/* Live clock overlay (ClockOverlay.tsx) — shared by the Patterns preview
+   and the desktop-layer live-wallpaper window. Fills its positioned host
+   and parks the time in the configured corner / centre; --clock-size and
+   --clock-pad are set inline from the measured stage (see the component).
+   Painted after the backdrop and before the glass panels in DOM order, so
+   it sits above the pattern and below the controls without z-index. */
+.live-clock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: var(--clock-pad, 24px);
+  pointer-events: none;
+  user-select: none;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  text-shadow:
+    0 2px 14px rgb(0 0 0 / 0.45),
+    0 0 2px rgb(0 0 0 / 0.5);
+}
+.live-clock--on-light {
+  color: #1a1a1f;
+  text-shadow:
+    0 2px 14px rgb(255 255 255 / 0.5),
+    0 0 2px rgb(255 255 255 / 0.6);
+}
+.live-clock--top-left { justify-content: flex-start; align-items: flex-start; text-align: left; }
+.live-clock--top-right { justify-content: flex-start; align-items: flex-end; text-align: right; }
+.live-clock--bottom-left { justify-content: flex-end; align-items: flex-start; text-align: left; }
+.live-clock--bottom-right { justify-content: flex-end; align-items: flex-end; text-align: right; }
+.live-clock--center { justify-content: center; align-items: center; text-align: center; }
+.live-clock-time {
+  font-size: var(--clock-size, 64px);
+  font-weight: 600;
+  line-height: 1;
+}
+.live-clock-date {
+  font-size: calc(var(--clock-size, 64px) * 0.3);
+  font-weight: 500;
+  opacity: 0.85;
+  margin-top: calc(var(--clock-size, 64px) * 0.12);
+}
+
 /* Animated emoji field (Animate + Emoji). Each glyph drifts (individual
    `translate`) and spins (`rotate`) independently — separate transform
    properties so the two animations compose instead of clobbering. The

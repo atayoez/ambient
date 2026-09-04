@@ -17,7 +17,10 @@
 // - Wallpaper.source is a free-form origin label ("nasa-apod" |
 //   "unsplash" | … | "generated"); no code branches on it.
 
+export type { ClockPosition } from './generated/ClockPosition';
+export type { ClockSize } from './generated/ClockSize';
 export type { GenProvider } from './generated/GenProvider';
+export type { LiveClock } from './generated/LiveClock';
 export type { LiveQuality } from './generated/LiveQuality';
 export type { RotationSource } from './generated/RotationSource';
 export type { Settings } from './generated/Settings';

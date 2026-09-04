@@ -94,6 +94,12 @@ async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
         // Global animation-speed multiplier — the delivery layers (QML
         // Timer, WebGL runner, emoji drift) scale their clocks by it.
         obj.insert("speed".to_string(), serde_json::json!(settings.animation_speed));
+        // Live-clock overlay — every delivery draws it (a QML twin in the
+        // Plasma plugin, ClockOverlay in the desktop-layer webview).
+        obj.insert(
+            "clock".to_string(),
+            serde_json::to_value(settings.live_clock).unwrap_or(serde_json::Value::Null),
+        );
     }
 
     // Resolve the per-type knobs into the shader's p1/p2/p3 uniforms (and

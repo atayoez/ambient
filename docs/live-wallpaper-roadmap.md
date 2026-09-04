@@ -88,8 +88,12 @@ Gotchas: init_layer_shell MUST run before the GtkWindow is realized — Tauri le
 `.visible(false)` window unrealized, so create hidden → init → show. Anchor all 4 edges,
 exclusive_zone -1 (run under panels), keyboard_mode None, empty input region (click-through).
 The window dies with the process → live::restore_if_active re-applies it after a restart (or a compositor close)
-(all three window platforms; KDE skipped). Multi-monitor = one window per gdk::Monitor with
-set_monitor (not done yet). Original plan kept below.
+(all three window platforms; KDE skipped). Multi-monitor (2026-09-04): Linux = one surface
+per gdk::Monitor via set_monitor, reconciled by ensure_surfaces on apply / monitor-added /
+compositor close (label wallpaper-<n>, n never reused); macOS = one NSWindow per NSScreen
+(no hotplug listener yet); Windows = the single WorkerW window already spans the virtual
+screen. Live clock (2026-09-04): Settings.live_clock → spec.clock → ClockOverlay.tsx
+(webview + Patterns preview) and a QML twin in main.qml. Original plan kept below.
 
 A second Tauri WebviewWindow ("live") pinned to the desktop layer, loading a live.html that
 reuses the existing web renderers (LivePreview WebGL canvas + EmojiField DOM + drift img +

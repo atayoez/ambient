@@ -104,6 +104,61 @@ impl LiveQuality {
     }
 }
 
+/// Where the live clock sits on the wallpaper.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "kebab-case")]
+pub enum ClockPosition {
+    TopLeft,
+    #[default]
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+}
+
+/// Live clock size, as a share of the shorter screen edge (small 6%,
+/// medium 9%, large 14% — the renderers own the numbers).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "lowercase")]
+pub enum ClockSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+/// Clock overlay drawn on top of a live wallpaper by every delivery (the
+/// Plasma plugin's QML, the desktop-layer webview's ClockOverlay). Stamped
+/// into the live spec as `clock` by live::build_spec; the in-app preview
+/// shows the same overlay so placement can be judged before applying.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LiveClock {
+    pub enabled: bool,
+    pub position: ClockPosition,
+    pub size: ClockSize,
+    /// 12-hour clock with AM/PM; false = 24-hour.
+    pub hour12: bool,
+    pub show_seconds: bool,
+    pub show_date: bool,
+}
+
+impl Default for LiveClock {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            position: ClockPosition::default(),
+            size: ClockSize::default(),
+            hour12: false,
+            show_seconds: false,
+            show_date: true,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "camelCase")]
@@ -182,6 +237,10 @@ pub struct Settings {
     // into the live spec by live::build_spec.
     #[serde(default = "default_animation_speed")]
     pub animation_speed: f32,
+    // Live-clock overlay for live wallpapers. `#[serde(default)]` → legacy
+    // stores land on "off" with the default placement.
+    #[serde(default)]
+    pub live_clock: LiveClock,
 }
 
 fn default_cache_limit_gb() -> u32 {
@@ -219,6 +278,7 @@ impl Default for Settings {
             live_wallpaper_quality: LiveQuality::default(),
             cache_limit_gb: default_cache_limit_gb(),
             animation_speed: default_animation_speed(),
+            live_clock: LiveClock::default(),
         }
     }
 }

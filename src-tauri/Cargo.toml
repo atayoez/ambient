@@ -117,6 +117,9 @@ objc2-app-kit = { version = "0.3", features = [
     "NSWindow",
     "NSScreen",
 ] }
+# NSArray<NSScreen> iteration + NSRect for the per-screen wallpaper windows.
+# Same 0.3 objc2-foundation Tauri's macOS backend already pulls.
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSGeometry"] }
 
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting

@@ -478,9 +478,9 @@ pub fn run() {
             // icon stays alive via the prevent_exit handler below, and
             // the next "Open Ambient" rebuilds a fresh webview from
             // tauri.conf.json's window definition.
-            // Main window only: the desktop-layer "wallpaper" window
+            // Main window only: the desktop-layer "wallpaper[-N]" windows
             // (Windows / macOS / Linux layer-shell live mode) must never be
-            // destroyed by a stray close request — it's owned by the
+            // destroyed by a stray close request — they're owned by the
             // live-wallpaper lifecycle.
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -490,9 +490,9 @@ pub fn run() {
             // Linux: the compositor can close the layer surface itself (the
             // output went away); bring it back when it's not our own clear.
             #[cfg(target_os = "linux")]
-            if window.label() == "wallpaper" {
+            if window.label().starts_with("wallpaper-") {
                 if let tauri::WindowEvent::Destroyed = event {
-                    live_linux::on_wallpaper_window_destroyed(window.app_handle());
+                    live_linux::on_wallpaper_window_destroyed(window.app_handle(), window.label());
                 }
             }
         })

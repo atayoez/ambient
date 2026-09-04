@@ -22,6 +22,13 @@ is added on top. Edit this file as you go, not at release time.
   login. KDE Plasma keeps its native plugin; GNOME stays static-only.
 - **macOS Intel build** (`Ambient-x.y.z-macOS-x86_64.dmg`) alongside Apple
   Silicon; the site's macOS card now has an architecture picker.
+- **Live wallpapers on every monitor.** Linux gets one surface per output
+  (and follows monitor hotplug); macOS one window per screen. Windows already
+  spanned the whole virtual desktop.
+- **Live clock.** Settings → Desktop → Live clock puts the time (and
+  optionally the date and seconds) on the live wallpaper — five positions,
+  three sizes, 12/24-hour. The Patterns preview shows it in place, and it
+  renders identically on KDE's plugin and the Windows/macOS/Linux windows.
 
 ### Changed
 

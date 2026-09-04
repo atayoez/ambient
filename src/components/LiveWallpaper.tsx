@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { type LiveShaderHandle, startLiveShader } from '../lib/liveShader';
 import { ANIMATABLE, type PatternConfig, type PatternType } from '../lib/patterns';
+import type { LiveClock } from '../lib/types';
+import ClockOverlay from './ClockOverlay';
 import EmojiField from './EmojiField';
 
 // Fullscreen wallpaper renderer for the desktop-layer live-wallpaper window
@@ -31,6 +33,8 @@ type Spec = PatternConfig & {
   maxRenderEdge?: number;
   fps?: number;
   speed?: number;
+  // Live-clock overlay config from Settings (see ClockOverlay).
+  clock?: LiveClock;
 };
 
 declare global {
@@ -73,41 +77,38 @@ export default function LiveWallpaper() {
 
   if (!spec) return <div style={root} />;
 
+  // The clock sits on top of whichever renderer is active below.
+  const clock = spec.clock?.enabled ? (
+    <ClockOverlay clock={spec.clock} background={spec.colors?.[0]} />
+  ) : null;
+
+  let content: React.ReactNode = null;
   if (spec.type === 'emoji') {
-    return (
-      <div style={root}>
-        <EmojiField config={spec} className="live-wallpaper-emoji" />
-      </div>
+    content = <EmojiField config={spec} className="live-wallpaper-emoji" />;
+  } else if (SHADER_TYPES.has(spec.type)) {
+    content = <ShaderFill spec={spec} />;
+  } else if (spec.image) {
+    // Static pattern: the shell rendered a still and stamped its path.
+    content = (
+      <img
+        src={convertFileSrc(spec.image)}
+        alt=""
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          display: 'block',
+        }}
+      />
     );
   }
 
-  if (SHADER_TYPES.has(spec.type)) {
-    return (
-      <div style={root}>
-        <ShaderFill spec={spec} />
-      </div>
-    );
-  }
-
-  // Static pattern: the shell rendered a still and stamped its path.
-  if (spec.image) {
-    return (
-      <div style={root}>
-        <img
-          src={convertFileSrc(spec.image)}
-          alt=""
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-          }}
-        />
-      </div>
-    );
-  }
-
-  return <div style={root} />;
+  return (
+    <div style={root}>
+      {content}
+      {clock}
+    </div>
+  );
 }
 
 // Start the shader once, push later spec edits through setConfig (no restart)

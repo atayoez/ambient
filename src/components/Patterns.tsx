@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSystemAccentColor } from '../lib/appHooks';
+import { useSettings, useSystemAccentColor } from '../lib/appHooks';
 import {
   useDebouncedValue,
   useDraftState,
@@ -30,6 +30,7 @@ import {
   SegmentedIcons,
   StatusInline,
 } from '../ui';
+import ClockOverlay from './ClockOverlay';
 import EmojiField from './EmojiField';
 import { CheckIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
 import LivePreview from './LivePreview';
@@ -129,6 +130,10 @@ export default function Patterns({ active = true }: { active?: boolean }) {
   // When on, Apply sets a live (animated) wallpaper instead of a still —
   // generative types animate via their shader, the rest via a slow drift.
   const [animated, setAnimated] = usePersistedState<boolean>('patterns.animated', false);
+  // Read-only here: the live-clock overlay mirrors Settings → Desktop so the
+  // preview shows the clock where the desktop will draw it. Subscribed so a
+  // change made on the Settings tab shows up without a remount.
+  const [settings] = useSettings({ subscribe: true });
   // patterns.config is draft state: tweaks live in memory only until
   // the user clicks Apply, which calls saveConfig() to commit. Slider
   // drags don't thrash the disk; tab switch without applying drops
@@ -298,6 +303,9 @@ export default function Patterns({ active = true }: { active?: boolean }) {
         )}
         {animated && previewConfig.type === 'emoji' && (
           <EmojiField config={previewConfig} className="gen-bg" />
+        )}
+        {animated && settings?.liveClock.enabled && (
+          <ClockOverlay clock={settings.liveClock} background={previewConfig.colors[0]} />
         )}
 
         <div className="gen-panel pat-top">
