@@ -12,6 +12,10 @@ interface ControlRowProps {
   max: number;
   onChange: (v: number) => void;
   suffix?: string;
+  /** Slider granularity; integers when omitted. */
+  step?: number;
+  /** Custom value text (e.g. "1.5×"); defaults to `${value}${suffix}`. */
+  format?: (v: number) => string;
 }
 
 export function ControlRow({
@@ -21,6 +25,8 @@ export function ControlRow({
   max,
   onChange,
   suffix = '',
+  step,
+  format,
 }: ControlRowProps) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
@@ -30,14 +36,14 @@ export function ControlRow({
         type="range"
         min={min}
         max={max}
+        step={step}
         value={value}
         onChange={(e) => onChange(+e.target.value)}
         style={{ ['--p' as string]: `${clamp(pct, 0, 100)}%` } as CSSProperties}
         aria-label={label}
       />
       <span className="control-value">
-        {value}
-        {suffix}
+        {format ? format(value) : `${value}${suffix}`}
       </span>
     </div>
   );

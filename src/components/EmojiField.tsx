@@ -19,7 +19,8 @@ export default function EmojiField({
   config,
   className,
 }: {
-  config: PatternConfig;
+  /** PatternConfig plus the optional global `speed` multiplier. */
+  config: PatternConfig & { speed?: number };
   className?: string;
 }) {
   const seed = config.seed ?? 0;
@@ -28,9 +29,9 @@ export default function EmojiField({
   const sizeVar = config.emojiSizeVar ?? 0.75;
   const glyphs = config.emojis?.length ? config.emojis : ['✨'];
   const bg = config.colors?.[0] ?? '#000000';
-  // Global animation-speed multiplier, present when this renders the live
-  // wallpaper spec (Rust stamps it in); the in-app preview stays at 1×.
-  const speed = Math.max(0.05, (config as { speed?: number }).speed ?? 1);
+  // Global animation-speed multiplier: stamped into the live spec by Rust,
+  // passed by the Patterns preview from the speed slider. 1× when absent.
+  const speed = Math.max(0.05, config.speed ?? 1);
 
   // Fluent 3D art for each glyph, exported to disk by the backend and loaded
   // through the asset protocol — the same files the KDE plugin renders, so

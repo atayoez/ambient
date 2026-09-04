@@ -19,7 +19,9 @@ import {
   useState,
 } from 'react';
 import { listen } from './events';
+import { useDebouncedSettingsPatch } from './hooks';
 import { getStartupLicense, type LicenseInfo } from './license';
+import { reapplyLiveWallpaper, SPEED_MAX, SPEED_MIN } from './live';
 import { loadSettings } from './store';
 import type { Settings } from './types';
 import { checkForUpdate, type UpdateInfo } from './updater';
@@ -60,6 +62,42 @@ export function useSettings(
   }, [subscribe]);
 
   return [settings, setSettings];
+}
+
+// ---------------------------------------------------------------------
+// Animation speed (Settings.animationSpeed) as a live slider value
+// ---------------------------------------------------------------------
+
+// [speed, setSpeed] for the speed slider. The value shown is the local
+// draft while a drag is in flight and the persisted setting otherwise, so
+// the preview and every mounted slider move instantly; the setting itself
+// is written once the drag has been still for 300 ms, and the active live
+// wallpaper is re-applied on that flush so the desktop follows. Subscribed
+// to settings-changed, so a change made in one tab shows up in the other,
+// and the draft is dropped as soon as the persisted value catches up.
+export function useAnimationSpeed(): [number, (v: number) => void] {
+  const [settings] = useSettings({ subscribe: true });
+  const persisted = settings?.animationSpeed ?? 1;
+  const [draft, setDraft] = useState<number | null>(null);
+  const patch = useDebouncedSettingsPatch(() => void reapplyLiveWallpaper(), 300);
+
+  // The flush above triggers settings-changed → `persisted` updates to what
+  // we wrote → the draft has done its job. (Also clears it when another tab
+  // changes the speed, so this slider follows.)
+  useEffect(() => {
+    setDraft(null);
+  }, [persisted]);
+
+  const setSpeed = useCallback(
+    (v: number) => {
+      const clamped = Math.min(SPEED_MAX, Math.max(SPEED_MIN, v));
+      setDraft(clamped);
+      patch({ animationSpeed: clamped });
+    },
+    [patch],
+  );
+
+  return [draft ?? persisted, setSpeed];
 }
 
 // ---------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSettings, useSystemAccentColor } from '../lib/appHooks';
+import { useAnimationSpeed, useSettings, useSystemAccentColor } from '../lib/appHooks';
 import {
   useDebouncedValue,
   useDraftState,
@@ -35,6 +35,7 @@ import EmojiField from './EmojiField';
 import { CheckIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
 import LivePreview from './LivePreview';
 import PaletteEditor from './PaletteEditor';
+import SpeedSlider from './SpeedSlider';
 import { THEME_MODE_OPTIONS } from './themeOptions';
 import { useApplyPattern } from './useApplyPattern';
 import { usePalette } from './usePalette';
@@ -134,6 +135,9 @@ export default function Patterns({ active = true }: { active?: boolean }) {
   // preview shows the clock where the desktop will draw it. Subscribed so a
   // change made on the Settings tab shows up without a remount.
   const [settings] = useSettings({ subscribe: true });
+  // Global animation speed — the slider in the knob pane (below) writes it,
+  // the live preview reads it, so the preview moves exactly like the desktop.
+  const [speed] = useAnimationSpeed();
   // patterns.config is draft state: tweaks live in memory only until
   // the user clicks Apply, which calls saveConfig() to commit. Slider
   // drags don't thrash the disk; tab switch without applying drops
@@ -299,10 +303,10 @@ export default function Patterns({ active = true }: { active?: boolean }) {
             DEBOUNCED config so a fast slider drag costs one update, not
             one per input event. */}
         {animated && ANIMATABLE.includes(previewConfig.type) && (
-          <LivePreview config={previewConfig} className="gen-bg" />
+          <LivePreview config={{ ...previewConfig, speed }} className="gen-bg" />
         )}
         {animated && previewConfig.type === 'emoji' && (
-          <EmojiField config={previewConfig} className="gen-bg" />
+          <EmojiField config={{ ...previewConfig, speed }} className="gen-bg" />
         )}
         {animated && settings?.liveClock.enabled && (
           <ClockOverlay clock={settings.liveClock} background={previewConfig.colors[0]} />
@@ -414,6 +418,10 @@ export default function Patterns({ active = true }: { active?: boolean }) {
             {(TYPE_SPECS[config.type]?.knobs ?? []).map((k) => (
               <KnobControl key={k.key} knob={k} config={config} patch={patch} />
             ))}
+            {/* Animation speed sits with the knobs while Animate is on: it
+                shapes the motion the preview shows, and it is the one control
+                every animated pattern shares (shaders, emoji, still drift). */}
+            {animated && <SpeedSlider />}
 
             {/* Randomizers live in the control pane — both are
                 per-pattern now (the modifiers + the palette), not global

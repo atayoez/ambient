@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { type LiveShaderHandle, startLiveShader } from '../lib/liveShader';
-import type { PatternConfig } from '../lib/patterns';
+import {
+  type LiveShaderConfig,
+  type LiveShaderHandle,
+  startLiveShader,
+} from '../lib/liveShader';
 
 // Live, animated preview for the animatable pattern types (Flow/Waves/
 // Aurora). Renders a WebGL canvas that runs the same shader the live
@@ -11,7 +14,8 @@ export default function LivePreview({
   config,
   className,
 }: {
-  config: PatternConfig;
+  /** PatternConfig plus the optional `speed` multiplier (glides live). */
+  config: LiveShaderConfig;
   className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

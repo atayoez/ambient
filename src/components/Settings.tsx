@@ -10,6 +10,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { useEffect, useState } from 'react';
 import { useSettings } from '../lib/appHooks';
 import { getStartupLicense, type LicenseInfo } from '../lib/license';
+import { reapplyLiveWallpaper } from '../lib/live';
 import { useSecret } from '../lib/secrets';
 import { patchSettings } from '../lib/store';
 import { toast } from '../lib/toast';
@@ -30,6 +31,7 @@ import {
 import { clearThumbnailCache, deleteLocalWallpapers } from '../lib/wallpaper';
 import { OptionScroller } from '../ui';
 import { RefreshIcon } from './Icons';
+import SpeedSlider from './SpeedSlider';
 
 const HOMEPAGE = 'https://ambient.oezcan.me';
 const DOWNLOAD_URL = 'https://ambient.oezcan.me/#download';
@@ -49,17 +51,6 @@ const LIVE_QUALITY_OPTIONS: { id: LiveQuality; label: string }[] = [
   { id: 'balanced', label: 'Balanced' },
   { id: 'high', label: 'High' },
   { id: 'native', label: 'Native' },
-];
-
-// Global animation-speed multiplier for live wallpapers (shader clock,
-// emoji drift, Ken Burns drift). Stored as a number; OptionScroller ids
-// are strings, so String()/Number() convert at the boundary.
-const SPEED_OPTIONS: { id: string; label: string }[] = [
-  { id: '0.25', label: '0.25×' },
-  { id: '0.5', label: '0.5×' },
-  { id: '1', label: '1×' },
-  { id: '1.5', label: '1.5×' },
-  { id: '2', label: '2×' },
 ];
 
 // Live-clock overlay. Ids are the Rust enums' serde names (types.rs).
@@ -160,24 +151,13 @@ export default function Settings() {
     setSettings(next);
   }
 
-  // Re-apply the active live wallpaper (if any) so a changed quality/speed
-  // takes effect immediately rather than on the next apply.
-  async function reapplyLive() {
-    try {
-      const cfg = await invoke<unknown>('get_live_wallpaper');
-      if (cfg) await invoke('apply_live_pattern', { config: cfg });
-    } catch {
-      // Nothing live, or not on a supported desktop — leave it.
-    }
-  }
+  // Re-apply the active live wallpaper (if any) so a changed quality / clock
+  // takes effect immediately rather than on the next apply. (The speed
+  // slider handles its own debounced re-apply — see useAnimationSpeed.)
+  const reapplyLive = reapplyLiveWallpaper;
 
   async function setLiveQuality(v: LiveQuality) {
     await patch({ liveWallpaperQuality: v });
-    await reapplyLive();
-  }
-
-  async function setAnimationSpeed(v: string) {
-    await patch({ animationSpeed: Number(v) });
     await reapplyLive();
   }
 
@@ -416,14 +396,9 @@ export default function Settings() {
               ariaLabel="Live wallpaper render quality"
             />
           </div>
-          <div className="set-row">
+          <div className="set-row set-row-slider">
             <span>Animation speed</span>
-            <OptionScroller
-              options={SPEED_OPTIONS}
-              value={String(settings.animationSpeed)}
-              onChange={(v) => void setAnimationSpeed(v)}
-              ariaLabel="Live wallpaper animation speed"
-            />
+            <SpeedSlider label="Animation speed" />
           </div>
           <div className="set-row">
             <span>Live clock</span>

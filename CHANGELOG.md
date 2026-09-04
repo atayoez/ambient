@@ -26,6 +26,10 @@ is added on top. Edit this file as you go, not at release time.
   (and follows monitor hotplug); macOS one window per screen (rebuilt when
   displays are added, removed, or rearranged); Windows one window per
   monitor instead of a single canvas stretched across the virtual desktop.
+- **Animation speed slider** (0.25× to 3×) in the Patterns pane whenever
+  Animate is on, and in Settings → Desktop. It drives every animation — the
+  shaders, the emoji drift and spin, the Ken Burns drift of stills — and the
+  preview follows the slider live; the desktop updates as soon as you let go.
 - **Live clock.** Settings → Desktop → Live clock puts the time (and
   optionally the date and seconds) on the live wallpaper — five positions,
   three sizes, 12/24-hour. The Patterns preview shows it in place, and it
@@ -54,6 +58,9 @@ is added on top. Edit this file as you go, not at release time.
 - Applying a still while a live wallpaper is running now turns the live
   wallpaper off first (on Windows/macOS the still used to land underneath
   it, and auto-rotate stayed paused because settings still said "live").
+- KDE: re-applying a live wallpaper (speed, quality, clock changes) no
+  longer restarts plasmashell every time — the shell only reloads when the
+  bundled plugin files actually changed.
 - Live wallpapers on macOS are restored after a restart, like Windows
   (1.4.0) — one shared restore path now covers all three desktops.
 

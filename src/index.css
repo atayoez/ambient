@@ -1679,6 +1679,16 @@ button.primary.icon-btn {
 
 
 
+/* Settings row hosting the shared SpeedSlider: the row already carries the
+   label, so ControlRow's eyebrow is hidden and the slider takes the control
+   slot on the right like every other picker. */
+.set-row-slider .control-row {
+  min-width: 220px;
+}
+.set-row-slider .control-label {
+  display: none;
+}
+
 /* Live clock overlay (ClockOverlay.tsx) — shared by the Patterns preview
    and the desktop-layer live-wallpaper window. Fills its positioned host
    and parks the time in the configured corner / centre; --clock-size and

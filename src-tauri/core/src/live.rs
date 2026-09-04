@@ -353,28 +353,35 @@ fn plugin_dir() -> Result<std::path::PathBuf, String> {
     Ok(base.join("plasma/wallpapers").join(PLUGIN_ID))
 }
 
-/// Write the bundled plugin into the user's Plasma wallpapers dir. No skip,
-/// no marker: it ALWAYS overwrites every embedded asset, so a rebaked shader
-/// or edited QML can never be left stale — the live wallpaper always gets the
-/// current build's files.
+/// Sync the bundled plugin into the user's Plasma wallpapers dir. Every
+/// embedded asset is compared byte-for-byte with what's on disk and written
+/// only when it differs (or is missing), so a rebaked shader or edited QML
+/// can never be left stale while an unchanged plugin costs nothing.
 ///
-/// Always returns `Ok(true)` so the caller reloads plasmashell, which caches
-/// the plugin's QML + compiled shaders per session; an in-place file rewrite
-/// alone won't show until the shell restarts.
+/// Returns whether anything was written. Only then does the caller reload
+/// plasmashell — it caches the plugin's QML + compiled shaders per session,
+/// so a changed file won't show until the shell restarts, but a mere spec
+/// re-apply (speed slider, quality, clock) must NOT restart the shell: the
+/// plugin re-reads its `Spec` config live.
 #[cfg(target_os = "linux")]
 pub fn install_plugin() -> Result<bool, String> {
     let _ = PLUGIN_ROOT; // documents the embedded source root
     let dir = plugin_dir()?;
+    let mut changed = false;
     for asset in ASSETS {
         let dest = dir.join(asset.rel);
+        if std::fs::read(&dest).is_ok_and(|on_disk| on_disk == asset.bytes) {
+            continue;
+        }
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("create {parent:?}: {e}"))?;
         }
         std::fs::write(&dest, asset.bytes)
             .map_err(|e| format!("write {dest:?}: {e}"))?;
+        changed = true;
     }
-    Ok(true)
+    Ok(changed)
 }
 
 /// Best-effort restart of plasmashell so a freshly-upgraded wallpaper plugin
@@ -457,8 +464,9 @@ fn set_kde_live(spec_json: &str) -> Result<(), String> {
          }}"
     );
     evaluate_script(&script)?;
-    // The config is persisted now; if we just upgraded the plugin, reload the
-    // shell so it drops the old cached QML and renders the new build.
+    // The config is persisted now and the running plugin re-reads it live.
+    // Only when the plugin FILES changed does the shell need a reload (it
+    // drops the old cached QML / shaders and renders the new build).
     if upgraded {
         reload_plasmashell();
     }
