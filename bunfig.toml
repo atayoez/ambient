@@ -1,0 +1,9 @@
+# Bun config. Only the test runner is configured here — `bun test` replaced
+# Vitest (+ jsdom + the v8 coverage provider) in 1.5: same describe/it/expect
+# API, no config, ~10× faster, built-in coverage (`bun test --coverage`).
+[test]
+# Gives the pure-module tests the one browser global they need (see file).
+preload = ["./scripts/test-preload.ts"]
+# Coverage scope mirrors the old vitest.config.ts include/exclude lists.
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["src/lib/types.ts", "src/lib/generated/**"]

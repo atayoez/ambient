@@ -5,7 +5,9 @@ Day-to-day commands for hacking on Ambient locally.
 ## Prerequisites
 
 - Rust stable
-- `bun` ≥ 1.3 (the lockfile is `bun.lock`; npm/pnpm won't install correctly)
+- `bun` ≥ 1.4 (the lockfile is `bun.lock`; npm/pnpm won't install correctly).
+  Bun is also the script runtime (`bun -e`, the `.mjs` release helpers) and
+  the test runner — no Node install needed for anything in this repo.
 - Linux hosts: `webkit2gtk-4.1` + `gtk-layer-shell` dev packages
   (`sudo zypper in webkitgtk3-devel gtk-layer-shell-devel` on openSUSE,
   `sudo apt-get install libwebkit2gtk-4.1-dev libgtk-layer-shell-dev` on
@@ -32,24 +34,26 @@ the wallpaper library carry over.
 ## Tests
 
 ```bash
-# JS unit tests (Vitest + jsdom). Currently covers isDarkForMode +
-# dismissUpdate.
+# JS unit tests — Bun's built-in runner (Jest-style describe/it/expect,
+# imports from "bun:test"). Covers the event bus, theme resolution,
+# pattern manifest, updater dismissal, and the live-clock formatter.
 bun run test
+bun run test:coverage     # built-in coverage report
 
-# Rust unit tests. Covers safe_filename, thumbnail_path_for,
-# first_wxh, strip_ansi.
-cd src-tauri && cargo test --lib
+# Rust unit tests. Covers the randr parsers, desktop routing, settings,
+# renderer helpers, …
+cd src-tauri && cargo test --workspace --lib
 ```
 
-Vitest runs in `jsdom` env. Browser globals (`localStorage`,
-`matchMedia`) aren't automatically mirrored onto `globalThis` with the
-current vitest 4 + jsdom + bun combo — when a test needs them, stub
-with `vi.stubGlobal('localStorage', { ... })` per-test. See
-`src/lib/updater.test.ts` for the pattern.
+`bun test` has no DOM. The tests are written against pure modules;
+the one browser global they need (`window` as an EventTarget for
+`src/lib/events.ts`) comes from `scripts/test-preload.ts` (wired in
+`bunfig.toml`), and a test that needs more stubs it explicitly — see
+`src/lib/updater.test.ts` for the localStorage pattern.
 
 `cargo test` without `--lib` runs the binary's tests (which don't
 exist), reports zero, and silently skips the library. Always pass
-`--lib`.
+`--lib`; `--workspace` so the ambient-core member is included.
 
 ## Type-check + lint
 

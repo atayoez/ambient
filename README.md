@@ -59,7 +59,7 @@ On Ubuntu 22.04+ / Fedora the equivalent package is available in the default rep
 
 ## Build from source
 
-Requires Rust (stable), [Bun](https://bun.sh) ≥ 1.3, and the platform-specific Tauri prerequisites listed on [tauri.app](https://tauri.app/start/prerequisites/).
+Requires Rust (stable), [Bun](https://bun.sh) ≥ 1.4, and the platform-specific Tauri prerequisites listed on [tauri.app](https://tauri.app/start/prerequisites/).
 
 ```bash
 git clone https://github.com/atayoez/ambient
@@ -109,7 +109,7 @@ Issues and PRs welcome. Quick checks before pushing:
 ```bash
 bun x tsc --noEmit                       # type-check
 bun run lint                              # biome lint + format
-bun run test                              # vitest (JS unit tests)
+bun run test                              # bun test (JS unit tests)
 (cd src-tauri && cargo test --lib)        # cargo (Rust unit tests)
 ```
 

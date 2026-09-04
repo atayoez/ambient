@@ -33,6 +33,10 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Changed
 
+- Tooling: Bun 1.4 is the only JavaScript runtime the repo needs — the
+  release scripts run on `bun` instead of Node, and the unit tests run on
+  Bun's built-in test runner (Vitest, jsdom, and the coverage provider are
+  gone; `bun run test:coverage` is built in).
 - Releases are built by one native CI matrix — Linux, Windows, and macOS ×
   x86_64 and arm64 — instead of a mix of local cross-builds and a
   macOS-only CI job. A platform that fails to build keeps its previous

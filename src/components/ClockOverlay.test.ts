@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { LiveClock } from '../lib/types';
 import { clockOnLightBackground, formatClock } from './ClockOverlay';
 

@@ -48,7 +48,7 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-CURRENT_VERSION="$(node -e "console.log(require('./package.json').version)")"
+CURRENT_VERSION="$(bun -e "console.log(require('./package.json').version)")"
 if [[ "$VERSION" == "$CURRENT_VERSION" ]]; then
   echo "Version $VERSION is already the current version. Pick a new one." >&2
   exit 1
@@ -68,7 +68,7 @@ echo "==> Releasing v$VERSION (was $CURRENT_VERSION)"
 
 # --- 1. Promote CHANGELOG's [Unreleased] section --------------------
 
-node --input-type=module -e "
+bun -e "
   import fs from 'node:fs';
   const v = '$VERSION';
   const date = new Date().toISOString().slice(0, 10);
@@ -96,7 +96,7 @@ node --input-type=module -e "
 echo "==> Bumping version in manifests"
 
 # package.json
-node -e "
+bun -e "
   const fs = require('fs');
   const f = './package.json';
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -105,7 +105,7 @@ node -e "
 "
 
 # src-tauri/tauri.conf.json
-node -e "
+bun -e "
   const fs = require('fs');
   const f = './src-tauri/tauri.conf.json';
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));

@@ -3,7 +3,7 @@
 // (patterns.ts derivations, liveShader.ts packing, Rust codegen, the
 // generated shaders' wire codes).
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   ANIMATABLE,
   GEOMETRIC_SHAPES,

@@ -29,7 +29,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO_ROOT"
 
 # Version defaults to package.json (the release commit carries the bump); a
 # numeric positional arg overrides it.
-VERSION="$(node -e "console.log(require('./package.json').version)")"
+VERSION="$(bun -e "console.log(require('./package.json').version)")"
 RUN_ID=""
 SRC="dist"
 while [[ $# -gt 0 ]]; do
@@ -101,11 +101,11 @@ echo "==> Building latest.json (merged with live)"
 curl -fsS https://ambient.oezcan.me/downloads/latest.json -o "$OUT/live.json"
 HAVE_JSON=$(for k in "${!HAVE[@]}"; do printf '%s\t%s\n' "$k" "${HAVE[$k]}"; done)
 PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" RELEASED="$(date -u +%Y-%m-%d)" \
-VERSION="$VERSION" HAVE_JSON="$HAVE_JSON" node scripts/merge-latest-json.mjs \
+VERSION="$VERSION" HAVE_JSON="$HAVE_JSON" bun scripts/merge-latest-json.mjs \
   "$OUT/live.json" "$OUT/latest.json"
 
 echo "==> Release notes"
-node scripts/extract-changelog.mjs --version "$VERSION" --output "$OUT/notes.md" || echo "Release v$VERSION" > "$OUT/notes.md"
+bun scripts/extract-changelog.mjs --version "$VERSION" --output "$OUT/notes.md" || echo "Release v$VERSION" > "$OUT/notes.md"
 
 echo "==> Uploading present artifacts + latest.json to R2"
 ct() { case "$1" in *.dmg) echo application/x-apple-diskimage;; *.app.tar.gz) echo application/gzip;;

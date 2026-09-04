@@ -1,28 +1,37 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { dismissUpdate } from './updater';
 
-// Stub localStorage explicitly. Vitest 4 + jsdom + bun didn't expose
-// window.localStorage on globalThis reliably; stubGlobal sidesteps the
-// environment discrepancy and gives us a deterministic in-memory
-// Map-backed implementation per test.
+// Stub localStorage explicitly with a deterministic in-memory Map-backed
+// implementation per test. Bun's test runner has no DOM (and no
+// vi.stubGlobal), so the global is installed and removed by hand; saving the
+// previous value keeps this correct even on a runtime that does ship one.
 describe('dismissUpdate', () => {
   let store: Map<string, string>;
+  let previous: PropertyDescriptor | undefined;
 
   beforeEach(() => {
     store = new Map();
-    vi.stubGlobal('localStorage', {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => store.set(k, String(v)),
-      removeItem: (k: string) => store.delete(k),
-      clear: () => store.clear(),
-      get length() {
-        return store.size;
+    previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      writable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => store.set(k, String(v)),
+        removeItem: (k: string) => store.delete(k),
+        clear: () => store.clear(),
+        get length() {
+          return store.size;
+        },
+        key: (i: number) => Array.from(store.keys())[i] ?? null,
       },
-      key: (i: number) => Array.from(store.keys())[i] ?? null,
     });
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  });
 
   it('persists the dismissed version to localStorage', () => {
     dismissUpdate('0.4.0');
