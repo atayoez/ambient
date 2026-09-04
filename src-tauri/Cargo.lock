@@ -48,6 +48,7 @@ name = "ambient"
 version = "1.4.0"
 dependencies = [
  "ambient-core",
+ "block2",
  "gtk",
  "gtk-layer-shell",
  "jni",

@@ -88,6 +88,8 @@ rustls-platform-verifier = "0.6"
 windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
+    # EnumDisplayMonitors + MapWindowPoints: one wallpaper window per monitor.
+    "Win32_Graphics_Gdi",
 ] }
 # Direct registry reads (tray_icon.rs theme detection). A `reg query`
 # shell-out from a windows_subsystem = "windows" binary allocates a fresh
@@ -116,10 +118,22 @@ objc2-app-kit = { version = "0.3", features = [
     "NSResponder",
     "NSWindow",
     "NSScreen",
+    # NSApplicationDidChangeScreenParametersNotification (display hotplug).
+    "NSApplication",
 ] }
-# NSArray<NSScreen> iteration + NSRect for the per-screen wallpaper windows.
-# Same 0.3 objc2-foundation Tauri's macOS backend already pulls.
-objc2-foundation = { version = "0.3", features = ["NSArray", "NSGeometry"] }
+# NSArray<NSScreen> iteration + NSRect for the per-screen wallpaper windows,
+# NSNotificationCenter + NSOperationQueue for the screen-change observer.
+# Same 0.3 objc2-foundation (and 0.6 block2) Tauri's macOS backend already
+# pulls, so no new crates in the tree.
+objc2-foundation = { version = "0.3", features = [
+    "NSArray",
+    "NSGeometry",
+    "NSNotification",
+    "NSOperation",
+    "NSString",
+    "NSObject",
+] }
+block2 = "0.6"
 
 # Release profile tuned for binary size + load-time RSS. Trade-off:
 # release builds get slower (codegen-units=1, fat LTO), but the resulting

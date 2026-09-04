@@ -277,8 +277,12 @@ fn set_wallpaper_cosmic(abs_path: &str) -> Result<(), String> {
         .map_err(|e| format!("write cosmic same-on-all: {}", e))?;
 
     let escaped = abs_path.replace('\\', "\\\\").replace('"', "\\\"");
+    // Zoom = cover: scale to fill each output and crop the overflow, so a
+    // photo (or a pattern rendered for the largest output — see monitor.rs)
+    // is never distorted on a screen with a different aspect ratio. Stretch,
+    // the old mode, squashed anything that didn't match the output exactly.
     let ron = format!(
-        "(\n    output: \"all\",\n    source: Path(\"{}\"),\n    filter_by_theme: false,\n    rotation_frequency: 0,\n    filter_method: Lanczos,\n    scaling_mode: Stretch,\n    sampling_method: Alphanumeric,\n)\n",
+        "(\n    output: \"all\",\n    source: Path(\"{}\"),\n    filter_by_theme: false,\n    rotation_frequency: 0,\n    filter_method: Lanczos,\n    scaling_mode: Zoom,\n    sampling_method: Alphanumeric,\n)\n",
         escaped
     );
     std::fs::write(dir.join("all"), ron)

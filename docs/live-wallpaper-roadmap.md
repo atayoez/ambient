@@ -90,9 +90,13 @@ exclusive_zone -1 (run under panels), keyboard_mode None, empty input region (cl
 The window dies with the process → live::restore_if_active re-applies it after a restart (or a compositor close)
 (all three window platforms; KDE skipped). Multi-monitor (2026-09-04): Linux = one surface
 per gdk::Monitor via set_monitor, reconciled by ensure_surfaces on apply / monitor-added /
-compositor close (label wallpaper-<n>, n never reused); macOS = one NSWindow per NSScreen
-(no hotplug listener yet); Windows = the single WorkerW window already spans the virtual
-screen. Live clock (2026-09-04): Settings.live_clock → spec.clock → ClockOverlay.tsx
+compositor close (label wallpaper-<n>, n never reused); macOS = one NSWindow per NSScreen,
+rebuilt on NSApplicationDidChangeScreenParametersNotification (block2 observer, debounced);
+Windows = one WorkerW child per monitor (EnumDisplayMonitors rects mapped into WorkerW client
+space with MapWindowPoints — raw virtual-screen coords were off by the origin), no
+WM_DISPLAYCHANGE listener yet. Windows/macOS paths are type-checked cross-target only
+(scratch crates against x86_64-pc-windows-msvc / aarch64-apple-darwin); first real run is
+the release matrix. Live clock (2026-09-04): Settings.live_clock → spec.clock → ClockOverlay.tsx
 (webview + Patterns preview) and a QML twin in main.qml. Original plan kept below.
 
 A second Tauri WebviewWindow ("live") pinned to the desktop layer, loading a live.html that

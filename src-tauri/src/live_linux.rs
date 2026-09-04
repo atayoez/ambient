@@ -102,7 +102,7 @@ pub fn register(app: &AppHandle) {
 /// gtk-layer-shell turns into a GtkWindow close — so reconcile shortly, once.
 /// A second close within the cooldown means the outputs really are gone;
 /// then monitor-added is what brings the wallpaper back.
-pub fn on_wallpaper_window_destroyed(app: &AppHandle, label: &str) {
+pub fn on_wallpaper_window_destroyed(label: &str) {
     BOUND.with(|b| b.borrow_mut().remove(label));
     if CLEARING.load(Ordering::SeqCst) > 0 {
         CLEARING.fetch_sub(1, Ordering::SeqCst);

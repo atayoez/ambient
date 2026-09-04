@@ -23,8 +23,9 @@ is added on top. Edit this file as you go, not at release time.
 - **macOS Intel build** (`Ambient-x.y.z-macOS-x86_64.dmg`) alongside Apple
   Silicon; the site's macOS card now has an architecture picker.
 - **Live wallpapers on every monitor.** Linux gets one surface per output
-  (and follows monitor hotplug); macOS one window per screen. Windows already
-  spanned the whole virtual desktop.
+  (and follows monitor hotplug); macOS one window per screen (rebuilt when
+  displays are added, removed, or rearranged); Windows one window per
+  monitor instead of a single canvas stretched across the virtual desktop.
 - **Live clock.** Settings → Desktop → Live clock puts the time (and
   optionally the date and seconds) on the live wallpaper — five positions,
   three sizes, 12/24-hour. The Patterns preview shows it in place, and it
@@ -39,6 +40,13 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Fixed
 
+- COSMIC: still wallpapers are scaled to cover each screen (no more
+  stretching a photo to the monitor's aspect ratio), and patterns render at
+  the largest connected monitor's resolution instead of whichever output
+  happened to be listed first.
+- Windows: the live wallpaper window was positioned by raw virtual-screen
+  coordinates, which is off by the virtual-screen origin when a monitor sits
+  left of or above the primary one.
 - Applying a still while a live wallpaper is running now turns the live
   wallpaper off first (on Windows/macOS the still used to land underneath
   it, and auto-rotate stayed paused because settings still said "live").

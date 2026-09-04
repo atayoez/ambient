@@ -492,7 +492,7 @@ pub fn run() {
             #[cfg(target_os = "linux")]
             if window.label().starts_with("wallpaper-") {
                 if let tauri::WindowEvent::Destroyed = event {
-                    live_linux::on_wallpaper_window_destroyed(window.app_handle(), window.label());
+                    live_linux::on_wallpaper_window_destroyed(window.label());
                 }
             }
         })

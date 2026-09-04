@@ -8,8 +8,10 @@
 //! desktop content, between the system wallpaper and the icons, so there is
 //! no WorkerW-style reparenting. We just set each NSWindow's level, make it
 //! join all Spaces, ignore mouse events, drop its chrome, and size it to its
-//! screen's frame. Screens are enumerated at apply time; a display plugged in
-//! later gets covered on the next apply / restart (no hotplug listener yet).
+//! screen's frame. NSApplicationDidChangeScreenParametersNotification (display
+//! added / removed, resolution or arrangement changed) rebuilds the set: tear
+//! the windows down, then re-apply the recorded live wallpaper so every
+//! screen gets a window sized to its current frame.
 //!
 //! ambient-core can't reach AppKit, so `register()` wires its delivery hook
 //! (live::set_live_setter) to this shell module at startup, the same pattern
@@ -17,17 +19,31 @@
 
 #![cfg(target_os = "macos")]
 
+use std::ptr::NonNull;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+
+use block2::RcBlock;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSScreen, NSWindow, NSWindowCollectionBehavior, NSWindowStyleMask};
-use objc2_foundation::NSRect;
+use objc2_app_kit::{
+    NSApplicationDidChangeScreenParametersNotification, NSScreen, NSWindow,
+    NSWindowCollectionBehavior, NSWindowStyleMask,
+};
+use objc2_foundation::{NSNotification, NSNotificationCenter, NSOperationQueue, NSRect};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 /// Window labels are `wallpaper-<screen index>`; capabilities/wallpaper.json
 /// grants `wallpaper-*`.
 const LABEL_PREFIX: &str = "wallpaper-";
 
+/// Bumped on every screen-parameters notification; the debounced rebuild
+/// only runs if no newer notification arrived meanwhile (macOS fires several
+/// per physical change).
+static SCREEN_GEN: AtomicU64 = AtomicU64::new(0);
+
 /// Wire ambient-core's desktop live-wallpaper hooks to this shell. Call once
-/// in setup().
+/// in setup() (main thread — the notification observer is registered on the
+/// main queue).
 pub fn register(app: &AppHandle) {
     let set_app = app.clone();
     let clear_app = app.clone();
@@ -35,6 +51,66 @@ pub fn register(app: &AppHandle) {
         move |spec| set_live(&set_app, spec),
         move || clear_live(&clear_app),
     );
+
+    let app_for_screens = app.clone();
+    observe_screen_changes(move || on_screens_changed(&app_for_screens));
+}
+
+/// Run `f` on the main queue whenever the screen configuration changes. The
+/// observer token is deliberately leaked: this is an app-lifetime
+/// registration and the center keeps the observer alive until removed.
+fn observe_screen_changes(f: impl Fn() + 'static) {
+    let block = RcBlock::new(move |_n: NonNull<NSNotification>| f());
+    let center = NSNotificationCenter::defaultCenter();
+    // SAFETY: the notification name is a valid AppKit constant; the block
+    // captures only 'static data and is retained by the center.
+    let token = unsafe {
+        center.addObserverForName_object_queue_usingBlock(
+            Some(NSApplicationDidChangeScreenParametersNotification),
+            None,
+            Some(&NSOperationQueue::mainQueue()),
+            &block,
+        )
+    };
+    std::mem::forget(token);
+}
+
+/// Screens changed while a live wallpaper is up: rebuild the per-screen
+/// windows from the recorded spec. Debounced, and only when we actually have
+/// windows (a plain resolution change on a static desktop has nothing to do).
+fn on_screens_changed(app: &AppHandle) {
+    if wallpaper_windows(app).is_empty() {
+        return;
+    }
+    let generation = SCREEN_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        if SCREEN_GEN.load(Ordering::SeqCst) != generation || crate::QUITTING.load(Ordering::SeqCst)
+        {
+            return;
+        }
+        // Tear down on the main thread, wait for Tauri to drop the windows
+        // from its map (destroy is asynchronous), then re-apply — set_live
+        // only creates windows when none exist.
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let app_for_destroy = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            for win in wallpaper_windows(&app_for_destroy) {
+                let _ = win.destroy();
+            }
+            let _ = tx.send(());
+        });
+        let _ = rx.await;
+        for _ in 0..20 {
+            if wallpaper_windows(&app).is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        tracing::info!("screen configuration changed; rebuilding live wallpaper windows");
+        ambient_core::live::restore_if_active().await;
+    });
 }
 
 /// Every live wallpaper window currently alive.

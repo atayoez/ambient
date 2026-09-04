@@ -33,6 +33,10 @@ where
     let _ = SHELL_PROVIDER.set(Box::new(provider));
 }
 
+/// The resolution to render wallpapers at. On Linux this is the LARGEST
+/// enabled output (see `pick_render_target`) — one image covers every screen
+/// of a multi-monitor desktop without upscaling — falling back to the shell's
+/// primary-monitor lookup. The name is the frontend's wire contract.
 pub fn get_primary_monitor_pixels() -> Result<MonitorInfo, String> {
     // Linux first tries the randr tools: they report physical pixels even
     // on the Wayland compositors where Tauri's monitor query comes back
@@ -57,6 +61,81 @@ pub fn get_primary_monitor_pixels() -> Result<MonitorInfo, String> {
     Err("could not detect the primary monitor".into())
 }
 
+/// One output as reported by cosmic-randr / wlr-randr.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RandrOutput {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub scale: f32,
+    pub enabled: bool,
+}
+
+/// Parse the block-per-output text both cosmic-randr and wlr-randr print: a
+/// header at column 0 (`DP-1 (enabled)` / `DP-1 "Samsung …"`), then indented
+/// `Scale:` / `Enabled:` lines and a mode list in which the active mode
+/// carries `current`. Outputs without a current mode (disabled, no mode set)
+/// are still returned so the caller can see them, with 0×0 dimensions.
+/// Feed it ANSI-stripped text (cosmic-randr colours its output).
+#[cfg(target_os = "linux")]
+pub(crate) fn parse_randr_outputs(text: &str) -> Vec<RandrOutput> {
+    let mut outs: Vec<RandrOutput> = Vec::new();
+    for raw in text.lines() {
+        if raw.trim().is_empty() {
+            continue;
+        }
+        let line = raw.trim();
+        let header = !(raw.starts_with(' ') || raw.starts_with('\t'));
+        if header {
+            outs.push(RandrOutput {
+                name: line.split_whitespace().next().unwrap_or("").to_string(),
+                width: 0,
+                height: 0,
+                scale: 1.0,
+                enabled: !line.contains("(disabled)"),
+            });
+            continue;
+        }
+        let Some(out) = outs.last_mut() else {
+            continue;
+        };
+        if let Some(rest) = line.strip_prefix("Scale:") {
+            // cosmic-randr prints "125%", wlr-randr "1.250000".
+            let v = rest.trim().trim_end_matches('%');
+            if let Ok(n) = v.parse::<f32>() {
+                out.scale = if n > 10.0 { n / 100.0 } else { n };
+            }
+        } else if let Some(rest) = line.strip_prefix("Enabled:") {
+            out.enabled = rest.trim().eq_ignore_ascii_case("yes");
+        } else if line.contains("current") && out.width == 0 {
+            if let Some((w, h)) = first_wxh(line) {
+                out.width = w;
+                out.height = h;
+            }
+        }
+    }
+    outs
+}
+
+/// The output one render should target: the largest ENABLED one with a
+/// current mode. A single image at that size covers every screen without
+/// upscaling; smaller outputs crop it (cosmic-bg `Zoom`, Plasma's
+/// scaled-and-cropped). Ties keep the first listed.
+#[cfg(target_os = "linux")]
+pub(crate) fn pick_render_target(outs: &[RandrOutput]) -> Option<&RandrOutput> {
+    outs.iter()
+        .filter(|o| o.enabled && o.width > 0 && o.height > 0)
+        .fold(None, |best: Option<&RandrOutput>, o| match best {
+            Some(b)
+                if (b.width as u64) * (b.height as u64) >= (o.width as u64) * (o.height as u64) =>
+            {
+                Some(b)
+            }
+            _ => Some(o),
+        })
+}
+
 #[cfg(target_os = "linux")]
 fn try_cosmic_randr() -> Option<MonitorInfo> {
     let output = std::process::Command::new("cosmic-randr")
@@ -66,33 +145,13 @@ fn try_cosmic_randr() -> Option<MonitorInfo> {
     if !output.status.success() {
         return None;
     }
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
-    let cleaned = strip_ansi(&text);
-
-    let mut scale: f32 = 1.0;
-    let mut dims: Option<(u32, u32)> = None;
-
-    for line in cleaned.lines() {
-        let line = line.trim();
-        if let Some(rest) = line.strip_prefix("Scale:") {
-            let s = rest.trim().trim_end_matches('%');
-            if let Ok(n) = s.parse::<f32>() {
-                scale = if n > 10.0 { n / 100.0 } else { n };
-            }
-        }
-        if line.contains("(current)") {
-            if let Some((w, h)) = first_wxh(line) {
-                dims = Some((w, h));
-                break;
-            }
-        }
-    }
-
-    let (width, height) = dims?;
+    let text = strip_ansi(&String::from_utf8_lossy(&output.stdout));
+    let outs = parse_randr_outputs(&text);
+    let pick = pick_render_target(&outs)?;
     Some(MonitorInfo {
-        width,
-        height,
-        scale,
+        width: pick.width,
+        height: pick.height,
+        scale: pick.scale,
         source: "cosmic-randr".to_string(),
     })
 }
@@ -103,30 +162,13 @@ fn try_wlr_randr() -> Option<MonitorInfo> {
     if !output.status.success() {
         return None;
     }
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
-
-    let mut scale: f32 = 1.0;
-    let mut dims: Option<(u32, u32)> = None;
-    for line in text.lines() {
-        let line = line.trim();
-        if let Some(rest) = line.strip_prefix("Scale:") {
-            if let Ok(n) = rest.trim().parse::<f32>() {
-                scale = n;
-            }
-        }
-        if line.contains("current") {
-            if let Some((w, h)) = first_wxh(line) {
-                dims = Some((w, h));
-                break;
-            }
-        }
-    }
-
-    let (width, height) = dims?;
+    let text = strip_ansi(&String::from_utf8_lossy(&output.stdout));
+    let outs = parse_randr_outputs(&text);
+    let pick = pick_render_target(&outs)?;
     Some(MonitorInfo {
-        width,
-        height,
-        scale,
+        width: pick.width,
+        height: pick.height,
+        scale: pick.scale,
         source: "wlr-randr".to_string(),
     })
 }
@@ -203,7 +245,10 @@ mod tests {
 
     #[test]
     fn first_wxh_picks_first_dimensions_token() {
-        assert_eq!(first_wxh("2880x1800 @ 90.001 Hz (current)"), Some((2880, 1800)));
+        assert_eq!(
+            first_wxh("2880x1800 @ 90.001 Hz (current)"),
+            Some((2880, 1800))
+        );
         assert_eq!(
             first_wxh("    1920x1080 @ 60 Hz [preferred]"),
             Some((1920, 1080))
@@ -221,6 +266,130 @@ mod tests {
         assert_eq!(strip_ansi("\x1b[31mred\x1b[0m"), "red");
         assert_eq!(strip_ansi("plain"), "plain");
         assert_eq!(strip_ansi("\x1b[1;33mwarn\x1b[m\x1b[K"), "warn");
+    }
+
+    const COSMIC_TWO_OUTPUTS: &str = "\
+DP-1 (enabled)
+  Make: Samsung Electric Company
+  Model: Odyssey G85SB
+  Position: 0,0
+  Scale: 125%
+  Transform: normal
+  Xwayland primary: true
+
+  Modes:
+    3840x2160 @  59.997 Hz
+    3440x1440 @ 174.962 Hz (current)
+    3440x1440 @  59.959 Hz (preferred)
+HDMI-A-1 (enabled)
+  Make: Dell
+  Model: U2412M
+  Position: 3440,0
+  Scale: 100%
+
+  Modes:
+    1920x1200 @  59.950 Hz (current) (preferred)
+    1280x1024 @  60.020 Hz
+eDP-1 (disabled)
+  Make: BOE
+  Scale: 200%
+
+  Modes:
+    2880x1800 @  90.001 Hz (current) (preferred)
+";
+
+    const WLR_TWO_OUTPUTS: &str = "\
+HDMI-A-1 \"Dell Inc. DELL U2412M (HDMI-A-1)\"
+  Make: Dell Inc.
+  Physical size: 520x320 mm
+  Enabled: yes
+  Modes:
+    1920x1200 px, 59.950 Hz (preferred, current)
+    1280x1024 px, 60.020 Hz
+  Position: 3440,0
+  Transform: normal
+  Scale: 1.000000
+  Adaptive Sync: disabled
+DP-1 \"Samsung Electric Company Odyssey G85SB (DP-1)\"
+  Enabled: yes
+  Modes:
+    3840x2160 px, 59.997 Hz
+    3440x1440 px, 174.962 Hz (current)
+    3440x1440 px, 59.959 Hz (preferred)
+  Position: 0,0
+  Scale: 1.250000
+";
+
+    #[test]
+    fn parses_every_cosmic_randr_output_block() {
+        let outs = parse_randr_outputs(COSMIC_TWO_OUTPUTS);
+        assert_eq!(outs.len(), 3);
+        assert_eq!(
+            outs[0],
+            RandrOutput {
+                name: "DP-1".into(),
+                width: 3440,
+                height: 1440,
+                scale: 1.25,
+                enabled: true
+            }
+        );
+        assert_eq!(
+            (
+                outs[1].name.as_str(),
+                outs[1].width,
+                outs[1].height,
+                outs[1].scale
+            ),
+            ("HDMI-A-1", 1920, 1200, 1.0)
+        );
+        assert!(!outs[2].enabled, "eDP-1 is marked (disabled) in the header");
+        assert_eq!(outs[2].scale, 2.0);
+    }
+
+    #[test]
+    fn parses_wlr_randr_with_scale_after_modes() {
+        let outs = parse_randr_outputs(WLR_TWO_OUTPUTS);
+        assert_eq!(outs.len(), 2);
+        assert_eq!(
+            (
+                outs[0].name.as_str(),
+                outs[0].width,
+                outs[0].height,
+                outs[0].scale,
+                outs[0].enabled
+            ),
+            ("HDMI-A-1", 1920, 1200, 1.0, true)
+        );
+        assert_eq!(
+            (
+                outs[1].name.as_str(),
+                outs[1].width,
+                outs[1].height,
+                outs[1].scale
+            ),
+            ("DP-1", 3440, 1440, 1.25)
+        );
+    }
+
+    // The render target is the largest ENABLED output, regardless of list
+    // order — the disabled 2880×1800 laptop panel must not win.
+    #[test]
+    fn render_target_is_the_largest_enabled_output() {
+        let cosmic = parse_randr_outputs(COSMIC_TWO_OUTPUTS);
+        assert_eq!(
+            pick_render_target(&cosmic).map(|o| o.name.as_str()),
+            Some("DP-1")
+        );
+        let wlr = parse_randr_outputs(WLR_TWO_OUTPUTS);
+        assert_eq!(
+            pick_render_target(&wlr).map(|o| o.name.as_str()),
+            Some("DP-1")
+        );
+        assert!(pick_render_target(&[]).is_none());
+        let only_disabled =
+            parse_randr_outputs("eDP-1 (disabled)\n  Modes:\n    2880x1800 @ 60 Hz (current)\n");
+        assert!(pick_render_target(&only_disabled).is_none());
     }
 
     #[test]
