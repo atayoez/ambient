@@ -84,12 +84,13 @@ document.addEventListener('dragstart', (e) => {
   if (tag === 'IMG' || tag === 'CANVAS') e.preventDefault();
 });
 
-// The Windows live-wallpaper window (live_win.rs) loads `index.html#wallpaper`
-// and parents itself behind the desktop icons. In that mode we mount only the
-// fullscreen renderer — none of the app chrome — and deliberately skip
-// StrictMode: its double-mount tears down and re-creates the WebGL context,
-// which leaves the live shader running on a dead context (see the
-// liveShader/StrictMode note in the live-wallpaper memory).
+// The desktop-layer live-wallpaper window (live_win.rs / live_mac.rs /
+// live_linux.rs) loads `index.html#wallpaper` and sits under the desktop. In
+// that mode we mount only the fullscreen renderer — none of the app chrome —
+// and deliberately skip StrictMode: its double-mount tears down and
+// re-creates the WebGL context, which leaves the live shader running on a
+// dead context (see the liveShader/StrictMode note in the live-wallpaper
+// memory).
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 if (window.location.hash === '#wallpaper') {
   import('./components/LiveWallpaper').then(({ default: LiveWallpaper }) => {

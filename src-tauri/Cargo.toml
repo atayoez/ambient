@@ -96,6 +96,17 @@ windows = { version = "0.61", features = [
 # `wallpaper` crate, so this adds no new build weight.
 winreg = "0.55"
 
+# Linux live-wallpaper delivery (live_linux.rs): the background webview
+# becomes a Wayland layer-shell surface through gtk-layer-shell — the C
+# library is a normal DT_NEEDED dep, so linuxdeploy bundles it into the
+# AppImage; dev hosts need gtk-layer-shell-devel (openSUSE) /
+# libgtk-layer-shell-dev (Debian/Ubuntu). `gtk` is the same 0.18 Tauri's
+# Linux backend already pulls, needed only to name the GtkWindow type.
+# v0_6 = the keyboard-mode API; Ubuntu 22.04's 0.7 already has it.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
+
 # macOS live-wallpaper delivery (live_mac.rs): AppKit calls to place the
 # background window at the desktop window level. objc2 versions match the
 # ones Tauri's own macOS path already pulls, so there's no second copy.

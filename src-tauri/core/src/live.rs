@@ -1,41 +1,50 @@
 //! Live (animated) wallpaper support.
 //!
-//! Today this targets KDE Plasma: we ship a Plasma wallpaper *plugin*
-//! (QML the shell renders itself, on X11 and Wayland) that runs the same
-//! Flow/Waves/Aurora shaders as the in-app preview. Applying a live
-//! wallpaper installs/refreshes that plugin, then points the desktop at it
-//! via plasmashell's scripting API, feeding it the PatternConfig as JSON.
+//! Two delivery mechanisms, one spec (the PatternConfig as JSON plus the
+//! user's render-quality caps):
+//!
+//! * **KDE Plasma** — we ship a Plasma wallpaper *plugin* (QML the shell
+//!   renders itself) running the same shaders as the in-app preview.
+//!   Applying installs/refreshes that plugin, then points the desktop at it
+//!   via plasmashell's scripting API. plasmashell persists it across logins.
+//! * **Everything else on desktop** — a background webview *window* the shell
+//!   places under the desktop: WorkerW on Windows, a desktop-level NSWindow
+//!   on macOS, a Wayland layer-shell surface on Linux (COSMIC, Sway,
+//!   Hyprland, …). The shell registers that window's setter/clearer here at
+//!   startup (`set_live_setter`), and re-creates it after a restart via
+//!   `restore_if_active` since it dies with the process.
 //!
 //! The active spec is also mirrored into Settings (`live_wallpaper`) so the
 //! background rotation / theme-follow tasks stand down while a live
-//! wallpaper owns the desktop (they watch the settings channel).
+//! wallpaper owns the desktop (they watch the settings channel), and so a
+//! static apply knows to tear the live layer down first (desktop.rs).
 //!
-//! Other platforms return a clear "KDE only" error for now (the desktop
-//! background-window and Android `WallpaperService` paths come later).
+//! Mobile returns a clear "unsupported" error (Android `WallpaperService`
+//! is a later item).
 
 pub const PLUGIN_ID: &str = "me.oezcan.ambient";
 
-// Desktop live-wallpaper delivery hook for Windows and macOS. Unlike KDE
-// (a Plasma plugin the shell renders) and mobile (a WallpaperService), these
-// platforms need a background window placed behind the desktop icons. On
-// Windows that means parenting under WorkerW, on macOS it means a
-// desktop-level NSWindow. Only the Tauri shell can create that window, so the
-// shell registers a setter/clearer pair here at startup, mirroring
-// desktop::OS_SETTER. The setter receives the finished spec JSON, the same
-// PatternConfig plus quality the KDE plugin gets.
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+// Desktop live-wallpaper delivery hook for the background-window platforms
+// (Windows, macOS, non-KDE Linux). Unlike KDE (a Plasma plugin the shell
+// renders) and mobile (a WallpaperService), these need a window placed under
+// the desktop: WorkerW parenting on Windows, a desktop-level NSWindow on
+// macOS, a layer-shell surface on Linux. Only the Tauri shell can create that
+// window, so the shell registers a setter/clearer pair here at startup,
+// mirroring desktop::OS_SETTER. The setter receives the finished spec JSON,
+// the same PatternConfig plus quality the KDE plugin gets.
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 type LiveSetter = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 type LiveClearer = Box<dyn Fn() + Send + Sync>;
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 static LIVE_SETTER: std::sync::OnceLock<LiveSetter> = std::sync::OnceLock::new();
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 static LIVE_CLEARER: std::sync::OnceLock<LiveClearer> = std::sync::OnceLock::new();
 
-/// Register the Windows live-wallpaper delivery hooks (shell-only). Later
-/// calls are ignored — one shell per process. `set` receives the spec JSON
-/// and parents/refreshes the background window; `clear` tears it down.
-#[cfg(any(target_os = "windows", target_os = "macos"))]
+/// Register the background-window live-wallpaper delivery hooks (shell-only).
+/// Later calls are ignored — one shell per process. `set` receives the spec
+/// JSON and creates/refreshes the background window; `clear` tears it down.
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 pub fn set_live_setter<S, C>(set: S, clear: C)
 where
     S: Fn(&str) -> Result<(), String> + Send + Sync + 'static,
@@ -118,32 +127,32 @@ async fn mark_active(config: &serde_json::Value) {
 }
 
 /// Set a generative live wallpaper from `config` (a PatternConfig as JSON).
+///
+/// KDE Plasma gets the bundled wallpaper plugin; every other desktop OS gets
+/// the background window the shell registered via `set_live_setter`. The
+/// setter reports its own "not possible here" (e.g. GNOME Wayland, which has
+/// no layer-shell) as the error the UI shows.
 pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {
-        let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
-        if !is_kde(&desktop) {
-            return Err(
-                "Live wallpaper is currently supported on KDE Plasma, Windows, and macOS only."
-                    .to_string(),
-            );
-        }
         let spec = build_spec(&config).await?;
-        set_kde_live(&spec)?;
-        // Mirror onto the lock screen when the user opted in. Best-effort —
-        // a greeter-config failure shouldn't fail the desktop apply.
-        if crate::state::settings().get().await.lockscreen {
-            let _ = set_kde_live_lockscreen(&spec);
+        #[cfg(target_os = "linux")]
+        {
+            if is_kde(&current_desktop()) {
+                set_kde_live(&spec)?;
+                // Mirror onto the lock screen when the user opted in.
+                // Best-effort — a greeter-config failure shouldn't fail the
+                // desktop apply.
+                if crate::state::settings().get().await.lockscreen {
+                    let _ = set_kde_live_lockscreen(&spec);
+                }
+                mark_active(&config).await;
+                return Ok(());
+            }
         }
-        mark_active(&config).await;
-        Ok(())
-    }
-    #[cfg(any(target_os = "windows", target_os = "macos"))]
-    {
         let setter = LIVE_SETTER
             .get()
             .ok_or_else(|| "live wallpaper delivery not initialized".to_string())?;
-        let spec = build_spec(&config).await?;
         setter(&spec)?;
         mark_active(&config).await;
         Ok(())
@@ -151,7 +160,7 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
         let _ = config;
-        Err("Live wallpaper is currently supported on KDE Plasma, Windows, and macOS only.".to_string())
+        Err("Live wallpaper is supported on desktop only (Windows, macOS, Linux).".to_string())
     }
 }
 
@@ -159,10 +168,14 @@ pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String>
 pub async fn clear_live_wallpaper() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
-        let _ = clear_kde_live();
-        // Revert the lock screen too if we were mirroring there.
-        if crate::state::settings().get().await.lockscreen {
-            clear_kde_live_lockscreen();
+        if is_kde(&current_desktop()) {
+            let _ = clear_kde_live();
+            // Revert the lock screen too if we were mirroring there.
+            if crate::state::settings().get().await.lockscreen {
+                clear_kde_live_lockscreen();
+            }
+        } else if let Some(clear) = LIVE_CLEARER.get() {
+            clear();
         }
     }
     #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -177,7 +190,42 @@ pub async fn clear_live_wallpaper() -> Result<(), String> {
     Ok(())
 }
 
+/// Re-apply the recorded live wallpaper if there is one — after a process
+/// restart, or after the compositor closed the Linux layer surface (output
+/// removed). The background-window deliveries (Windows / macOS / Linux
+/// layer-shell) die with the process, so without this an autostarted Ambient
+/// would leave the desktop on the OS's plain wallpaper while settings still
+/// say a live one is active (and rotation stays stood down). KDE is skipped
+/// on purpose: plasmashell owns that plugin and restores it itself, and
+/// re-applying would reinstall the plugin + restart the shell on every login.
+///
+/// A failure is logged, not fatal, and leaves the recorded state alone: the
+/// user's live config survives e.g. one login into a desktop that can't host
+/// it, and the next static apply clears it explicitly.
+pub async fn restore_if_active() {
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    {
+        #[cfg(target_os = "linux")]
+        {
+            if is_kde(&current_desktop()) {
+                return;
+            }
+        }
+        let Some(spec) = crate::state::settings().get().await.live_wallpaper else {
+            return;
+        };
+        if let Err(e) = apply_live_pattern(spec).await {
+            tracing::warn!(error = %e, "could not restore the live wallpaper after restart");
+        }
+    }
+}
+
 // --- KDE Plasma ------------------------------------------------------------
+
+#[cfg(target_os = "linux")]
+fn current_desktop() -> String {
+    std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default()
+}
 
 #[cfg(target_os = "linux")]
 fn is_kde(desktop: &str) -> bool {

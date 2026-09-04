@@ -1,5 +1,7 @@
 mod commands;
 mod integrate;
+#[cfg(target_os = "linux")]
+mod live_linux;
 #[cfg(target_os = "macos")]
 mod live_mac;
 #[cfg(target_os = "windows")]
@@ -21,7 +23,8 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent};
 /// but nothing can re-veto an exit the user asked for (e.g. a late
 /// last-window-destroyed request racing quit, or a session logoff after
 /// quit started on Windows).
-static QUITTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(crate) static QUITTING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// Android: the JVM pointer, captured in JNI_OnLoad — the one callback
 /// Android guarantees us when System.loadLibrary brings this cdylib in,
@@ -255,6 +258,13 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             live_mac::register(app.handle());
 
+            // Linux: same window, placed by the compositor as a Wayland
+            // layer-shell surface on the background layer (COSMIC, Sway,
+            // Hyprland, …). Only consulted when the session isn't KDE Plasma
+            // — core routes Plasma to its wallpaper plugin first.
+            #[cfg(target_os = "linux")]
+            live_linux::register(app.handle());
+
             // Monitor lookup for the renderer / AI-resolution pickers. On
             // Windows/macOS this is the only route (the randr fallbacks in
             // core are Linux tools — without this, Windows rendered every
@@ -300,21 +310,6 @@ pub fn run() {
                 .expect("resolve app_data_dir for state load");
             let needs_reval = ambient_core::state::init(app_data_dir);
 
-            // Windows/macOS: the live wallpaper renders in a webview window
-            // that dies with the process, so re-apply it at startup when
-            // settings say one is active. KDE needs no restore — the Plasma
-            // plugin persists in plasmashell across our restarts. Must be
-            // spawned after state::init so the settings singleton exists.
-            #[cfg(any(target_os = "windows", target_os = "macos"))]
-            tauri::async_runtime::spawn(async {
-                let cfg = ambient_core::state::settings().get().await;
-                if let Some(live) = cfg.live_wallpaper {
-                    if let Err(e) = ambient_core::live::apply_live_pattern(live).await {
-                        tracing::warn!(error = %e, "restore live wallpaper at startup");
-                    }
-                }
-            });
-
             // License gate runs before the webview's first paint. Disk
             // load is synchronous (~ms); Polar revalidation runs in a
             // background task so cold launches don't pay the network
@@ -344,6 +339,16 @@ pub fn run() {
             // out of JS in Phase 4 — pre-Phase-4 the rotation timer
             // silently died the moment the user closed to tray).
             rotation::spawn(app.handle().clone());
+
+            // Bring an active live wallpaper back after a restart: the
+            // background-window deliveries (Windows / macOS / Linux
+            // layer-shell) die with the process; KDE's plugin doesn't and is
+            // skipped inside. Deferred a little so the main window paints
+            // first and the event loop is running for the main-thread hop.
+            tauri::async_runtime::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+                ambient_core::live::restore_if_active().await;
+            });
 
             #[cfg(desktop)]
             {
@@ -474,11 +479,20 @@ pub fn run() {
             // the next "Open Ambient" rebuilds a fresh webview from
             // tauri.conf.json's window definition.
             // Main window only: the desktop-layer "wallpaper" window
-            // (macOS/Windows live mode) must never be destroyed by a stray
-            // close request — it's owned by the live-wallpaper lifecycle.
+            // (Windows / macOS / Linux layer-shell live mode) must never be
+            // destroyed by a stray close request — it's owned by the
+            // live-wallpaper lifecycle.
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { .. } = event {
                     let _ = window.destroy();
+                }
+            }
+            // Linux: the compositor can close the layer surface itself (the
+            // output went away); bring it back when it's not our own clear.
+            #[cfg(target_os = "linux")]
+            if window.label() == "wallpaper" {
+                if let tauri::WindowEvent::Destroyed = event {
+                    live_linux::on_wallpaper_window_destroyed(window.app_handle());
                 }
             }
         })

@@ -5,11 +5,13 @@ import { type LiveShaderHandle, startLiveShader } from '../lib/liveShader';
 import { ANIMATABLE, type PatternConfig, type PatternType } from '../lib/patterns';
 import EmojiField from './EmojiField';
 
-// Fullscreen wallpaper renderer for the Windows live-wallpaper window
-// (live_win.rs parents this view behind the desktop icons). It renders the
-// SAME pattern the in-app preview does — shaders via startLiveShader, emoji
-// via EmojiField, everything else as the pre-rendered still — so Windows
-// gets the same look as the KDE plugin without a second rendering path.
+// Fullscreen wallpaper renderer for the desktop-layer live-wallpaper window
+// (live_win.rs parents it behind the icons under WorkerW, live_mac.rs drops
+// it to the desktop window level, live_linux.rs makes it a Wayland layer-shell
+// background surface). It renders the SAME pattern the in-app preview does —
+// shaders via startLiveShader, emoji via EmojiField, everything else as the
+// pre-rendered still — so all three get the KDE plugin's look without a
+// second rendering path.
 //
 // The spec arrives two ways: baked into `window.__AMBIENT_SPEC__` by the
 // shell's init-script before mount (first apply, no IPC race), and pushed

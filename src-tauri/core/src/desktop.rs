@@ -64,6 +64,16 @@ pub async fn apply_wallpaper(path: &str) -> Result<(), String> {
         .ok_or_else(|| "wallpaper path is not valid UTF-8".to_string())?
         .to_string();
 
+    // A live (animated) wallpaper owns the desktop: tear it down first, or
+    // the still would land UNDER the live layer on the background-window
+    // platforms (Windows / macOS / Linux layer-shell) — and settings would
+    // keep saying "live", which parks the rotation + theme-follow tasks. On
+    // KDE the static apply already swaps the plugin back; here it just keeps
+    // the recorded state honest.
+    if crate::state::settings().get().await.live_wallpaper.is_some() {
+        let _ = crate::live::clear_live_wallpaper().await;
+    }
+
     apply_os(&abs_str)?;
 
     // Mirror to the lock screen when enabled (KDE; no-op elsewhere).

@@ -78,7 +78,19 @@ fit + opaque; mesh = drifting metaball gradient. Original plan kept below for re
 
 ## B. Other delivery platforms  (biggest)
 
-### B1. Desktop override-window (Windows + macOS + X11 non-KDE)
+### B1. Desktop override-window (Windows + macOS + Linux layer-shell) — DONE
+Windows (WorkerW, live_win.rs) and macOS (desktop-level NSWindow, live_mac.rs) shipped
+in 1.2; Linux shipped 2026-09-04 as live_linux.rs: the same `#wallpaper` webview window
+turned into a zwlr_layer_shell_v1 `background` surface via gtk-layer-shell (GTK3), which
+covers COSMIC (primary), Sway, Hyprland, Niri, River, labwc, Wayfire. GNOME has no
+layer-shell for third parties → still unsupported (the app says so). KDE keeps the plugin.
+Gotchas: init_layer_shell MUST run before the GtkWindow is realized — Tauri leaves a
+`.visible(false)` window unrealized, so create hidden → init → show. Anchor all 4 edges,
+exclusive_zone -1 (run under panels), keyboard_mode None, empty input region (click-through).
+The window dies with the process → live::restore_if_active re-applies it after a restart (or a compositor close)
+(all three window platforms; KDE skipped). Multi-monitor = one window per gdk::Monitor with
+set_monitor (not done yet). Original plan kept below.
+
 A second Tauri WebviewWindow ("live") pinned to the desktop layer, loading a live.html that
 reuses the existing web renderers (LivePreview WebGL canvas + EmojiField DOM + drift img +
 <video>) full-screen — a windowless "live mode" of the preview.
