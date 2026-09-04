@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
-import type { ClockSize, LiveClock } from '../lib/types';
+import type { ClockPosition, LiveClock } from '../lib/types';
 
 // Live clock drawn over a live wallpaper. One component serves both the
 // desktop-layer wallpaper window (LiveWallpaper) and the in-app Patterns
@@ -7,12 +7,27 @@ import type { ClockSize, LiveClock } from '../lib/types';
 // plugin draws a QML twin (plasma/.../contents/ui/main.qml) from the same
 // `clock` block of the spec.
 //
-// Sizing is relative to the SHORTER side of the host stage, measured with a
-// ResizeObserver so it comes out identical on a 4K output and in the preview
-// pane: the time is `size`% of that side, the date 30% of the time, and the
-// edge padding 4%.
+// Placement is anchor + free position (see LiveClock in types.rs): the
+// clock's `position` corner (or centre) is pinned at (`x`%, `y`%) of the
+// stage, and the time's digit height is `size`% of the stage's SHORTER side —
+// measured with a ResizeObserver so it comes out identical on a 4K output and
+// in the preview pane. The date is 30% of the time.
 
-const SIZE_PCT: Record<ClockSize, number> = { small: 6, medium: 9, large: 14 };
+/** Per-anchor CSS translate that puts the anchored corner on the (x, y) point. */
+const ANCHOR_TRANSLATE: Record<ClockPosition, string> = {
+  'top-left': '0 0',
+  'top-right': '-100% 0',
+  'bottom-left': '0 -100%',
+  'bottom-right': '-100% -100%',
+  center: '-50% -50%',
+};
+const ANCHOR_ALIGN: Record<ClockPosition, 'left' | 'right' | 'center'> = {
+  'top-left': 'left',
+  'top-right': 'right',
+  'bottom-left': 'left',
+  'bottom-right': 'right',
+  center: 'center',
+};
 
 // Dark text over light base colours (sRGB relative luminance of the
 // pattern's background colour), light text otherwise — legible on any
@@ -90,24 +105,25 @@ export default function ClockOverlay({
   }, []);
 
   const { time, date } = formatClock(now, clock);
-  const style = {
-    '--clock-size': `${unit * SIZE_PCT[clock.size]}px`,
-    '--clock-pad': `${unit * 4}px`,
-  } as CSSProperties;
   const tone = clockOnLightBackground(background) ? ' live-clock--on-light' : '';
+  const box: CSSProperties = {
+    left: `${clock.x}%`,
+    top: `${clock.y}%`,
+    translate: ANCHOR_TRANSLATE[clock.position],
+    ['--clock-size' as string]: `${unit * clock.size}px`,
+  };
 
   return (
     <div
       ref={ref}
-      className={`live-clock live-clock--${clock.position}${tone}`}
-      style={style}
+      className={`live-clock live-clock--align-${ANCHOR_ALIGN[clock.position]}${tone}`}
       aria-hidden="true"
     >
       {unit > 0 && (
-        <>
+        <div className="live-clock-box" style={box}>
           <div className="live-clock-time">{time}</div>
           {date && <div className="live-clock-date">{date}</div>}
-        </>
+        </div>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import Generate from './components/Generate';
 import {
+  ClockIcon,
   GearIcon,
   ImageIcon,
   LayoutGridIcon,
@@ -15,6 +16,7 @@ import Patterns from './components/Patterns';
 import Settings from './components/Settings';
 import Sources from './components/Sources';
 import UpdateBanner from './components/UpdateBanner';
+import Widgets from './components/Widgets';
 import {
   useLicenseGate,
   useTabKeybindings,
@@ -26,7 +28,7 @@ import { usePersistedState } from './lib/hooks';
 import type { Wallpaper } from './lib/types';
 import { Toaster } from './ui';
 
-type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'settings';
+type Tab = 'patterns' | 'sources' | 'library' | 'generate' | 'widgets' | 'settings';
 
 // Tabs display an SVG icon (rendered big) in the bottom pill. `label`
 // stays as the accessible name + the tooltip text; the icon is the
@@ -36,6 +38,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'sources', label: 'Sources', icon: <ImageIcon size={24} /> },
   { id: 'generate', label: 'Generate', icon: <WandIcon size={24} /> },
   { id: 'library', label: 'Library', icon: <LayoutGridIcon size={24} /> },
+  { id: 'widgets', label: 'Widgets', icon: <ClockIcon size={24} /> },
   { id: 'settings', label: 'Settings', icon: <GearIcon size={24} /> },
 ];
 const TAB_IDS = TABS.map((t) => t.id) as readonly Tab[];
@@ -153,6 +156,7 @@ export default function App() {
                     {t.id === 'sources' && <Sources active={tab === t.id} />}
                     {t.id === 'generate' && <Generate active={tab === t.id} />}
                     {t.id === 'library' && <Library />}
+                    {t.id === 'widgets' && <Widgets />}
                     {t.id === 'settings' && <Settings />}
                   </ErrorBoundary>
                 </div>

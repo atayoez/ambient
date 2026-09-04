@@ -16,6 +16,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { listen } from './events';
@@ -23,7 +24,7 @@ import { useDebouncedSettingsPatch } from './hooks';
 import { getStartupLicense, type LicenseInfo } from './license';
 import { reapplyLiveWallpaper, SPEED_MAX, SPEED_MIN } from './live';
 import { loadSettings } from './store';
-import type { Settings } from './types';
+import type { LiveClock, Settings } from './types';
 import { checkForUpdate, type UpdateInfo } from './updater';
 
 // ---------------------------------------------------------------------
@@ -98,6 +99,57 @@ export function useAnimationSpeed(): [number, (v: number) => void] {
   );
 
   return [draft ?? persisted, setSpeed];
+}
+
+// ---------------------------------------------------------------------
+// Live clock widget (Settings.liveClock) as live-editable state
+// ---------------------------------------------------------------------
+
+/** Mirrors `impl Default for LiveClock` in types.rs — shown until settings load. */
+export const DEFAULT_LIVE_CLOCK: LiveClock = {
+  enabled: false,
+  position: 'top-right',
+  x: 96,
+  y: 4,
+  size: 9,
+  hour12: false,
+  showSeconds: false,
+  showDate: true,
+};
+
+// [clock, patchClock] for the Widgets tab. Same shape as useAnimationSpeed:
+// edits land in a local draft immediately (so the stage preview and the
+// Patterns preview move with the sliders), are persisted as one whole
+// LiveClock object 300 ms after the last edit (Rust deserializes the struct
+// atomically, so never a partial), and the active live wallpaper is
+// re-applied on that flush. The draft is dropped once the persisted clock
+// actually changes (compared by value, so an unrelated settings write
+// mid-drag doesn't snap the sliders back).
+export function useLiveClock(): [LiveClock, (p: Partial<LiveClock>) => void] {
+  const [settings] = useSettings({ subscribe: true });
+  const persisted = settings?.liveClock ?? DEFAULT_LIVE_CLOCK;
+  const [draft, setDraft] = useState<LiveClock | null>(null);
+  const patch = useDebouncedSettingsPatch(() => void reapplyLiveWallpaper(), 300);
+
+  const persistedKey = JSON.stringify(persisted);
+  useEffect(() => {
+    setDraft(null);
+  }, [persistedKey]);
+
+  const current = draft ?? persisted;
+  const currentRef = useRef(current);
+  currentRef.current = current;
+
+  const patchClock = useCallback(
+    (p: Partial<LiveClock>) => {
+      const next = { ...currentRef.current, ...p };
+      setDraft(next);
+      patch({ liveClock: next });
+    },
+    [patch],
+  );
+
+  return [current, patchClock];
 }
 
 // ---------------------------------------------------------------------

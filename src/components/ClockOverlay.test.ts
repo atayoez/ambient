@@ -5,7 +5,9 @@ import { clockOnLightBackground, formatClock } from './ClockOverlay';
 const base: LiveClock = {
   enabled: true,
   position: 'top-right',
-  size: 'medium',
+  x: 96,
+  y: 4,
+  size: 9,
   hour12: false,
   showSeconds: false,
   showDate: true,

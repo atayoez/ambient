@@ -18,7 +18,6 @@
 //   "unsplash" | … | "generated"); no code branches on it.
 
 export type { ClockPosition } from './generated/ClockPosition';
-export type { ClockSize } from './generated/ClockSize';
 export type { GenProvider } from './generated/GenProvider';
 export type { LiveClock } from './generated/LiveClock';
 export type { LiveQuality } from './generated/LiveQuality';

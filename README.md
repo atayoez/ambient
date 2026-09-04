@@ -47,11 +47,13 @@ On Ubuntu 22.04+ / Fedora the equivalent package is available in the default rep
 
 **Library tab** — a grid of everything you've applied. Click to re-apply, click delete twice to remove.
 
+**Widgets tab** — things drawn over the live wallpaper on every desktop. The clock: on/off, anchor corner plus free horizontal/vertical position, size, 12/24-hour, seconds, date — previewed in place on a stage shaped like your screen.
+
 ## Keyboard shortcuts
 
 | Shortcut             | Action                                       |
 |----------------------|----------------------------------------------|
-| `⌘1` … `⌘5`          | Jump to tab 1–5                              |
+| `⌘1` … `⌘6`          | Jump to tab 1–6                              |
 | `⌘Enter`             | Primary action (Apply / Generate / Re-fetch) |
 | `⌘⇧R`                | Re-roll (Patterns) / Re-fetch (Sources)      |
 

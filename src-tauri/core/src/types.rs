@@ -104,7 +104,7 @@ impl LiveQuality {
     }
 }
 
-/// Where the live clock sits on the wallpaper.
+/// Which point of the live clock is pinned at its (x, y) position.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
 #[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "kebab-case")]
@@ -117,29 +117,38 @@ pub enum ClockPosition {
     Center,
 }
 
-/// Live clock size, as a share of the shorter screen edge (small 6%,
-/// medium 9%, large 14% — the renderers own the numbers).
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
-#[ts(export, export_to = TS_EXPORT_DIR)]
-#[serde(rename_all = "lowercase")]
-pub enum ClockSize {
-    Small,
-    #[default]
-    Medium,
-    Large,
+impl ClockPosition {
+    /// The (x, y) percent position a freshly chosen anchor snaps to: 4% in
+    /// from the anchored edges, or dead centre. Mirrored in the Widgets tab
+    /// (anchorDefaults) so the UI and legacy-settings upgrade agree.
+    pub fn default_xy(self) -> (f32, f32) {
+        match self {
+            ClockPosition::TopLeft => (4.0, 4.0),
+            ClockPosition::TopRight => (96.0, 4.0),
+            ClockPosition::BottomLeft => (4.0, 96.0),
+            ClockPosition::BottomRight => (96.0, 96.0),
+            ClockPosition::Center => (50.0, 50.0),
+        }
+    }
 }
 
-/// Clock overlay drawn on top of a live wallpaper by every delivery (the
+/// Clock widget drawn on top of a live wallpaper by every delivery (the
 /// Plasma plugin's QML, the desktop-layer webview's ClockOverlay). Stamped
-/// into the live spec as `clock` by live::build_spec; the in-app preview
-/// shows the same overlay so placement can be judged before applying.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+/// into the live spec as `clock` by live::build_spec; the Widgets tab and the
+/// Patterns preview show the same overlay so placement can be judged before
+/// applying. Placement is anchor + free position: `position` says which
+/// corner (or the centre) of the clock is pinned, `x`/`y` say where on the
+/// screen that point sits, in percent of width/height; `size` is the time's
+/// digit height in percent of the shorter screen edge.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, TS)]
 #[ts(export, export_to = TS_EXPORT_DIR)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase")]
 pub struct LiveClock {
     pub enabled: bool,
     pub position: ClockPosition,
-    pub size: ClockSize,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
     /// 12-hour clock with AM/PM; false = 24-hour.
     pub hour12: bool,
     pub show_seconds: bool,
@@ -148,14 +157,85 @@ pub struct LiveClock {
 
 impl Default for LiveClock {
     fn default() -> Self {
+        let position = ClockPosition::default();
+        let (x, y) = position.default_xy();
         Self {
             enabled: false,
-            position: ClockPosition::default(),
-            size: ClockSize::default(),
+            position,
+            x,
+            y,
+            size: 9.0,
             hour12: false,
             show_seconds: false,
             show_date: true,
         }
+    }
+}
+
+// Wire shape for deserializing LiveClock: every field optional so a store
+// from before free placement (no x/y; `size` was the preset string
+// small/medium/large) upgrades in place instead of failing the whole
+// Settings load and wiping the user's file. A missing x/y snaps to the
+// anchor's default spot, a preset size maps to its percent.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct LiveClockWire {
+    enabled: bool,
+    position: ClockPosition,
+    x: Option<f32>,
+    y: Option<f32>,
+    size: Option<ClockSizeWire>,
+    hour12: bool,
+    show_seconds: bool,
+    show_date: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ClockSizeWire {
+    Percent(f32),
+    Legacy(String),
+}
+
+impl Default for LiveClockWire {
+    fn default() -> Self {
+        let d = LiveClock::default();
+        Self {
+            enabled: d.enabled,
+            position: d.position,
+            x: None,
+            y: None,
+            size: None,
+            hour12: d.hour12,
+            show_seconds: d.show_seconds,
+            show_date: d.show_date,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LiveClock {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = LiveClockWire::deserialize(d)?;
+        let (dx, dy) = w.position.default_xy();
+        let size = match w.size {
+            Some(ClockSizeWire::Percent(p)) => p,
+            Some(ClockSizeWire::Legacy(s)) => match s.as_str() {
+                "small" => 6.0,
+                "large" => 14.0,
+                _ => 9.0,
+            },
+            None => LiveClock::default().size,
+        };
+        Ok(LiveClock {
+            enabled: w.enabled,
+            position: w.position,
+            x: w.x.unwrap_or(dx).clamp(0.0, 100.0),
+            y: w.y.unwrap_or(dy).clamp(0.0, 100.0),
+            size: size.clamp(2.0, 40.0),
+            hour12: w.hour12,
+            show_seconds: w.show_seconds,
+            show_date: w.show_date,
+        })
     }
 }
 
@@ -306,4 +386,45 @@ pub struct Wallpaper {
     // Light/dark eligibility tag. Defaults to Both for legacy entries.
     #[serde(default)]
     pub mode: WallpaperMode,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A settings file written before free clock placement (preset size, no
+    // x/y) must load — and land the clock where the preset put it.
+    #[test]
+    fn live_clock_upgrades_preset_size_and_missing_position() {
+        let legacy: LiveClock =
+            serde_json::from_str(r#"{"enabled":true,"position":"center","size":"large"}"#).unwrap();
+        assert!(legacy.enabled);
+        assert_eq!((legacy.x, legacy.y, legacy.size), (50.0, 50.0, 14.0));
+        assert!(
+            legacy.show_date,
+            "struct-level default fills omitted fields"
+        );
+
+        let modern: LiveClock = serde_json::from_str(
+            r#"{"enabled":true,"position":"top-left","x":12.5,"y":80,"size":7.5}"#,
+        )
+        .unwrap();
+        assert_eq!((modern.x, modern.y, modern.size), (12.5, 80.0, 7.5));
+
+        let empty: LiveClock = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty, LiveClock::default());
+        assert_eq!((empty.x, empty.y), (96.0, 4.0));
+    }
+
+    #[test]
+    fn live_clock_round_trips_through_json() {
+        let c = LiveClock {
+            enabled: true,
+            size: 12.0,
+            x: 33.0,
+            ..LiveClock::default()
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        assert_eq!(serde_json::from_str::<LiveClock>(&json).unwrap(), c);
+    }
 }

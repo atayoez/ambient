@@ -30,10 +30,11 @@ is added on top. Edit this file as you go, not at release time.
   Animate is on, and in Settings → Desktop. It drives every animation — the
   shaders, the emoji drift and spin, the Ken Burns drift of stills — and the
   preview follows the slider live; the desktop updates as soon as you let go.
-- **Live clock.** Settings → Desktop → Live clock puts the time (and
-  optionally the date and seconds) on the live wallpaper — five positions,
-  three sizes, 12/24-hour. The Patterns preview shows it in place, and it
-  renders identically on KDE's plugin and the Windows/macOS/Linux windows.
+- **Widgets tab** with the first widget, a **live clock**: on/off, an anchor
+  corner plus free horizontal/vertical position, a size slider, 12/24-hour,
+  seconds, date — previewed in place on a stage shaped like your screen. It
+  renders identically on KDE's plugin and the Windows/macOS/Linux windows,
+  and the Patterns preview shows it over the pattern while Animate is on.
 
 ### Changed
 

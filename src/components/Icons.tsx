@@ -153,6 +153,15 @@ export function InfoIcon({ size = 14, className, style }: IconProps) {
   );
 }
 
+export function ClockIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </SvgRoot>
+  );
+}
+
 export function GearIcon({ size = 14, className, style }: IconProps) {
   return (
     <SvgRoot size={size} className={className} style={style}>

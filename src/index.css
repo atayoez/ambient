@@ -1689,19 +1689,18 @@ button.primary.icon-btn {
   display: none;
 }
 
-/* Live clock overlay (ClockOverlay.tsx) — shared by the Patterns preview
-   and the desktop-layer live-wallpaper window. Fills its positioned host
-   and parks the time in the configured corner / centre; --clock-size and
-   --clock-pad are set inline from the measured stage (see the component).
-   Painted after the backdrop and before the glass panels in DOM order, so
-   it sits above the pattern and below the controls without z-index. */
+/* Live clock overlay (ClockOverlay.tsx) — shared by the Patterns preview,
+   the Widgets tab stage, and the desktop-layer live-wallpaper window. The
+   outer element fills its positioned host (and is what gets measured); the
+   inner box is pinned at (x%, y%) and translated so the configured anchor
+   corner sits on that point. --clock-size is set inline from the measured
+   stage. Painted after the backdrop and before the glass panels in DOM
+   order, so it sits above the pattern and below the controls without
+   z-index. */
 .live-clock {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  padding: var(--clock-pad, 24px);
+  overflow: hidden;
   pointer-events: none;
   user-select: none;
   color: #fff;
@@ -1718,11 +1717,15 @@ button.primary.icon-btn {
     0 2px 14px rgb(255 255 255 / 0.5),
     0 0 2px rgb(255 255 255 / 0.6);
 }
-.live-clock--top-left { justify-content: flex-start; align-items: flex-start; text-align: left; }
-.live-clock--top-right { justify-content: flex-start; align-items: flex-end; text-align: right; }
-.live-clock--bottom-left { justify-content: flex-end; align-items: flex-start; text-align: left; }
-.live-clock--bottom-right { justify-content: flex-end; align-items: flex-end; text-align: right; }
-.live-clock--center { justify-content: center; align-items: center; text-align: center; }
+.live-clock-box {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+.live-clock--align-left .live-clock-box { align-items: flex-start; text-align: left; }
+.live-clock--align-right .live-clock-box { align-items: flex-end; text-align: right; }
+.live-clock--align-center .live-clock-box { align-items: center; text-align: center; }
 .live-clock-time {
   font-size: var(--clock-size, 64px);
   font-weight: 600;
@@ -1733,6 +1736,36 @@ button.primary.icon-btn {
   font-weight: 500;
   opacity: 0.85;
   margin-top: calc(var(--clock-size, 64px) * 0.12);
+}
+
+/* Widgets tab — a screen-shaped stage (the real monitor aspect) showing the
+   last applied wallpaper with the widgets laid over it, so position/size
+   edits can be judged in place. */
+.widget-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 14px;
+  border-radius: var(--radius-md, 12px);
+  overflow: hidden;
+  background: var(--bg-base);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.widget-stage > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.widget-stage-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim, rgba(255, 255, 255, 0.55));
+  font-size: 13px;
 }
 
 /* Animated emoji field (Animate + Emoji). Each glyph drifts (individual

@@ -258,11 +258,12 @@ WallpaperItem {
         }
     }
 
-    // Live clock overlay. Mirrors ClockOverlay.tsx (the desktop-layer webview
+    // Live clock widget. Mirrors ClockOverlay.tsx (the desktop-layer webview
     // on Windows / macOS / other Linux draws the same thing) from the `clock`
-    // block the app stamps into the spec from Settings → Desktop. Sized off
-    // the shorter screen edge so it reads the same on any monitor: time =
-    // 6/9/14% (small/medium/large), date 30% of that, 4% edge padding.
+    // block the app stamps into the spec from the Widgets tab. Placement is
+    // anchor + free position: the `position` corner (or centre) of the clock
+    // is pinned at (x%, y%) of the screen; `size` is the digit height in % of
+    // the shorter screen edge, the date 30% of that.
     Item {
         id: liveClock
         anchors.fill: parent
@@ -273,9 +274,10 @@ WallpaperItem {
         readonly property bool atRight: position.indexOf("right") >= 0
         readonly property bool atTop: position.indexOf("top") >= 0
         readonly property bool atBottom: position.indexOf("bottom") >= 0
+        readonly property real anchorX: (typeof cfg.x === "number") ? cfg.x : (atLeft ? 4 : (atRight ? 96 : 50))
+        readonly property real anchorY: (typeof cfg.y === "number") ? cfg.y : (atTop ? 4 : (atBottom ? 96 : 50))
         readonly property real unit: Math.min(width, height) / 100
-        readonly property real timePx: unit * (cfg.size === "small" ? 6 : (cfg.size === "large" ? 14 : 9))
-        readonly property real pad: unit * 4
+        readonly property real timePx: unit * ((typeof cfg.size === "number") ? cfg.size : 9)
         // Dark text on light base colours, light text otherwise — the same
         // rule as the webview overlay, so both deliveries look alike.
         readonly property bool onLight: root.luminance(root.colorAt(0)) > 0.6
@@ -296,12 +298,11 @@ WallpaperItem {
 
         Column {
             spacing: liveClock.timePx * 0.12
-            x: liveClock.atLeft ? liveClock.pad
-               : (liveClock.atRight ? liveClock.width - width - liveClock.pad
-                                    : (liveClock.width - width) / 2)
-            y: liveClock.atTop ? liveClock.pad
-               : (liveClock.atBottom ? liveClock.height - height - liveClock.pad
-                                     : (liveClock.height - height) / 2)
+            // Pin the anchored corner (or centre) of this column at (x%, y%).
+            x: liveClock.width * liveClock.anchorX / 100
+               - (liveClock.atRight ? width : (liveClock.atLeft ? 0 : width / 2))
+            y: liveClock.height * liveClock.anchorY / 100
+               - (liveClock.atBottom ? height : (liveClock.atTop ? 0 : height / 2))
 
             Text {
                 text: Qt.formatTime(liveClock.now, liveClock.timeFormat)
