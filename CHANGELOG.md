@@ -15,9 +15,28 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Live wallpapers on COSMIC** (and every other Wayland desktop with
+  layer-shell: Sway, Hyprland, Niri, River, …). The animated pattern
+  renders in a compositor-managed background surface, so it sits under
+  every window and panel and comes back on its own after a restart or
+  login. KDE Plasma keeps its native plugin; GNOME stays static-only.
+- **macOS Intel build** (`Ambient-x.y.z-macOS-x86_64.dmg`) alongside Apple
+  Silicon; the site's macOS card now has an architecture picker.
+
 ### Changed
 
+- Releases are built by one native CI matrix — Linux, Windows, and macOS ×
+  x86_64 and arm64 — instead of a mix of local cross-builds and a
+  macOS-only CI job. A platform that fails to build keeps its previous
+  release in the update feed; the others still ship.
+
 ### Fixed
+
+- Applying a still while a live wallpaper is running now turns the live
+  wallpaper off first (on Windows/macOS the still used to land underneath
+  it, and auto-rotate stayed paused because settings still said "live").
+- Live wallpapers on macOS are restored after a restart, like Windows
+  (1.4.0) — one shared restore path now covers all three desktops.
 
 ## [1.4.0] — 2026-07-12
 

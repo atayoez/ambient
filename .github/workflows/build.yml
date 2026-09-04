@@ -1,18 +1,29 @@
-# CI for Ambient — macOS build + cheap checks only. Everything else is local.
+# CI for Ambient — checks on every push, the full release matrix on tags.
 #
-# - check: fast TypeScript + Biome + cargo tests on Ubuntu. Gates the build.
-#   Runs on push, PR, dispatch, and tag-push.
-# - build-tauri: macOS aarch64 ONLY (.dmg + signed .app.tar.gz for the
-#   updater) — Apple's SDK + bundler are Mac-locked, so it's the one target
-#   CI builds. Gated to tag pushes (`refs/tags/v*`) and manual dispatch so
-#   plain main pushes only spend the cheap `check` minutes (macOS runners are
-#   ~10× priced). The artifact is uploaded for the local publisher to fold in.
+# Jobs:
+#   check    TypeScript + Biome + Vitest + generated-file drift + cargo tests
+#            on Ubuntu. Runs on push / PR / tag / dispatch and gates the rest.
+#   plan     Turns the dispatch `targets` input into the matrix `include`
+#            list (every cell on a tag push).
+#   build    The release matrix — {linux, windows, macos} × {x86_64, aarch64}.
+#            Every cell builds NATIVELY on a GitHub-hosted runner of that
+#            OS + arch: no cross-compiling, no containers, no ssh build boxes.
+#            Tag pushes + manual dispatch only — macOS minutes bill at 10×
+#            and Windows at 2×, so plain main pushes only spend `check`.
+#   publish  Downloads whatever cells succeeded and runs scripts/publish.sh
+#            (partial-aware: a cell that failed keeps pointing at the
+#            previous release in latest.json), uploads to R2, and cuts /
+#            updates the GitHub release. Automatic on tag pushes; opt-in
+#            (`publish: true`) on dispatch.
 #
-# Linux (x86_64 + aarch64 AppImage) and Windows (x86_64 + aarch64 NSIS) are
-# built locally by scripts/build-local.sh, and publishing is local too
-# (scripts/publish-local.sh, partial-aware): `bun run release X.Y.Z` does
-# version-bump + tag + push (triggers this macOS build), then runs the local
-# build + publish. Fold macOS in with `publish-local.sh X.Y.Z --ci-run <id>`.
+# Release flow: `bun run release X.Y.Z` bumps + tags + pushes; this workflow
+# does everything else. Re-cut one platform without rebuilding the world:
+#   gh workflow run build.yml -f targets=macos-aarch64 -f publish=true
+#
+# Required repo secrets:
+#   TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD)  updater signatures (.sig)
+#   CLOUDFLARE_API_TOKEN                     R2 object write on ambient-releases
+# GITHUB_TOKEN (automatic) creates the release + uploads assets.
 
 name: Build
 
@@ -30,6 +41,18 @@ on:
       - 'docs/**'
       - '**.md'
   workflow_dispatch:
+    inputs:
+      targets:
+        description: >-
+          Matrix cells to build, comma-separated, or "all". Cells:
+          linux-x86_64 linux-aarch64 windows-x86_64 windows-aarch64
+          macos-x86_64 macos-aarch64
+        type: string
+        default: all
+      publish:
+        description: Publish the built cells (R2 + GitHub release, partial-aware)
+        type: boolean
+        default: false
 
 # Collapse superseded runs: a new push to a branch/PR cancels the older
 # in-flight run for that same ref, so we don't pay for `check` (full Rust
@@ -40,9 +63,12 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
+permissions:
+  contents: read
+
 jobs:
   check:
-    name: TypeScript + lint
+    name: TypeScript + lint + tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -61,10 +87,12 @@ jobs:
       - name: Biome check
         run: bun run lint
 
-      # Fails if the committed Plasma .frag shaders drifted from their single
-      # source (src/lib/shaders.ts). Text-only diff — no Qt/qsb needed here.
-      - name: Plasma shaders in sync
-        run: bun run check:shaders
+      # Fails if the committed Plasma .frag shaders / matrix font drifted
+      # from their single sources. Text-only diffs — no Qt/qsb needed here.
+      - name: Generated shaders + font in sync
+        run: |
+          bun run check:shaders
+          bun run check:font
 
       - name: Vitest (JS unit tests)
         run: bun run test
@@ -85,6 +113,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
+            libgtk-layer-shell-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
 
@@ -95,30 +124,56 @@ jobs:
         # the (test-less) shell crate.
         run: cargo test --workspace --lib
 
-  build-tauri:
-    name: Build (${{ matrix.platform }} / ${{ matrix.arch }})
+  plan:
+    name: Plan matrix
     needs: check
-    # Tag push OR manual dispatch only — main pushes get just the cheap
-    # `check` above.
+    # Tag push OR manual dispatch only — main pushes get just `check`.
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.plan.outputs.include }}
+    steps:
+      - name: Select cells
+        id: plan
+        env:
+          TARGETS: ${{ inputs.targets || 'all' }}
+        # The six cells. `runner` is a GitHub-hosted label of that exact
+        # OS + CPU; `target` is the Rust triple (passed explicitly so every
+        # cell's bundles land under target/<triple>/release/bundle/).
+        # arm64 Linux/Windows + Intel macOS runners are available to private
+        # repos (2-CPU for the arm ones) — see docs.github.com runner labels.
+        run: |
+          node -e '
+            const all = [
+              { cell: "linux-x86_64",   runner: "ubuntu-22.04",     target: "x86_64-unknown-linux-gnu" },
+              { cell: "linux-aarch64",  runner: "ubuntu-22.04-arm", target: "aarch64-unknown-linux-gnu" },
+              { cell: "windows-x86_64", runner: "windows-latest",   target: "x86_64-pc-windows-msvc" },
+              { cell: "windows-aarch64", runner: "windows-11-arm",  target: "aarch64-pc-windows-msvc" },
+              { cell: "macos-x86_64",   runner: "macos-15-intel",   target: "x86_64-apple-darwin" },
+              { cell: "macos-aarch64",  runner: "macos-latest",     target: "aarch64-apple-darwin" },
+            ];
+            const want = (process.env.TARGETS || "all").trim();
+            const picked = want === "all" || want === ""
+              ? all
+              : all.filter((c) => want.split(",").map((s) => s.trim()).includes(c.cell));
+            if (!picked.length) {
+              console.error(`no matrix cells match targets="${want}"`);
+              process.exit(1);
+            }
+            console.log("cells:", picked.map((c) => c.cell).join(", "));
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `include=${JSON.stringify(picked)}\n`);
+          '
+
+  build:
+    name: Build ${{ matrix.cell }}
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # macOS is the ONLY target CI still builds — Apple's SDK + bundler are
-          # Mac-locked. Everything else (Linux x86_64/aarch64, Arch, Windows
-          # x86_64/aarch64) is cross-compiled locally by scripts/build-local.sh,
-          # and publishing is local too (scripts/publish-local.sh --ci-run <id>
-          # downloads this macOS artifact and merges it in).
-          - platform: macos-latest
-            arch: aarch64
-            # .dmg is the installer download; the signed updater artifact is
-            # the .app.tar.gz (Tauri never signs the .dmg).
-            artifact-glob: |
-              src-tauri/target/release/bundle/dmg/*.dmg
-              src-tauri/target/release/bundle/macos/*.app.tar.gz
-              src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
-    runs-on: ${{ matrix.platform }}
+        include: ${{ fromJSON(needs.plan.outputs.include) }}
+    runs-on: ${{ matrix.runner }}
+    # Fat-LTO release builds; the 2-CPU arm runners are the slow end.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -127,20 +182,30 @@ jobs:
         with:
           bun-version: 1.3.14  # pinned for reproducibility; Renovate bumps it
 
+      # ubuntu-22.04 on purpose (not -latest): the AppImage bundles GTK &
+      # friends but takes glibc from the HOST, so the oldest supported LTS
+      # gives the widest "runs on your distro" range. webkit2gtk-4.1 is the
+      # one lib deliberately left to the host (see README). gtk-layer-shell
+      # is the Linux live-wallpaper surface (live_linux.rs) and rides along
+      # into the AppImage as a normal linked lib.
       - name: Install Linux dev libs
-        if: startsWith(matrix.platform, 'ubuntu-')
+        if: startsWith(matrix.runner, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
+            libgtk-layer-shell-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            xdg-utils
+            xdg-utils \
+            libfuse2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: ${{ matrix.target }}
 
       # rust-cache restore occasionally flakes mid-extract on Windows
       # runners; don't fail the whole job because of a cache miss/restore
@@ -150,37 +215,77 @@ jobs:
         continue-on-error: true
         with:
           workspaces: './src-tauri -> target'
-          # Distinct cache slots per arch — otherwise an arm64 build
-          # would clobber the x64 incremental cache and vice versa.
-          key: ${{ matrix.platform }}-${{ matrix.arch }}
+          # One cache slot per cell so arches never clobber each other.
+          key: ${{ matrix.cell }}
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
+      # tauri.conf.json's bundle.targets (app, appimage, dmg, nsis) is
+      # filtered per OS by the CLI, so no --bundles here: Linux → AppImage,
+      # Windows → NSIS setup.exe, macOS → .app + .dmg. With the signing key
+      # present, createUpdaterArtifacts also emits the .sig files (and the
+      # macOS .app.tar.gz) the updater feed needs. --ci = never prompt.
       - name: Build the app
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri auto-signs the updater bundle when this is set: the macOS
-          # .app.tar.gz (its .sig lands next to it and drives latest.json).
-          # This job only builds macOS; Linux/Windows are signed locally.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # AppImage tooling on a runner: no FUSE mount (extract-and-run),
+          # and skip linuxdeploy's strip pass (it corrupts some binaries).
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          NO_STRIP: 'true'
+        run: bun x tauri build --ci --target ${{ matrix.target }}
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ambient-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ${{ matrix.artifact-glob }}
-          if-no-files-found: warn
-          # The local publisher pulls these via `publish-local.sh --ci-run
-          # <id>` to fold the macOS build into the release. Short retention:
-          # the 90-day default piled up GB of installers and blew the account
-          # artifact-storage quota (which failed a release mid-publish).
+          name: ambient-${{ matrix.cell }}
+          # One glob list for all OSes; only this cell's bundle kinds match.
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: error
+          # The publish job consumes these within minutes; the 90-day
+          # default piled up GB of installers and blew the account's
+          # artifact-storage quota mid-release once.
           retention-days: 7
 
-  # No release job here. Publishing is local (scripts/publish-local.sh:
-  # signs, builds latest.json, uploads to R2, cuts the GitHub release),
-  # pulling this macOS artifact via --ci-run and combining it with the
-  # locally-built Linux + Windows bundles. CI's only job is the one bundle
-  # the dev machine can't make: macOS (no off-Mac build).
+  publish:
+    name: Publish (partial-aware)
+    needs: [plan, build]
+    # Run even when some cells failed (fail-fast is off) — publish.sh ships
+    # what exists and leaves the rest at the previous release. Skipped when
+    # the whole run was cancelled or the plan itself failed.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || inputs.publish == true) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release create / upload
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14  # pinned for reproducibility; Renovate bumps it
+
+      - name: Install JS dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download the built cells
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: ambient-*
+          path: dist
+
+      - name: Publish
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: '848c6419822ef3e91b6f66d69ebe63eb'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/publish.sh --from dist

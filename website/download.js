@@ -14,9 +14,9 @@
 // live in the disclosure (a native <details>), and the note shows by
 // default (macOS is the primary). Every button has a working default href.
 //
-// Download keys (must match build-latest-json.mjs + the Worker):
-//   macos · windows · windows-arm64 ·
-//   linux-deb[-arm64] · linux-rpm[-arm64] · linux-pacman (x86_64 only)
+// Download keys (must match scripts/merge-latest-json.mjs + the Worker):
+//   macos · macos-intel · windows · windows-arm64 ·
+//   linux-appimage · linux-appimage-arm64
 
 (function () {
   'use strict';
@@ -25,8 +25,26 @@
     return document.getElementById(id);
   };
 
+  // Apple Silicon vs Intel can't be read from the UA (Safari reports
+  // "Intel Mac OS X" on both). Chromium exposes the GPU vendor through
+  // WebGL — "Apple M2" / "Apple GPU" vs "Intel Iris" / "AMD Radeon" — so
+  // use that when it's unambiguous, else default to Apple Silicon (every
+  // Mac sold since late 2020) and let the dropdown correct it.
+  function macArch() {
+    try {
+      var canvas = document.createElement('canvas');
+      var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      var info = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      var renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+      if (/Intel|AMD|Radeon/i.test(renderer) && !/Apple M\d/i.test(renderer)) return 'x86_64';
+    } catch (e) {
+      /* fall through */
+    }
+    return 'aarch64';
+  }
+
   function parseUserAgent(ua) {
-    if (/Mac|iPhone|iPad/.test(ua)) return { os: 'macos', arch: 'aarch64' };
+    if (/Mac|iPhone|iPad/.test(ua)) return { os: 'macos', arch: macArch() };
     if (/Windows|Win64|WOW64/.test(ua)) {
       return { os: 'windows', arch: /ARM64|aarch64/i.test(ua) ? 'aarch64' : 'x86_64' };
     }
@@ -49,6 +67,7 @@
         if (p.indexOf('mac') !== -1) os = 'macos';
         else if (p.indexOf('win') !== -1) os = 'windows';
         else if (p.indexOf('linux') !== -1 || p.indexOf('chrom') !== -1) os = 'linux';
+        if (os === 'macos') return { os: os, arch: macArch() };
         if (os) return { os: os, arch: a === 'arm' ? 'aarch64' : 'x86_64' };
       } catch (e) {
         /* fall through */
@@ -67,6 +86,17 @@
     if (!sel) return;
     var update = function () {
       setHref('dl-windows', sel.value);
+    };
+    sel.addEventListener('change', update);
+    update();
+  }
+
+  // macOS ships two builds: `macos` (Apple Silicon) and `macos-intel`.
+  function wireMac() {
+    var sel = $('dl-mac-arch');
+    if (!sel) return;
+    var update = function () {
+      setHref('dl-macos', sel.value);
     };
     sel.addEventListener('change', update);
     update();
@@ -117,7 +147,13 @@
 
   function applyDetection(detected) {
     if (!detected) return;
-    if (detected.os === 'windows') {
+    if (detected.os === 'macos') {
+      var m = $('dl-mac-arch');
+      if (m) {
+        m.value = detected.arch === 'x86_64' ? 'macos-intel' : 'macos';
+        m.dispatchEvent(new Event('change'));
+      }
+    } else if (detected.os === 'windows') {
       var w = $('dl-win-arch');
       if (w) {
         w.value = detected.arch === 'aarch64' ? 'windows-arm64' : 'windows';
@@ -134,6 +170,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', async function () {
+    wireMac();
     wireWindows();
     wireLinux();
     var others = $('dl-others');

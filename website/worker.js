@@ -14,10 +14,10 @@ export default {
     // points at. Lets the homepage hardcode platform-keyed URLs once and
     // never touch them again across releases. The key is matched loosely
     // (any lowercase/digit/dash token) and looked up in the manifest's
-    // `downloads` map — an unknown key just 404s. Keys in use:
-    //   macos · windows · windows-arm64 · linux · linux-arm64 ·
-    //   linux-deb · linux-deb-arm64 · linux-rpm · linux-rpm-arm64 ·
-    //   linux-pacman
+    // `downloads` map — an unknown key just 404s. Keys in use (written by
+    // scripts/merge-latest-json.mjs):
+    //   macos · macos-intel · windows · windows-arm64 ·
+    //   linux-appimage · linux-appimage-arm64 (+ linux / linux-arm64 aliases)
     const latestMatch = url.pathname.match(
       /^\/downloads\/latest\/([a-z0-9-]+)\/?$/,
     );

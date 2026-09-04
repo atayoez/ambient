@@ -18,9 +18,7 @@
     "gen:types": "cd src-tauri && RUSTC_WRAPPER= cargo test -p ambient-core export_bindings",
     "test": "vitest run",
     "release": "./scripts/release.sh",
-    "build:local": "bash scripts/build-local.sh",
-    "publish:local": "bash scripts/publish-local.sh",
-    "release:local": "bun run build:local && bun run publish:local"
+    "release:publish": "bash scripts/publish.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

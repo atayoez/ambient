@@ -63,6 +63,7 @@ DNS zone      oezcan.me  (zone ID 07bcaf6bb2065f0bab0e2f99984bb9ff)
 R2 file scheme (since 0.4):
 ```
 Ambient-<VERSION>-macOS-aarch64.dmg
+Ambient-<VERSION>-macOS-x86_64.dmg
 Ambient-<VERSION>-Windows-x86_64-setup.exe
 Ambient-<VERSION>-Windows-aarch64-setup.exe
 Ambient-<VERSION>-Linux-x86_64.AppImage
@@ -70,34 +71,31 @@ Ambient-<VERSION>-Linux-aarch64.AppImage
 latest.json
 ```
 
-The Worker's `/downloads/latest/{macos,windows,windows-arm64,linux,linux-arm64}` aliases read `latest.json` and 302 to the current versioned URL, so the homepage Download cards never need touching across releases.
+The Worker's `/downloads/latest/{macos,macos-intel,windows,windows-arm64,linux-appimage,linux-appimage-arm64}` aliases read `latest.json` and 302 to the current versioned URL, so the homepage Download cards never need touching across releases.
 
 ## Cutting a release
 
 ```bash
-bun run release 0.X.0
+bun run release 1.X.Y            # --watch to follow the CI run
 ```
 
-Local-first: every platform we can build off this box is built here, and CI
-builds only macOS (the one target that needs Apple's SDK + notarisation).
-`scripts/release.sh` sequence:
+Everything builds in CI now — one native six-cell matrix, no local
+cross-builds, no ssh build boxes. `scripts/release.sh`:
 
-1. Reads `CHANGELOG.md` `[Unreleased]`, promotes it to `[0.X.0] - DATE`, saves the body as release notes
+1. Reads `CHANGELOG.md` `[Unreleased]`, promotes it to `[1.X.Y] — DATE`
 2. Bumps version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`
-3. **Preflights the local build env** (tools below + ssh/podman on `$ARM_HOST`) — fails *before* tagging if anything's missing, so a public tag is never left stranded
-4. Commits "Release vX.Y.Z", tags `vX.Y.Z`, pushes main + tag → the tag-push trigger in `build.yml` builds **macOS only**
-5. Runs `scripts/build-local.sh` → into `build-out/`:
-   - Linux **x86_64** AppImage — ubuntu:26.04 container here (signed via the mounted updater key)
-   - Linux **aarch64** AppImage — ubuntu:26.04 container **on `$ARM_HOST` (default `orion`, native arm64) over ssh**: rsync source up, build there, scp the `.AppImage` back, sign here. Cross-bundling can't run `linuxdeploy`, and native Arch/Tumbleweed hit distro-specific AppImage bugs — the container normalises to an Ubuntu layout
-   - Windows **x86_64 + aarch64** — `cargo-xwin` + NSIS `setup.exe` (the `/imsvc` clang shim handles arm64 `ring`)
-6. Runs `scripts/publish-local.sh` — **partial-aware**: starts from the live `latest.json`, overrides only the platforms it has artifacts for (Linux + Windows now; macOS keeps its prior entry), uploads to R2, writes the dual-shape `latest.json` (legacy `downloads.*` + plugin-format `platforms.*` with minisign signatures), and cuts/updates the `gh release`
-7. Fold macOS in once CI finishes: `bun run publish:local 0.X.0 --ci-run <build.yml-run-id>` (or let the scheduled `publish-macos.yml` do it on the 1st of the month)
+3. Commits "Release vX.Y.Z", tags `vX.Y.Z`, pushes main + tag
 
-`--no-local` skips steps 5–6 (tag + push only — e.g. a macOS-only re-cut). `bun run build:local` / `publish:local` run the halves independently.
+The tag push triggers `.github/workflows/build.yml`:
 
-**Prerequisites**: `gh` authenticated, `wrangler` (`bunx wrangler@4`) logged in with R2 scope, clean working tree, `~/.config/ambient/updater-private.key` present, `cargo-xwin` + `makensis` (Arch AUR `nsis`) installed, and **ssh access to `$ARM_HOST` with `podman` installed there** (the arm64 AppImage box — `orion` by default; override with `ARM_HOST=<host>`). The preflight in step 3 checks all of these.
+4. `check` (tsc / biome / vitest / cargo test), then the matrix — `linux-x86_64` (ubuntu-22.04), `linux-aarch64` (ubuntu-22.04-arm), `windows-x86_64` (windows-latest), `windows-aarch64` (windows-11-arm), `macos-x86_64` (macos-15-intel), `macos-aarch64` (macos-latest). Each cell runs `tauri build --target <triple>` with the updater signing key and uploads `ambient-<cell>`
+5. `publish` → `scripts/publish.sh`: **partial-aware** — starts from the live `latest.json`, overrides only the cells that built (a failed cell keeps its previous release), uploads to R2 with the `Ambient-VERSION-Platform-Arch.ext` naming, writes the dual-shape manifest (`downloads.*` keys incl. `macos-intel` + plugin-format `platforms.*` with minisign signatures), and creates/updates the `gh release`
 
-**If something fails mid-flight**: the version-bump commit + tag were pushed in step 4. The publish is partial-aware and idempotent — re-run `bun run publish:local 0.X.0` (R2 keys are versioned, `gh release upload --clobber`). If `$ARM_HOST` was the problem, fix it and re-run `build:local` then `publish:local`; the rest of the feed is untouched meanwhile.
+**Prerequisites**: `gh` authenticated, clean working tree. Repo secrets: `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`), `CLOUDFLARE_API_TOKEN` with R2 object write on `ambient-releases`.
+
+**Cost**: macOS runners bill 10×, Windows 2×, arm runners are 2-CPU on a private repo. A full release is ~300–400 billable minutes; the matrix never runs on plain main pushes.
+
+**If a cell fails**: the rest still publish. Rebuild just that cell and merge it in: `gh workflow run build.yml -f targets=<cell> -f publish=true` (comma-separate for several). **If publish itself failed** (R2 hiccup, gh outage): `bun run release:publish -- 1.X.Y --run <run-id>` re-runs it locally from that run's artifacts — R2 keys are versioned and `gh release upload --clobber` is idempotent.
 
 ## The gotchas that have actually bitten
 
@@ -126,7 +124,7 @@ NO_STRIP=true ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
   --appdir Ambient.AppDir --output appimage
 ```
 
-Produces `Ambient-x86_64.AppImage` in the same directory. `build-local.sh` sidesteps this entirely by building the AppImage inside an ubuntu:26.04 container (`APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=true`) — the failure only bites a bare host `tauri build`, so this manual recovery is just for ad-hoc local builds outside the release scripts.
+Produces `Ambient-x86_64.AppImage` in the same directory. The CI matrix sidesteps this by building on Ubuntu runners with `APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=true` — the failure only bites a bare host `tauri build` on non-Ubuntu distros, so this manual recovery is just for ad-hoc local builds.
 
 ### 3. Bun not in `/bin/sh` PATH
 

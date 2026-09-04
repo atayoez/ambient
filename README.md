@@ -14,13 +14,14 @@ Anything you apply lands in your **Library** for re-use. Everything stays local;
 
 Builds for every release land on the [Releases page](https://github.com/atayoez/ambient/releases). Pick the file for your OS:
 
-| Platform                | File                                       | Notes                                                                |
-|-------------------------|--------------------------------------------|----------------------------------------------------------------------|
-| macOS (Apple Silicon)   | `Ambient-x.y.z-macOS-aarch64.dmg`          | Open the DMG, drag Ambient to Applications. Unsigned: right-click → Open the first time. |
-| Windows x86_64          | `Ambient-x.y.z-Windows-x86_64.msi`         | MSI installer (WiX). Unsigned: "More info → Run anyway" the first time. |
-| Windows ARM64           | `Ambient-x.y.z-Windows-aarch64.msi`        | Native ARM64 build for Snapdragon / Copilot+ PCs.                    |
-| Linux x86_64            | `Ambient-x.y.z-Linux-x86_64.AppImage`      | `chmod +x` and run. Needs `webkit2gtk-4.1` on the host.              |
-| Linux aarch64           | `Ambient-x.y.z-Linux-aarch64.AppImage`     | For Raspberry Pi 4/5, Asahi-on-Apple-Silicon, ARM servers.            |
+| Platform              | File                                        | Notes                                                                 |
+|-----------------------|---------------------------------------------|-----------------------------------------------------------------------|
+| macOS (Apple Silicon) | `Ambient-x.y.z-macOS-aarch64.dmg`           | Open the DMG, drag Ambient to Applications. Unsigned: right-click → Open the first time. |
+| macOS (Intel)         | `Ambient-x.y.z-macOS-x86_64.dmg`            | Same as above, for 2020-and-earlier Intel Macs.                       |
+| Windows x86_64        | `Ambient-x.y.z-Windows-x86_64-setup.exe`    | NSIS installer. Unsigned: "More info → Run anyway" the first time.    |
+| Windows ARM64         | `Ambient-x.y.z-Windows-aarch64-setup.exe`   | Native ARM64 build for Snapdragon / Copilot+ PCs.                     |
+| Linux x86_64          | `Ambient-x.y.z-Linux-x86_64.AppImage`       | `chmod +x` and run. Needs `webkit2gtk-4.1` on the host.               |
+| Linux aarch64         | `Ambient-x.y.z-Linux-aarch64.AppImage`      | For Raspberry Pi 4/5, Asahi-on-Apple-Silicon, ARM workstations.       |
 
 The marketing site at [ambient.oezcan.me](https://ambient.oezcan.me/) auto-detects your OS + arch and surfaces the right download as the primary CTA.
 
@@ -70,6 +71,8 @@ bun run tauri build        # production installers for your platform
 
 The release bundle ends up under `src-tauri/target/release/bundle/`.
 
+On Linux the shell also links `gtk-layer-shell` (the Wayland live-wallpaper surface), so a dev host needs its headers too: `gtk-layer-shell-devel` on openSUSE, `libgtk-layer-shell-dev` on Debian/Ubuntu.
+
 See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full dev / test / release commands (including the linuxdeploy bundling-step fallback and `jq` snippets for resetting license / library state during testing).
 
 ## Project structure
@@ -85,8 +88,14 @@ src-tauri/
     desktop.rs    set_wallpaper (cross-platform + COSMIC override)
     monitor.rs    randr-shelling monitor detection
     library.rs    File mgmt commands + WebP thumbnail cache
+    live_win.rs   Live wallpaper window: Windows (WorkerW)
+    live_mac.rs   Live wallpaper window: macOS (desktop window level)
+    live_linux.rs Live wallpaper window: Linux Wayland layer-shell (COSMIC, Sway, …)
+  core/           ambient-core: renderer, sources, stores, KDE live plugin
+plasma/           KDE Plasma wallpaper plugin (QML + baked shaders)
 scripts/
-  release.sh     Cut a versioned release (see DEVELOPMENT.md)
+  release.sh     Cut a versioned release: changelog + bump + tag + push
+  publish.sh     Partial-aware publisher (run by CI; re-runnable locally)
 website/         Marketing site (Cloudflare Worker + R2)
 docs/            DEVELOPMENT.md + screenshots + operational notes
 ```
@@ -104,7 +113,7 @@ bun run test                              # vitest (JS unit tests)
 (cd src-tauri && cargo test --lib)        # cargo (Rust unit tests)
 ```
 
-CI runs the same `check` job on every push/PR. The cross-platform installer builds are gated to `workflow_dispatch` and only fire during a release cut — `scripts/release.sh` handles the dispatch.
+CI runs the same `check` job on every push/PR. The six-cell installer matrix ({Linux, Windows, macOS} × {x86_64, aarch64}, each built natively on a GitHub-hosted runner) and the publish job only fire on a `v*` tag push or a manual dispatch — `bun run release X.Y.Z` cuts the tag.
 
 ## License
 
