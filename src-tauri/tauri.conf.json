@@ -38,7 +38,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: https://cdn.jsdelivr.net; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1421 http://localhost:1420; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: https://cdn.jsdelivr.net; media-src 'self' asset: http://asset.localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1421 http://localhost:1420; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": [

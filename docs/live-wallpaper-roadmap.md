@@ -12,8 +12,7 @@ a render-quality selector (Settings → resolution/fps caps) and an app-triggere
 plasmashell reload when the plugin upgrades (Plasma caches plugin QML per session, so new
 types rendered blank otherwise). Next: per-pattern selectable animation styles.
 
-Remaining order by value/effort: A (video) -> B (other platforms). Each is
-independently shippable.
+Remaining: B2 (Android). A (video/GIF) and B1 (desktop windows) are implemented.
 
 ## Carry-forward gotchas (don't rediscover these)
 - qsb MUST bake GLES variants ("100es,300es" on top of "150,330,440" — gen-shaders.ts owns
@@ -63,7 +62,16 @@ fit + opaque; mesh = drifting metaball gradient. Original plan kept below for re
   knobs() (liveShader.ts), Rust renders_in_plugin (live.rs), isGenerative + knob() (main.qml).
 - Effort: ~half a day for bokeh+stripes+geometric.
 
-## A. Video / GIF import live wallpaper  (self-contained; KDE first)
+## A. Video / GIF import live wallpaper  — IMPLEMENTED 2026-10-13 (needs on-device verification)
+Shipped for every delivery at once, not KDE first. Spec `{ kind: "video", video, format }`
+(live.rs build_video_spec stamps format/speed/clock); import_live_video (shell, Rust-side
+tauri-plugin-dialog) → live::import_video copies into <app data>/live (hash-named, prunes
+every older import except the active clip). Webview: VideoFill.tsx (<video> loop muted /
+<img> for GIF, playbackRate = speed; CSP gained media-src asset:). KDE: AnimatedImage for
+GIF; video via contents/ui/VideoLayer.qml behind a Loader so a missing QtMultimedia only
+breaks video, never every pattern. Tray "Random" no-ops on a video (not a pattern).
+Not done: pause when the desktop is covered; WebKitGTK needs gst-plugins for the codec.
+Original plan kept below.
 - Data model: add a kind discriminator — { "kind": "video", "video": "/abs/path.mp4" } vs
   the pattern spec. Plugin branches on spec.kind === "video".
 - Import (Rust): new command import_video(src) — Tauri file dialog (mp4/webm/gif), validate,

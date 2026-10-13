@@ -185,3 +185,30 @@ pub async fn clear_live_wallpaper() -> Result<(), String> {
 pub async fn get_live_wallpaper() -> Result<Option<serde_json::Value>, String> {
     Ok(ambient_core::state::settings().get().await.live_wallpaper)
 }
+
+/// Pick a video / GIF with the native file dialog and copy it into the app's
+/// live dir. Returns the copy's path (what a `{ kind: "video", video }` live
+/// spec carries), or None when the user cancelled the dialog.
+#[tauri::command]
+pub async fn import_live_video(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let picked = app
+            .dialog()
+            .file()
+            .set_title("Import a video or GIF")
+            .add_filter("Video or GIF", ambient_core::live::VIDEO_EXTENSIONS)
+            .blocking_pick_file();
+        let Some(file) = picked else {
+            return Ok(None);
+        };
+        let path = file.into_path().map_err(|e| format!("picked file: {e}"))?;
+        ambient_core::live::import_video(path).await.map(Some)
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Err("Video wallpapers are supported on desktop only.".to_string())
+    }
+}

@@ -65,6 +65,10 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["e
 tauri-plugin-updater = "2"
 # Relaunch after an in-app update (the Linux AppImage self-update path).
 tauri-plugin-process = "2"
+# Native file picker for the video/GIF live-wallpaper import. Driven from
+# Rust only (commands::import_live_video), so no JS dialog permission is
+# granted to the webview.
+tauri-plugin-dialog = "2"
 
 # Mobile wallpaper-set bridge (Android WallpaperManager). Registered in
 # lib.rs setup and routed into ambient_core::desktop::set_os_setter.

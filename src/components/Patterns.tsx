@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAnimationSpeed, useSettings, useSystemAccentColor } from '../lib/appHooks';
 import {
@@ -29,16 +30,18 @@ import {
   OptionScroller,
   SegmentedIcons,
   StatusInline,
+  toast,
 } from '../ui';
 import ClockOverlay from './ClockOverlay';
 import EmojiField from './EmojiField';
-import { CheckIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
+import { CheckIcon, FilmIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
 import LivePreview from './LivePreview';
 import PaletteEditor from './PaletteEditor';
 import SpeedSlider from './SpeedSlider';
 import { THEME_MODE_OPTIONS } from './themeOptions';
 import { useApplyPattern } from './useApplyPattern';
 import { usePalette } from './usePalette';
+import VideoFill from './VideoFill';
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
@@ -59,6 +62,10 @@ function pickInitialConfig(dark: boolean): PatternConfig {
     colorPresetId: preset.id,
   };
 }
+
+// Last path segment, for the imported-clip pill. The copy is hash-named, but
+// the extension still tells video from GIF at a glance.
+const fileName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -162,7 +169,26 @@ export default function Patterns({ active = true }: { active?: boolean }) {
 
   // Apply pipeline (busy/status + the render-save-set flow). Terminal
   // outcomes surface as toasts; `status` is just in-progress text.
-  const { busy, status, apply, applyLive } = useApplyPattern(config, saveConfig);
+  const { busy, status, apply, applyLive, applyVideo } = useApplyPattern(
+    config,
+    saveConfig,
+  );
+
+  // An imported video / GIF (its copy in the app's live dir). While one is
+  // picked it takes over the stage preview and Apply sets it as the live
+  // wallpaper; dropping it returns to the pattern. In-memory only: the
+  // pattern draft stays the tab's persistent state.
+  const [video, setVideo] = useState<string | null>(null);
+  async function importVideo() {
+    try {
+      const path = await invoke<string | null>('import_live_video');
+      if (path) setVideo(path);
+    } catch (e: unknown) {
+      toast.fromError(e);
+    }
+  }
+  const applyCurrent = () =>
+    void (video ? applyVideo(video) : animated ? applyLive() : apply());
 
   // Preview wrapper element + measured pixel size. We pass the live
   // CSS size × devicePixelRatio to the Rust renderer so the image
@@ -272,7 +298,7 @@ export default function Patterns({ active = true }: { active?: boolean }) {
   // Cmd/Ctrl+Enter applies, Cmd/Ctrl+Shift+R re-rolls. Apple desktop
   // staples — Cmd+R itself is avoided since some webviews still treat
   // it as a reload. Only live while this is the visible tab.
-  useKeydown('Enter', () => void (animated ? applyLive() : apply()), {
+  useKeydown('Enter', applyCurrent, {
     cmdOrCtrl: true,
     enabled: active,
   });
@@ -308,7 +334,8 @@ export default function Patterns({ active = true }: { active?: boolean }) {
         {animated && previewConfig.type === 'emoji' && (
           <EmojiField config={{ ...previewConfig, speed }} className="gen-bg" />
         )}
-        {animated && settings?.liveClock.enabled && (
+        {video && <VideoFill path={video} speed={speed} className="gen-bg" />}
+        {(animated || video) && settings?.liveClock.enabled && (
           <ClockOverlay clock={settings.liveClock} background={previewConfig.colors[0]} />
         )}
 
@@ -453,25 +480,55 @@ export default function Patterns({ active = true }: { active?: boolean }) {
 
         <div className="pat-actions">
           <StatusInline status={status} />
-          {/* One Apply button; the Animate toggle decides whether it sets a
-              live (animated) wallpaper or a static one. */}
-          <label className="pat-anim">
-            <span>Animate</span>
-            <span className="switch">
-              <input
-                type="checkbox"
-                checked={animated}
-                onChange={(e) => setAnimated(e.target.checked)}
-                aria-label="Animate the wallpaper"
-              />
-              <span className="switch-track" />
+          {/* One Apply button. With an imported clip it sets that clip as
+              the live wallpaper; otherwise the Animate toggle decides
+              whether it sets a live (animated) pattern or a static one. */}
+          {video ? (
+            <span className="pat-video" title={video}>
+              <FilmIcon size={12} />
+              <span className="pat-video-name">{fileName(video)}</span>
+              <button
+                type="button"
+                className="pat-del"
+                onClick={() => setVideo(null)}
+                aria-label="Back to the pattern"
+                title="Back to the pattern"
+              >
+                <XIcon size={12} />
+              </button>
             </span>
-          </label>
+          ) : (
+            <label className="pat-anim">
+              <span>Animate</span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={animated}
+                  onChange={(e) => setAnimated(e.target.checked)}
+                  aria-label="Animate the wallpaper"
+                />
+                <span className="switch-track" />
+              </span>
+            </label>
+          )}
+          <IconButton
+            onClick={() => void importVideo()}
+            disabled={busy}
+            label="Import a video or GIF"
+          >
+            <FilmIcon />
+          </IconButton>
           <IconButton
             variant="primary"
-            onClick={animated ? applyLive : apply}
+            onClick={applyCurrent}
             disabled={busy}
-            label={animated ? 'Apply animated wallpaper' : 'Apply as wallpaper'}
+            label={
+              video
+                ? 'Apply video wallpaper'
+                : animated
+                  ? 'Apply animated wallpaper'
+                  : 'Apply as wallpaper'
+            }
             title="Apply as wallpaper (⌘⏎)"
           >
             <CheckIcon />

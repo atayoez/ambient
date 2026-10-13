@@ -2163,6 +2163,10 @@ pub async fn randomize_current(dark: bool) -> Result<(), String> {
     let cfg = crate::state::settings().get().await;
 
     if let Some(mut live) = cfg.live_wallpaper {
+        // A video / GIF has nothing to re-roll.
+        if crate::live::is_video_spec(&live) {
+            return Err("current wallpaper is a video".to_string());
+        }
         reroll_config(&mut live, dark);
         return crate::live::apply_live_pattern(live).await;
     }

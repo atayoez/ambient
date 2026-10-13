@@ -151,7 +151,8 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init());
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init());
 
     builder
         .invoke_handler(tauri::generate_handler![
@@ -183,6 +184,7 @@ pub fn run() {
             commands::apply_live_pattern,
             commands::clear_live_wallpaper,
             commands::get_live_wallpaper,
+            commands::import_live_video,
             rotation::rotate_now,
             tray_icon::update_tray_theme,
             uninstall_self,

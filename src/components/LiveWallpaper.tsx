@@ -6,13 +6,14 @@ import { ANIMATABLE, type PatternConfig, type PatternType } from '../lib/pattern
 import type { LiveClock } from '../lib/types';
 import ClockOverlay from './ClockOverlay';
 import EmojiField from './EmojiField';
+import VideoFill from './VideoFill';
 
 // Fullscreen wallpaper renderer for the desktop-layer live-wallpaper window
 // (live_win.rs parents it behind the icons under WorkerW, live_mac.rs drops
 // it to the desktop window level, live_linux.rs makes it a Wayland layer-shell
 // background surface). It renders the SAME pattern the in-app preview does —
 // shaders via startLiveShader, emoji via EmojiField, everything else as the
-// pre-rendered still — so all three get the KDE plugin's look without a
+// pre-rendered still, imported clips via VideoFill — so all three get the KDE plugin's look without a
 // second rendering path.
 //
 // The spec arrives two ways: baked into `window.__AMBIENT_SPEC__` by the
@@ -29,6 +30,11 @@ const SHADER_TYPES = new Set<PatternType>(ANIMATABLE);
 // LiveShaderConfig, so the desktop honors the quality setting (the in-app
 // preview keeps its own lighter caps).
 type Spec = PatternConfig & {
+  // Video / GIF live wallpaper (live.rs build_video_spec): no pattern
+  // fields, just the imported clip's path and whether it's a GIF.
+  kind?: 'video';
+  video?: string;
+  format?: 'gif' | 'video';
   image?: string;
   maxRenderEdge?: number;
   fps?: number;
@@ -83,7 +89,10 @@ export default function LiveWallpaper() {
   ) : null;
 
   let content: React.ReactNode = null;
-  if (spec.type === 'emoji') {
+  if (spec.kind === 'video') {
+    if (spec.video)
+      content = <VideoFill path={spec.video} format={spec.format} speed={spec.speed} />;
+  } else if (spec.type === 'emoji') {
     content = <EmojiField config={spec} className="live-wallpaper-emoji" />;
   } else if (SHADER_TYPES.has(spec.type)) {
     content = <ShaderFill spec={spec} />;

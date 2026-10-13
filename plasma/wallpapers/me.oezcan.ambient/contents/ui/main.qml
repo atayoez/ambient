@@ -1,6 +1,8 @@
 /*
     Ambient — animated generative wallpaper plugin for KDE Plasma 6.
 
+    Also plays imported videos / GIFs (spec.kind === "video").
+
     Renders the Flow / Waves / Aurora shaders (baked .qsb in ../shaders) that
     Ambient also uses for its in-app preview. The pattern + palette + knobs
     arrive as a JSON "Spec" written into this plugin's config by the Ambient
@@ -22,8 +24,14 @@ WallpaperItem {
         }
     }
     readonly property string patternType: (typeof spec.type === "string") ? spec.type : "aurora";
-    readonly property bool isGenerative: (patternType === "flow" || patternType === "waves" || patternType === "aurora" || patternType === "dots" || patternType === "bokeh" || patternType === "stripes" || patternType === "geometric" || patternType === "flower" || patternType === "mesh" || patternType === "matrix" || patternType === "crt");
-    readonly property bool isEmoji: patternType === "emoji";
+    // Video / GIF live wallpaper: { kind: "video", video: "/abs/path",
+    // format: "gif" | "video" } instead of a PatternConfig (live.rs
+    // build_video_spec). Takes over the whole surface; the clock still draws.
+    readonly property bool isVideo: spec.kind === "video" && typeof spec.video === "string" && spec.video.length > 0
+    readonly property bool isGif: isVideo && spec.format === "gif"
+    readonly property string videoSource: isVideo ? ("file://" + spec.video) : ""
+    readonly property bool isGenerative: !isVideo && (patternType === "flow" || patternType === "waves" || patternType === "aurora" || patternType === "dots" || patternType === "bokeh" || patternType === "stripes" || patternType === "geometric" || patternType === "flower" || patternType === "mesh" || patternType === "matrix" || patternType === "crt");
+    readonly property bool isEmoji: !isVideo && patternType === "emoji";
     // Non-generative patterns are delivered as a rendered still (path written
     // into the spec by the app); they animate as a slow drift below.
     readonly property string imageSource: {
@@ -135,7 +143,7 @@ WallpaperItem {
     // still. Cheap (just compositing one image), no per-fragment shader.
     Image {
         id: staticImage
-        visible: !root.isGenerative && !root.isEmoji && root.imageSource !== ""
+        visible: !root.isVideo && !root.isGenerative && !root.isEmoji && root.imageSource !== ""
         source: root.imageSource
         fillMode: Image.PreserveAspectCrop
         width: parent.width
@@ -256,6 +264,32 @@ WallpaperItem {
                 }
             }
         }
+    }
+
+    // GIF: QtQuick's own AnimatedImage, no multimedia stack needed.
+    AnimatedImage {
+        anchors.fill: parent
+        visible: root.isGif
+        source: root.isGif ? root.videoSource : ""
+        playing: root.isGif
+        speed: root.speedFactor
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: false
+        smooth: true
+    }
+
+    // Video: QtMultimedia, isolated in VideoLayer.qml (see there for why).
+    Loader {
+        anchors.fill: parent
+        active: root.isVideo && !root.isGif
+        source: active ? "VideoLayer.qml" : ""
+        onLoaded: {
+            item.source = Qt.binding(function() { return root.videoSource; });
+            item.rate = Qt.binding(function() { return root.speedFactor; });
+        }
+        onStatusChanged: if (status === Loader.Error)
+            console.warn("Ambient: video playback unavailable (is the QtMultimedia QML module installed?)")
     }
 
     // Live clock widget. Mirrors ClockOverlay.tsx (the desktop-layer webview

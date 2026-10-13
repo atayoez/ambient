@@ -14,15 +14,6 @@ is added on top. Edit this file as you go, not at release time.
 ## [Unreleased]
 
 ### Added
-
-### Changed
-
-### Fixed
-
-## [1.5.0] — 2026-10-13
-
-### Added
-
 - **Live wallpapers on COSMIC** (and every other Wayland desktop with
   layer-shell: Sway, Hyprland, Niri, River, …). The animated pattern
   renders in a compositor-managed background surface, so it sits under
