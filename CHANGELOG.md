@@ -15,6 +15,15 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Live wallpapers on GNOME.** Patterns, videos and GIFs now animate on the
+  GNOME desktop too, on every monitor and every workspace, under all windows
+  and out of the overview and Alt+Tab. GNOME doesn't let apps draw on the
+  desktop layer, so Ambient installs a small GNOME Shell extension (Ambient
+  Live Wallpaper) the first time you apply one; GNOME only loads new
+  extensions at login, so that first time asks you to log out and back in
+  once. Best on GNOME 49 and newer, where the wallpaper is a real desktop
+  window; GNOME 45 to 48 keep it at the bottom of the window stack instead.
+  The clock and the other widgets draw there too.
 - **Weather, calendar, countdown and note widgets.** The Widgets tab gains
   four widgets beside the clock. Weather shows current conditions, today's
   high / low and a three-day forecast from Open-Meteo (no API key; pick a

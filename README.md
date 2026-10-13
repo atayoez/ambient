@@ -92,9 +92,11 @@ src-tauri/
     library.rs    File mgmt commands + WebP thumbnail cache
     live_win.rs   Live wallpaper window: Windows (WorkerW)
     live_mac.rs   Live wallpaper window: macOS (desktop window level)
-    live_linux.rs Live wallpaper window: Linux Wayland layer-shell (COSMIC, Sway, …)
+    live_linux.rs Live wallpaper window: Linux Wayland layer-shell (COSMIC, Sway, …) and GNOME
+    live_gnome.rs Installs + checks the GNOME Shell extension that places it on GNOME
   core/           ambient-core: renderer, sources, stores, KDE live plugin
 plasma/           KDE Plasma wallpaper plugin (QML + baked shaders)
+gnome/            GNOME Shell extension for live wallpapers (embedded in the app)
 scripts/
   release.sh     Cut a versioned release: changelog + bump + tag + push
   publish.sh     Partial-aware publisher (run by CI; re-runnable locally)

@@ -12,7 +12,7 @@ a render-quality selector (Settings → resolution/fps caps) and an app-triggere
 plasmashell reload when the plugin upgrades (Plasma caches plugin QML per session, so new
 types rendered blank otherwise). Next: per-pattern selectable animation styles.
 
-Remaining: B2 (Android). A (video/GIF) and B1 (desktop windows) are implemented.
+Remaining: B2 (Android). A (video/GIF), B1 (desktop windows) and B3 (GNOME) are implemented.
 
 ## Carry-forward gotchas (don't rediscover these)
 - qsb MUST bake GLES variants ("100es,300es" on top of "150,330,440" — gen-shaders.ts owns
@@ -119,6 +119,32 @@ reuses the existing web renderers (LivePreview WebGL canvas + EmojiField DOM + d
 - Honest limits: GNOME-Wayland can't host a desktop-layer window -> frame-cycling fallback or
   unsupported. Linux/NVIDIA WebGL caveat applies (KDE already has the plugin — keep it there).
 - Effort: ~2-3 days Win+macOS; X11/Wayland fallback extra.
+
+### B3. GNOME — IMPLEMENTED 2026-10-13 (needs on-device verification)
+Mutter has no layer-shell, so a GNOME Shell extension does the placing:
+gnome/extensions/ambient-live@oezcan.me (embedded + installed by live_gnome.rs into
+~/.local/share/gnome-shell/extensions). live_linux.rs picks a `Delivery` at startup
+(LayerShell if gtk-layer-shell is supported, else Gnome if XDG_CURRENT_DESKTOP says GNOME)
+and on GNOME creates the same `wallpaper-<n>` webview windows as ordinary toplevels titled
+`ambient-live-wallpaper@x,y,w,h` (the GDK monitor's logical geometry). The extension
+matches that title on window-created and, on GNOME 49+ (feature-detected via
+`Meta.Window.prototype.set_type`), calls set_type(DESKTOP) + hide_from_window_list() —
+the public replacement for Meta.WaylandClient.make_desktop, which was removed in 49 and
+only ever worked for clients the shell spawned itself. GNOME 45-48 fallback: lower() on
+every raise + patched Workspace/WorkspaceThumbnail._isOverviewWindow and
+Meta.Display.get_tab_list (both Alt+Tab switchers read it); the app may still show as
+running in the dash there.
+Both: stick(), move_resize_frame to the monitor, re-fit on monitors-changed.
+Gotchas: GNOME Shell on Wayland only loads newly installed extensions at login, so the
+first apply writes enabled-extensions via gsettings and asks for a relogin; apply checks
+GetExtensionInfo over gdbus and refuses to create windows until the extension is ACTIVE
+(a window without it would cover the desktop). Never auto-enable an INACTIVE extension
+(the user turned it off; the restore path would fight them). The window must be
+resizable — Tauri's resizable(false) pins min = max size and Mutter can't fit it.
+session-modes includes unlock-dialog so locking the screen doesn't disable it.
+Not done: overview / lock screen show GNOME's static background (a Clutter.Clone of
+the window into the background actors would fix that); publishing on extensions.gnome.org
+(InstallRemoteExtension would load without a relogin).
 
 ### B2. Android WallpaperService
 - Generative/dots: a GLSurfaceView-on-Engine-SurfaceHolder running the shaders adapted to

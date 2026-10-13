@@ -1,6 +1,8 @@
 mod commands;
 mod integrate;
 #[cfg(target_os = "linux")]
+mod live_gnome;
+#[cfg(target_os = "linux")]
 mod live_linux;
 #[cfg(target_os = "macos")]
 mod live_mac;
