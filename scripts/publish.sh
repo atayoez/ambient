@@ -122,7 +122,7 @@ echo "==> GitHub release v$VERSION"
 ASSETS=(); for f in "$OUT"/Ambient-*; do [[ "$f" == *.sig ]] || ASSETS+=("$f"); done
 if gh release view "v$VERSION" >/dev/null 2>&1; then
   gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
-  gh release edit "v$VERSION" --draft=false --latest
+  gh release edit "v$VERSION" --draft=false --latest --title "v$VERSION" --notes-file "$OUT/notes.md"
 else
   gh release create "v$VERSION" --latest --title "v$VERSION" --notes-file "$OUT/notes.md" "${ASSETS[@]}"
 fi
