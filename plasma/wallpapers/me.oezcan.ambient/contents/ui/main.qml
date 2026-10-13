@@ -292,75 +292,11 @@ WallpaperItem {
             console.warn("Ambient: video playback unavailable (is the QtMultimedia QML module installed?)")
     }
 
-    // Live clock widget. Mirrors ClockOverlay.tsx (the desktop-layer webview
-    // on Windows / macOS / other Linux draws the same thing) from the `clock`
-    // block the app stamps into the spec from the Widgets tab. Placement is
-    // anchor + free position: the `position` corner (or centre) of the clock
-    // is pinned at (x%, y%) of the screen; `size` is the digit height in % of
-    // the shorter screen edge, the date 30% of that.
-    Item {
-        id: liveClock
+    // Widgets (clock, weather, calendar, countdown, note) over whatever
+    // renders above. Widgets.qml mirrors the webview's widgets/WidgetLayer.
+    Widgets {
         anchors.fill: parent
-        readonly property var cfg: (root.spec.clock && typeof root.spec.clock === "object") ? root.spec.clock : ({})
-        visible: cfg.enabled === true
-        readonly property string position: (typeof cfg.position === "string") ? cfg.position : "top-right"
-        readonly property bool atLeft: position.indexOf("left") >= 0
-        readonly property bool atRight: position.indexOf("right") >= 0
-        readonly property bool atTop: position.indexOf("top") >= 0
-        readonly property bool atBottom: position.indexOf("bottom") >= 0
-        readonly property real anchorX: (typeof cfg.x === "number") ? cfg.x : (atLeft ? 4 : (atRight ? 96 : 50))
-        readonly property real anchorY: (typeof cfg.y === "number") ? cfg.y : (atTop ? 4 : (atBottom ? 96 : 50))
-        readonly property real unit: Math.min(width, height) / 100
-        readonly property real timePx: unit * ((typeof cfg.size === "number") ? cfg.size : 9)
-        // Dark text on light base colours, light text otherwise — the same
-        // rule as the webview overlay, so both deliveries look alike.
-        readonly property bool onLight: root.luminance(root.colorAt(0)) > 0.6
-        readonly property color ink: onLight ? "#1a1a1f" : "#ffffff"
-        readonly property color inkShadow: onLight ? "#40ffffff" : "#80000000"
-        readonly property string timeFormat: (cfg.hour12 === true ? "h:mm" : "HH:mm")
-            + (cfg.showSeconds === true ? ":ss" : "")
-            + (cfg.hour12 === true ? " AP" : "")
-        property date now: new Date()
-
-        Timer {
-            interval: 1000
-            repeat: true
-            running: liveClock.visible
-            triggeredOnStart: true
-            onTriggered: liveClock.now = new Date()
-        }
-
-        Column {
-            spacing: liveClock.timePx * 0.12
-            // Pin the anchored corner (or centre) of this column at (x%, y%).
-            x: liveClock.width * liveClock.anchorX / 100
-               - (liveClock.atRight ? width : (liveClock.atLeft ? 0 : width / 2))
-            y: liveClock.height * liveClock.anchorY / 100
-               - (liveClock.atBottom ? height : (liveClock.atTop ? 0 : height / 2))
-
-            Text {
-                text: Qt.formatTime(liveClock.now, liveClock.timeFormat)
-                font.pixelSize: liveClock.timePx
-                font.weight: Font.DemiBold
-                font.letterSpacing: -liveClock.timePx * 0.02
-                color: liveClock.ink
-                style: Text.Raised
-                styleColor: liveClock.inkShadow
-                anchors.right: liveClock.atRight ? parent.right : undefined
-                anchors.horizontalCenter: (!liveClock.atLeft && !liveClock.atRight) ? parent.horizontalCenter : undefined
-            }
-            Text {
-                visible: liveClock.cfg.showDate !== false
-                text: Qt.formatDate(liveClock.now, "dddd, d MMMM")
-                font.pixelSize: liveClock.timePx * 0.3
-                font.weight: Font.Medium
-                color: liveClock.ink
-                opacity: 0.85
-                style: Text.Raised
-                styleColor: liveClock.inkShadow
-                anchors.right: liveClock.atRight ? parent.right : undefined
-                anchors.horizontalCenter: (!liveClock.atLeft && !liveClock.atRight) ? parent.horizontalCenter : undefined
-            }
-        }
+        spec: root.spec
+        background: root.colorAt(0)
     }
 }

@@ -247,3 +247,49 @@ export function FilmIcon({ size = 14, className, style }: IconProps) {
     </SvgRoot>
   );
 }
+
+export function CloudSunIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <path d="M12 2v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="M20 12h2" />
+      <path d="m19.07 4.93-1.41 1.41" />
+      <path d="M15.947 12.65a4 4 0 0 0-5.925-4.128" />
+      <path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z" />
+    </SvgRoot>
+  );
+}
+
+export function CalendarIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h18" />
+    </SvgRoot>
+  );
+}
+
+export function HourglassIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <path d="M5 22h14" />
+      <path d="M5 2h14" />
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+    </SvgRoot>
+  );
+}
+
+export function NoteIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
+      <path d="M15 3v6h6" />
+      <path d="M7 13h6" />
+      <path d="M7 17h10" />
+    </SvgRoot>
+  );
+}

@@ -15,7 +15,23 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Weather, calendar, countdown and note widgets.** The Widgets tab gains
+  four widgets beside the clock. Weather shows current conditions, today's
+  high / low and a three-day forecast from Open-Meteo (no API key; pick a
+  city by search, °C or °F). Calendar shows this month with today marked,
+  Monday- or Sunday-first. Countdown shows days until (or since) a date with
+  a label, and Note shows any text you type. Each one has its own anchor,
+  position and size, and all of them draw on KDE Plasma and in the
+  desktop-layer window on Windows, macOS and COSMIC / wlroots.
+- **Glass widget style.** A Style option draws every widget, the clock
+  included, on a frosted translucent card instead of bare shadowed text.
+
 ### Changed
+
+- **Redesigned Widgets tab.** One preview of your screen shows every enabled
+  widget, and you drag a widget there to move it (or focus it and use the
+  arrow keys). A row of tiles switches each widget on and picks which one
+  the settings below edit.
 
 ### Fixed
 

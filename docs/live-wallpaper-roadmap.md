@@ -104,8 +104,10 @@ Windows = one WorkerW child per monitor (EnumDisplayMonitors rects mapped into W
 space with MapWindowPoints — raw virtual-screen coords were off by the origin), no
 WM_DISPLAYCHANGE listener yet. Windows/macOS paths are type-checked cross-target only
 (scratch crates against x86_64-pc-windows-msvc / aarch64-apple-darwin); first real run is
-the release matrix. Live clock (2026-09-04): Settings.live_clock → spec.clock → ClockOverlay.tsx
-(webview + Patterns preview) and a QML twin in main.qml. Original plan kept below.
+the release matrix. Live clock (2026-09-04): Settings.live_clock → spec.clock. Weather / calendar /
+countdown / note widgets (2026-10-13): Settings.live_widgets → spec.widgets. Both render
+through widgets/WidgetLayer.tsx (webview + Patterns preview + Widgets tab stage) and a QML
+twin in Widgets.qml. Original plan kept below.
 
 A second Tauri WebviewWindow ("live") pinned to the desktop layer, loading a live.html that
 reuses the existing web renderers (LivePreview WebGL canvas + EmojiField DOM + drift img +

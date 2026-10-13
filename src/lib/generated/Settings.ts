@@ -2,8 +2,9 @@
 import type { GenProvider } from "./GenProvider";
 import type { LiveClock } from "./LiveClock";
 import type { LiveQuality } from "./LiveQuality";
+import type { LiveWidgets } from "./LiveWidgets";
 import type { RotationSource } from "./RotationSource";
 import type { SourceKind } from "./SourceKind";
 import type { ThemeMode } from "./ThemeMode";
 
-export type Settings = { source: SourceKind, unsplashQuery: string, pexelsQuery: string, wallhavenQuery: string, wallhavenSorting: string, wallhavenCategories: string, wallhavenPurity: string, genProvider: GenProvider, pollinationsModel: string, genResolution: string, openaiModel: string, rotationSource: RotationSource, rotationIntervalMinutes: number, themeMode: ThemeMode, lockscreen: boolean, lastApplied: string | null, customPresets: Array<{ id: string; name: string; colors: string[]; emojis: string[] }>, liveWallpaper: unknown, lastPattern: unknown, liveWallpaperQuality: LiveQuality, cacheLimitGb: number, animationSpeed: number, liveClock: LiveClock, };
+export type Settings = { source: SourceKind, unsplashQuery: string, pexelsQuery: string, wallhavenQuery: string, wallhavenSorting: string, wallhavenCategories: string, wallhavenPurity: string, genProvider: GenProvider, pollinationsModel: string, genResolution: string, openaiModel: string, rotationSource: RotationSource, rotationIntervalMinutes: number, themeMode: ThemeMode, lockscreen: boolean, lastApplied: string | null, customPresets: Array<{ id: string; name: string; colors: string[]; emojis: string[] }>, liveWallpaper: unknown, lastPattern: unknown, liveWallpaperQuality: LiveQuality, cacheLimitGb: number, animationSpeed: number, liveClock: LiveClock, liveWidgets: LiveWidgets, };
