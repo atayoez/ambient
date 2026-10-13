@@ -98,7 +98,9 @@ fi
 
 # Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
 echo "==> Building latest.json (merged with live)"
-curl -fsS https://ambient.oezcan.me/downloads/latest.json -o "$OUT/live.json"
+# Read it from the bucket, not the public URL: the site answers 403 to
+# GitHub-hosted runners, which failed the v1.5.0 tag run.
+$WRANGLER r2 object get "ambient-releases/latest.json" --file="$OUT/live.json" --remote
 HAVE_JSON=$(for k in "${!HAVE[@]}"; do printf '%s\t%s\n' "$k" "${HAVE[$k]}"; done)
 PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" RELEASED="$(date -u +%Y-%m-%d)" \
 VERSION="$VERSION" HAVE_JSON="$HAVE_JSON" bun scripts/merge-latest-json.mjs \
