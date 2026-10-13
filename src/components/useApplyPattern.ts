@@ -16,6 +16,7 @@ export interface UseApplyPattern {
   status: string | null;
   apply: () => Promise<void>;
   applyLive: () => Promise<void>;
+  applyVideo: (path: string) => Promise<void>;
 }
 
 export function useApplyPattern(
@@ -55,29 +56,44 @@ export function useApplyPattern(
     }
   }, [config, saveConfig]);
 
-  // Set the live (animated) wallpaper from the current config instead of
-  // rendering a still. Same commit-the-draft-first + busy/status shape as
-  // apply(); the platform setter (KDE plugin for now) lives in Rust.
-  const applyLive = useCallback(async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      await saveConfig();
-    } catch {}
-    setStatus('Setting live wallpaper…');
-    try {
-      await invoke('apply_live_pattern', { config });
-      setStatus(null);
-      toast.success('Live wallpaper set');
-    } catch (e: unknown) {
-      toast.fromError(e);
-      setStatus(null);
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  }, [config, saveConfig]);
+  // Hand a live spec to Rust (the per-platform delivery lives there) with
+  // the same busy/status/toast shape as apply().
+  const setLive = useCallback(
+    async (spec: unknown, commitDraft: boolean) => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      if (commitDraft) {
+        try {
+          await saveConfig();
+        } catch {}
+      }
+      setStatus('Setting live wallpaper…');
+      try {
+        await invoke('apply_live_pattern', { config: spec });
+        setStatus(null);
+        toast.success('Live wallpaper set');
+      } catch (e: unknown) {
+        toast.fromError(e);
+        setStatus(null);
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    },
+    [saveConfig],
+  );
 
-  return { busy, status, apply, applyLive };
+  // Set the live (animated) wallpaper from the current config instead of
+  // rendering a still, committing the draft first like apply().
+  const applyLive = useCallback(() => setLive(config, true), [config, setLive]);
+
+  // Set an imported video / GIF (path from import_live_video) as the live
+  // wallpaper. The pattern draft isn't involved, so it isn't committed.
+  const applyVideo = useCallback(
+    (path: string) => setLive({ kind: 'video', video: path }, false),
+    [setLive],
+  );
+
+  return { busy, status, apply, applyLive, applyVideo };
 }

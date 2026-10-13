@@ -63,6 +63,9 @@ where
 /// (resolution + fps caps).
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
+    if is_video_spec(config) {
+        return build_video_spec(config).await;
+    }
     let mut spec_value = config.clone();
     // Emoji renders in the delivery layer (QML Text/Image tiles). Ship the
     // Fluent 3D PNG for every glyph alongside the spec so the plugin shows
@@ -121,6 +124,135 @@ async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
         }
     }
     serde_json::to_string(&spec_value).map_err(|e| format!("serialize live spec: {e}"))
+}
+
+/// Video / GIF spec: `{ "kind": "video", "video": "/abs/path" }`, stamped
+/// with what the delivery layers need — `format` ("gif" plays as an animated
+/// image, everything else through the media stack), the speed multiplier
+/// (playback rate) and the clock overlay. The render-quality caps don't apply:
+/// a clip plays at its own resolution and frame rate.
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+async fn build_video_spec(config: &serde_json::Value) -> Result<String, String> {
+    let path = config
+        .get("video")
+        .and_then(|v| v.as_str())
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| "video live wallpaper has no file".to_string())?;
+    if !std::path::Path::new(path).is_file() {
+        return Err(format!("The video file is gone: {path}"));
+    }
+    let settings = crate::state::settings().get().await;
+    let spec = serde_json::json!({
+        "kind": "video",
+        "video": path,
+        "format": video_format(std::path::Path::new(path)),
+        "speed": settings.animation_speed,
+        "clock": serde_json::to_value(settings.live_clock).unwrap_or(serde_json::Value::Null),
+    });
+    serde_json::to_string(&spec).map_err(|e| format!("serialize live spec: {e}"))
+}
+
+/// Whether a live spec is a video / GIF (`kind: "video"`) rather than a
+/// PatternConfig.
+pub fn is_video_spec(config: &serde_json::Value) -> bool {
+    config.get("kind").and_then(|k| k.as_str()) == Some("video")
+}
+
+/// File extensions the video importer accepts (lower-case). GIF plays as an
+/// animated image; the rest go through the platform media stack (WebView2 /
+/// WKWebView / WebKitGTK+GStreamer in the desktop-layer webview, QtMultimedia
+/// in the KDE plugin), so what actually decodes depends on the codecs there.
+pub const VIDEO_EXTENSIONS: &[&str] = &["mp4", "m4v", "webm", "mov", "mkv", "gif"];
+
+fn video_format(path: &std::path::Path) -> &'static str {
+    let gif = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("gif"));
+    if gif { "gif" } else { "video" }
+}
+
+/// Where imported clips live: `<app data>/live`. Inside the asset-protocol
+/// scope (tauri.conf.json), so the webview can stream them, and owned by us,
+/// so pruning old imports never touches the user's own files.
+fn video_dir() -> std::path::PathBuf {
+    crate::state::data_dir().join("live")
+}
+
+/// Copy a user-picked video / GIF into the app's live dir and return the
+/// copy's absolute path — the value a `{ kind: "video", video }` spec
+/// carries. Copying (rather than pointing at the original) keeps the live
+/// wallpaper working when the user moves or deletes their file, and keeps
+/// every played path inside the webview's asset scope.
+///
+/// The copy is named by a hash of the source path + size + mtime, so
+/// re-importing the same file reuses it. Older imports are pruned, except
+/// the clip the active live wallpaper plays: only one spare copy of a
+/// potentially large file is ever kept around.
+pub async fn import_video(src: std::path::PathBuf) -> Result<String, String> {
+    let ext = src
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .filter(|e| VIDEO_EXTENSIONS.contains(&e.as_str()))
+        .ok_or_else(|| format!("Pick a video or GIF ({}).", VIDEO_EXTENSIONS.join(", ")))?;
+    let meta = std::fs::metadata(&src).map_err(|e| format!("read {src:?}: {e}"))?;
+    if !meta.is_file() || meta.len() == 0 {
+        return Err(format!("{src:?} is not a video file"));
+    }
+
+    let dir = video_dir();
+    let dest = dir.join(import_name(&src, &meta, &ext));
+    let active = crate::state::settings()
+        .get()
+        .await
+        .live_wallpaper
+        .filter(is_video_spec)
+        .and_then(|v| {
+            v.get("video")
+                .and_then(|p| p.as_str())
+                .map(std::path::PathBuf::from)
+        });
+
+    let copy_src = src.clone();
+    let copy_dest = dest.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("create {dir:?}: {e}"))?;
+        if !copy_dest.is_file() {
+            // Copy to a temp name first so a cancelled / failed copy never
+            // leaves a truncated clip under the final name.
+            let tmp = copy_dest.with_extension("part");
+            std::fs::copy(&copy_src, &tmp).map_err(|e| format!("copy {copy_src:?}: {e}"))?;
+            std::fs::rename(&tmp, &copy_dest).map_err(|e| format!("save {copy_dest:?}: {e}"))?;
+        }
+        prune_imports(&dir, &copy_dest, active.as_deref());
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("import task: {e}"))??;
+
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+fn import_name(src: &std::path::Path, meta: &std::fs::Metadata, ext: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    src.hash(&mut h);
+    meta.len().hash(&mut h);
+    meta.modified().ok().hash(&mut h);
+    format!("video-{:016x}.{ext}", h.finish())
+}
+
+/// Delete every file in the live dir except `keep` and the active clip.
+fn prune_imports(dir: &std::path::Path, keep: &std::path::Path, active: Option<&std::path::Path>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == keep || Some(path.as_path()) == active || !path.is_file() {
+            continue;
+        }
+        let _ = std::fs::remove_file(&path);
+    }
 }
 
 /// Mark a live wallpaper active in settings so rotation / theme-follow stand
@@ -271,6 +403,12 @@ const ASSETS: &[Asset] = &[
         rel: "contents/ui/main.qml",
         bytes: include_bytes!(concat!(
             "../../../plasma/wallpapers/me.oezcan.ambient/contents/ui/main.qml"
+        )),
+    },
+    Asset {
+        rel: "contents/ui/VideoLayer.qml",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/ui/VideoLayer.qml"
         )),
     },
     Asset {
@@ -555,5 +693,61 @@ fn clear_kde_live_lockscreen() {
         if ok {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn video_spec_is_told_apart_from_patterns() {
+        assert!(is_video_spec(
+            &serde_json::json!({ "kind": "video", "video": "/a.mp4" })
+        ));
+        assert!(!is_video_spec(
+            &serde_json::json!({ "type": "aurora", "colors": [] })
+        ));
+        assert!(!is_video_spec(&serde_json::Value::Null));
+    }
+
+    #[test]
+    fn gif_plays_as_an_image_everything_else_as_video() {
+        use std::path::Path;
+        assert_eq!(video_format(Path::new("/x/clip.GIF")), "gif");
+        assert_eq!(video_format(Path::new("/x/clip.mp4")), "video");
+        assert_eq!(video_format(Path::new("/x/clip.webm")), "video");
+    }
+
+    #[test]
+    fn prune_keeps_the_new_import_and_the_active_clip() {
+        let dir = std::env::temp_dir().join(format!("ambient-live-prune-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let keep = dir.join("video-new.mp4");
+        let active = dir.join("video-active.webm");
+        let stale = dir.join("video-old.gif");
+        let partial = dir.join("video-cancelled.part");
+        for f in [&keep, &active, &stale, &partial] {
+            std::fs::write(f, b"x").unwrap();
+        }
+        prune_imports(&dir, &keep, Some(&active));
+        assert!(keep.exists());
+        assert!(active.exists());
+        assert!(!stale.exists());
+        assert!(!partial.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reimporting_the_same_file_reuses_its_name() {
+        let src = std::env::temp_dir().join(format!("ambient-live-src-{}.mp4", std::process::id()));
+        std::fs::write(&src, b"not really a video").unwrap();
+        let meta = std::fs::metadata(&src).unwrap();
+        let a = import_name(&src, &meta, "mp4");
+        let b = import_name(&src, &meta, "mp4");
+        assert_eq!(a, b);
+        assert!(a.starts_with("video-") && a.ends_with(".mp4"));
+        let _ = std::fs::remove_file(&src);
     }
 }

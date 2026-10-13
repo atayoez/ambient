@@ -2012,6 +2012,24 @@ button.primary.icon-btn {
   cursor: pointer;
 }
 
+/* Imported-clip pill — takes the Animate toggle's slot while a video /
+   GIF is picked (an imported clip is always live). */
+.pat-video {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  max-width: 180px;
+  font-size: var(--fs-eyebrow);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.pat-video-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* --- OptionScroller (arrow pill) --- */
 .opt-scroller {
   display: flex;

@@ -15,6 +15,13 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+- **Video and GIF live wallpapers.** The film button next to Animate in
+  Patterns imports an mp4, webm, mov, mkv or GIF, previews it on the stage,
+  and Apply sets it as the live wallpaper: looped, muted, cover-cropped, on
+  KDE Plasma (QtMultimedia; GIFs need nothing extra) and in the desktop-layer
+  window on Windows, macOS and COSMIC / wlroots. The speed slider sets the
+  playback rate and the live clock draws on top. Which codecs play depends on
+  the system's media stack (GStreamer on Linux).
 - **Live wallpapers on COSMIC** (and every other Wayland desktop with
   layer-shell: Sway, Hyprland, Niri, River, …). The animated pattern
   renders in a compositor-managed background surface, so it sits under

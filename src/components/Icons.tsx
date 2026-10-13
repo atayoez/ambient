@@ -238,3 +238,12 @@ export function LayoutGridIcon({ size = 14, className, style }: IconProps) {
     </SvgRoot>
   );
 }
+
+export function FilmIcon({ size = 14, className, style }: IconProps) {
+  return (
+    <SvgRoot size={size} className={className} style={style}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M7 3v18M17 3v18M3 7.5h4M3 12h18M3 16.5h4M17 7.5h4M17 16.5h4" />
+    </SvgRoot>
+  );
+}
