@@ -15,6 +15,14 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.5.1] — 2026-10-13
+
+### Added
+
 - **Live wallpapers on GNOME.** Patterns, videos and GIFs now animate on the
   GNOME desktop too, on every monitor and every workspace, under all windows
   and out of the overview and Alt+Tab. GNOME doesn't let apps draw on the

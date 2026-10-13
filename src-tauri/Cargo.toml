@@ -5,7 +5,7 @@
 # the thin #[tauri::command] wrappers in src/commands.rs.
 [package]
 name = "ambient"
-version = "1.5.0"
+version = "1.5.1"
 description = "Cross-platform wallpaper app with dynamic pattern generation."
 edition = "2024"
 
