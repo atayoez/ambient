@@ -24,8 +24,14 @@ ignore = [
   "RUSTSEC-2024-0419", # gtk3-macros
   "RUSTSEC-2024-0420", # gtk-sys
   "RUSTSEC-2024-0429", # glib — VariantStrIter unsoundness (unused path)
+  # gtk-layer-shell GTK3 bindings — no longer maintained. Direct dep for the
+  # Linux layer-shell live wallpaper; it must match the gtk 0.18 Tauri/wry
+  # uses, so it moves to the gtk4 bindings only when Tauri does.
+  "RUSTSEC-2024-0422", # gtk-layer-shell
+  "RUSTSEC-2024-0423", # gtk-layer-shell-sys
   # Other transitive unmaintained helper crates.
   "RUSTSEC-2024-0370", # proc-macro-error (build-time proc-macro dep)
+  "RUSTSEC-2024-0436", # paste (build-time proc-macro, via wgpu-hal's metal backend)
   "RUSTSEC-2025-0075", # unic-char-range
   "RUSTSEC-2025-0080", # unic-common
   "RUSTSEC-2025-0081", # unic-char-property
