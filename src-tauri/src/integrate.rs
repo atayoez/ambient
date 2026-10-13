@@ -29,17 +29,22 @@ pub fn integrate_if_needed() {
     let desktop_dst = home.join(".local/share/applications/me.oezcan.ambient.desktop");
     let icon_dst = home.join(".local/share/icons/hicolor/512x512/apps/me.oezcan.ambient.png");
 
-    // Already integrated AND we're running the integrated copy → no-op.
-    // If the user launches a NEW downloaded copy, the bin_dst.canonicalize()
-    // won't match appimage.canonicalize(), so we re-copy and bump.
-    if bin_dst.exists() && desktop_dst.exists() && icon_dst.exists() {
-        if let (Ok(canon_bin), Ok(canon_app)) =
-            (bin_dst.canonicalize(), appimage.canonicalize())
-        {
-            if canon_bin == canon_app {
-                return;
-            }
-        }
+    let desktop = desktop_entry(&bin_dst.to_string_lossy());
+
+    // Already integrated, running the integrated copy, and the .desktop is
+    // current → no-op. A NEW downloaded copy won't canonicalize to bin_dst,
+    // so we re-copy and bump. The content check rewrites entries written by
+    // older versions (an in-app update replaces bin_dst in place, so the
+    // path check alone would keep a stale entry forever).
+    let running_installed = matches!(
+        (bin_dst.canonicalize(), appimage.canonicalize()),
+        (Ok(a), Ok(b)) if a == b
+    );
+    if running_installed
+        && icon_dst.exists()
+        && std::fs::read_to_string(&desktop_dst).is_ok_and(|d| d == desktop)
+    {
+        return;
     }
 
     // Create XDG dirs (mkdir -p). Bail silently on any failure — better
@@ -55,35 +60,50 @@ pub fn integrate_if_needed() {
         }
     }
 
-    if std::fs::copy(&appimage, &bin_dst).is_err() {
-        return;
-    }
-    if let Ok(meta) = std::fs::metadata(&bin_dst) {
-        let mut perm = meta.permissions();
-        perm.set_mode(0o755);
-        let _ = std::fs::set_permissions(&bin_dst, perm);
+    // Never copy the running file onto itself (that truncates it).
+    if !running_installed {
+        if std::fs::copy(&appimage, &bin_dst).is_err() {
+            return;
+        }
+        if let Ok(meta) = std::fs::metadata(&bin_dst) {
+            let mut perm = meta.permissions();
+            perm.set_mode(0o755);
+            let _ = std::fs::set_permissions(&bin_dst, perm);
+        }
     }
 
     // Icon shipped as a compile-time blob — we can't extract reliably
     // from inside the AppImage at runtime without squashfs tools.
     let _ = std::fs::write(&icon_dst, ICON_PNG);
 
-    let bin_str = bin_dst.to_string_lossy();
+    let _ = std::fs::write(&desktop_dst, desktop);
+
+    refresh_launcher_caches(&home);
+}
+
+/// The launcher entry for the integrated AppImage at `bin`.
+///
+/// `StartupWMClass` must equal the Wayland app_id GTK sends, which is the
+/// program name: lowercase `ambient`. GNOME Shell matches it case-sensitively
+/// to tie the window to this entry; with a mismatch the dock and Alt+Tab
+/// show a generic icon instead of Ambient's.
+#[cfg(target_os = "linux")]
+fn desktop_entry(bin: &str) -> String {
     let ver = env!("CARGO_PKG_VERSION");
     // The "Uninstall" desktop action lets the user right-click the
     // launcher icon → Uninstall, which re-runs the AppImage with
     // `--uninstall` (handled in lib.rs run() before the GUI builds).
-    let desktop = format!(
+    format!(
         "[Desktop Entry]\n\
          Type=Application\n\
          Name=Ambient\n\
          GenericName=Wallpaper Studio\n\
          Comment=Generate, fetch, and apply desktop wallpapers\n\
-         Exec={bin_str} %F\n\
+         Exec={bin} %F\n\
          Icon=me.oezcan.ambient\n\
          Categories=Graphics;Utility;\n\
          Keywords=wallpaper;background;desktop;pattern;emoji;generate;\n\
-         StartupWMClass=Ambient\n\
+         StartupWMClass=ambient\n\
          StartupNotify=true\n\
          Terminal=false\n\
          Actions=Uninstall;\n\
@@ -91,11 +111,8 @@ pub fn integrate_if_needed() {
          \n\
          [Desktop Action Uninstall]\n\
          Name=Uninstall Ambient\n\
-         Exec={bin_str} --uninstall\n",
-    );
-    let _ = std::fs::write(&desktop_dst, desktop);
-
-    refresh_launcher_caches(&home);
+         Exec={bin} --uninstall\n",
+    )
 }
 
 /// Refresh the launcher's .desktop + icon caches. Best-effort — neither
