@@ -17,8 +17,10 @@
 //! Works on any compositor that implements `zwlr_layer_shell_v1`: COSMIC
 //! (the primary target), Sway, Hyprland, Niri, River, labwc, Wayfire, … KDE
 //! Plasma keeps its own Plasma wallpaper *plugin* path (core::live routes
-//! there first), and GNOME does not expose layer-shell to third parties, so
-//! it stays unsupported — `gtk_layer_shell::is_supported()` is the gate.
+//! there first). GNOME has no layer-shell for third parties, so there the
+//! same windows stay ordinary toplevels and Ambient's GNOME Shell extension
+//! moves them onto the desktop layer from inside the compositor (see
+//! live_gnome.rs) — `Delivery` picks the path once at startup.
 //!
 //! Ordering matters with GTK3 + gtk-layer-shell: the window must be marked
 //! as a layer surface BEFORE it is realized (init swaps the xdg_toplevel role
@@ -33,8 +35,8 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
@@ -69,13 +71,41 @@ thread_local! {
 /// for the surfaces.
 const LAYER_NAMESPACE: &str = "ambient-wallpaper";
 
-const UNSUPPORTED: &str = "Live wallpaper on this desktop needs KDE Plasma, or a Wayland \
-compositor with layer-shell support (COSMIC, Sway, Hyprland, Niri, …). GNOME \
-doesn't let apps draw on the desktop layer.";
+const UNSUPPORTED: &str = "Live wallpaper on this desktop needs KDE Plasma, GNOME, or a \
+Wayland compositor with layer-shell support (COSMIC, Sway, Hyprland, Niri, …).";
+
+/// How this session gets a window onto the desktop layer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Delivery {
+    /// The compositor speaks zwlr_layer_shell_v1: the window becomes a
+    /// background-layer surface itself.
+    LayerShell,
+    /// GNOME: an ordinary window the Ambient GNOME Shell extension places.
+    Gnome,
+    Unsupported,
+}
+
+/// Decided once in register() (GTK main thread, where the layer-shell probe
+/// has to run). Unset only before setup, where nothing can apply anyway.
+static DELIVERY: OnceLock<Delivery> = OnceLock::new();
+
+fn delivery() -> Delivery {
+    DELIVERY.get().copied().unwrap_or(Delivery::Unsupported)
+}
 
 /// Wire ambient-core's Linux live-wallpaper hooks to this shell. Call once in
 /// setup(). Core only consults these when the session isn't KDE Plasma.
 pub fn register(app: &AppHandle) {
+    let delivery = if gtk_layer_shell::is_supported() {
+        Delivery::LayerShell
+    } else if crate::live_gnome::is_gnome() {
+        Delivery::Gnome
+    } else {
+        Delivery::Unsupported
+    };
+    tracing::info!(?delivery, "live wallpaper delivery");
+    let _ = DELIVERY.set(delivery);
+
     let set_app = app.clone();
     let clear_app = app.clone();
     ambient_core::live::set_live_setter(
@@ -93,6 +123,31 @@ pub fn register(app: &AppHandle) {
             *LAST_RECREATE.lock().unwrap_or_else(|e| e.into_inner()) = None;
             recreate_later(Duration::from_secs(1));
         });
+        // A layer surface is closed by the compositor when its output goes
+        // away, but on GNOME the window is an ordinary one that Mutter just
+        // moves to a remaining monitor, so drop it ourselves.
+        if delivery == Delivery::Gnome {
+            let app = app.clone();
+            display.connect_monitor_removed(move |_, monitor| {
+                let gone: Vec<String> = BOUND.with(|b| {
+                    b.borrow()
+                        .iter()
+                        .filter(|(_, m)| *m == monitor)
+                        .map(|(label, _)| label.clone())
+                        .collect()
+                });
+                for label in gone {
+                    tracing::info!(label, "monitor removed; dropping its live wallpaper window");
+                    BOUND.with(|b| b.borrow_mut().remove(&label));
+                    if let Some(win) = app.get_webview_window(&label) {
+                        CLEARING.fetch_add(1, Ordering::SeqCst);
+                        if win.destroy().is_err() {
+                            CLEARING.fetch_sub(1, Ordering::SeqCst);
+                        }
+                    }
+                }
+            });
+        }
     }
 }
 
@@ -159,6 +214,15 @@ fn wallpaper_windows(app: &AppHandle) -> Vec<WebviewWindow> {
 /// script so it's present before the app mounts); later applies pick up an
 /// output that appeared without a hotplug signal.
 fn set_live(app: &AppHandle, spec: &str) -> Result<(), String> {
+    match delivery() {
+        Delivery::Unsupported => return Err(UNSUPPORTED.to_string()),
+        // Shells out to gdbus / gsettings, so do it here on the worker
+        // rather than on the main thread below. Without the extension
+        // running, a window would land on top of the desktop as an ordinary
+        // one, so nothing is created until it is.
+        Delivery::Gnome => crate::live_gnome::ensure_extension()?,
+        Delivery::LayerShell => {}
+    }
     // emit() is thread-safe, so this is fine on the async-command worker.
     for win in wallpaper_windows(app) {
         win.emit("live-spec", spec).map_err(|e| e.to_string())?;
@@ -197,10 +261,9 @@ fn clear_live(app: &AppHandle) {
 
 /// Main thread. Create a surface for every monitor that doesn't have one.
 fn ensure_surfaces(app: &AppHandle, spec: &str) -> Result<(), String> {
-    // Needs a Wayland GDK display AND a compositor advertising
-    // zwlr_layer_shell_v1. (X11 sessions never get here — lib.rs exits on
-    // non-Wayland — but GNOME Wayland does, and it lacks the protocol.)
-    if !gtk_layer_shell::is_supported() {
+    // X11 sessions never get here (lib.rs exits on non-Wayland); a Wayland
+    // compositor with neither layer-shell nor GNOME's extension does.
+    if delivery() == Delivery::Unsupported {
         return Err(UNSUPPORTED.to_string());
     }
     let display = gtk::gdk::Display::default().ok_or("no GDK display")?;
@@ -234,7 +297,8 @@ fn ensure_surfaces(app: &AppHandle, spec: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Main thread. One hidden webview window → layer surface on `monitor`.
+/// Main thread. One hidden webview window → layer surface on `monitor` (or,
+/// on GNOME, a window the extension places on `monitor`).
 fn create_surface(
     app: &AppHandle,
     label: &str,
@@ -245,32 +309,56 @@ fn create_surface(
     // read it synchronously on first mount (no IPC race). `spec` is JSON,
     // which is a valid JS literal; our config never contains `</script>`.
     let init = format!("window.__AMBIENT_SPEC__ = {spec};");
+    let gnome = delivery() == Delivery::Gnome;
+    let geo = monitor.geometry();
 
-    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html#wallpaper".into()))
-        .title("Ambient Wallpaper")
-        .decorations(false)
-        .skip_taskbar(true)
-        .focused(false)
-        .resizable(false)
-        // Hidden on purpose: gtk-layer-shell can only take over an UNREALIZED
-        // window, and showing it now would map it as an ordinary toplevel.
-        .visible(false)
-        .initialization_script(&init)
+    let mut builder =
+        WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html#wallpaper".into()))
+            .decorations(false)
+            .skip_taskbar(true)
+            .focused(false)
+            // Hidden on purpose: gtk-layer-shell can only take over an
+            // UNREALIZED window, and showing it now would map it as an
+            // ordinary toplevel.
+            .visible(false)
+            .initialization_script(&init);
+    builder = if gnome {
+        // The title is how the GNOME extension recognises the window and
+        // which monitor it belongs on. Resizable (no fixed min = max size
+        // hint) so the extension can fit it to the monitor exactly; starting
+        // at the monitor's size spares the first frame a relayout.
+        builder
+            .title(crate::live_gnome::window_title(
+                geo.x(),
+                geo.y(),
+                geo.width(),
+                geo.height(),
+            ))
+            .resizable(true)
+            .inner_size(f64::from(geo.width()), f64::from(geo.height()))
+    } else {
+        builder.title("Ambient Wallpaper").resizable(false)
+    };
+    let win = builder
         .build()
         .map_err(|e| format!("create wallpaper window: {e}"))?;
 
     let gtk_win = win
         .gtk_window()
         .map_err(|e| format!("wallpaper gtk window: {e}"))?;
-    if gtk_win.is_realized() {
-        // Guard against a future Tauri/tao change realizing hidden windows —
-        // a realized window silently stays a normal toplevel, which would
-        // pop a fullscreen webview OVER the desktop instead of under it.
-        let _ = win.destroy();
-        return Err("wallpaper window was realized before layer-shell init".to_string());
+    if gnome {
+        make_click_through(&gtk_win);
+    } else {
+        if gtk_win.is_realized() {
+            // Guard against a future Tauri/tao change realizing hidden
+            // windows — a realized window silently stays a normal toplevel,
+            // which would pop a fullscreen webview OVER the desktop instead
+            // of under it.
+            let _ = win.destroy();
+            return Err("wallpaper window was realized before layer-shell init".to_string());
+        }
+        place_on_background_layer(&gtk_win, monitor);
     }
-
-    place_on_background_layer(&gtk_win, monitor);
 
     // Mapping (show → realize) is what creates the layer surface.
     win.show()
@@ -278,6 +366,8 @@ fn create_surface(
     tracing::info!(
         label,
         monitor = ?monitor.model(),
+        ?geo,
+        gnome,
         layer_window = gtk_win.is_layer_window(),
         gtk_layer_shell = %format!(
             "{}.{}.{}",
@@ -325,10 +415,14 @@ fn place_on_background_layer(window: &gtk::ApplicationWindow, monitor: &gtk::gdk
             "wallpaper surface allocated"
         );
     });
+    make_click_through(window);
+}
 
-    // Empty input region → pointer events fall through. The GdkWindow only
-    // exists once mapped, so set it from the map signal (fires on every
-    // re-map, which keeps the region if the compositor ever re-configures).
+/// Empty input region → pointer events fall through to whatever the
+/// compositor has underneath. The GdkWindow only exists once mapped, so set
+/// it from the map signal (fires on every re-map, which keeps the region if
+/// the compositor ever re-configures).
+fn make_click_through(window: &gtk::ApplicationWindow) {
     window.connect_map(|w| {
         if let Some(gdk_win) = w.window() {
             gdk_win.input_shape_combine_region(&gtk::cairo::Region::create(), 0, 0);

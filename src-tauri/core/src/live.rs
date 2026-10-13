@@ -10,7 +10,8 @@
 //! * **Everything else on desktop** — a background webview *window* the shell
 //!   places under the desktop: WorkerW on Windows, a desktop-level NSWindow
 //!   on macOS, a Wayland layer-shell surface on Linux (COSMIC, Sway,
-//!   Hyprland, …). The shell registers that window's setter/clearer here at
+//!   Hyprland, …), and on GNOME a window Ambient's GNOME Shell extension
+//!   moves onto the desktop layer. The shell registers that window's setter/clearer here at
 //!   startup (`set_live_setter`), and re-creates it after a restart via
 //!   `restore_if_active` since it dies with the process.
 //!
@@ -268,8 +269,9 @@ async fn mark_active(config: &serde_json::Value) {
 ///
 /// KDE Plasma gets the bundled wallpaper plugin; every other desktop OS gets
 /// the background window the shell registered via `set_live_setter`. The
-/// setter reports its own "not possible here" (e.g. GNOME Wayland, which has
-/// no layer-shell) as the error the UI shows.
+/// setter reports its own "not possible here" (e.g. a Wayland compositor with
+/// no layer-shell that isn't GNOME, or GNOME before its extension is running)
+/// as the error the UI shows.
 pub async fn apply_live_pattern(config: serde_json::Value) -> Result<(), String> {
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {

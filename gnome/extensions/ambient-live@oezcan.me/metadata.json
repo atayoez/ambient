@@ -1,0 +1,9 @@
+{
+  "uuid": "ambient-live@oezcan.me",
+  "name": "Ambient Live Wallpaper",
+  "description": "Lets the Ambient app draw animated wallpapers on the GNOME desktop: it keeps Ambient's wallpaper windows on the desktop layer, behind every window, on every workspace and out of the overview and Alt+Tab.",
+  "url": "https://ambient.oezcan.me",
+  "shell-version": ["45", "46", "47", "48", "49", "50", "51"],
+  "session-modes": ["user", "unlock-dialog"],
+  "version": 1
+}
