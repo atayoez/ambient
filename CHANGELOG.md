@@ -44,6 +44,13 @@ is added on top. Edit this file as you go, not at release time.
 
 ### Fixed
 
+- **Black window in the Linux AppImage.** 1.5.0 bundled an old libwayland
+  that current Mesa and NVIDIA graphics drivers can't use, so the app
+  window stayed black. The AppImage now uses the system's libwayland.
+- **Generic icon in the GNOME dock and Alt+Tab.** The launcher entry Ambient
+  installs now matches the app's window, so the dock shows Ambient's icon.
+  Existing installs pick up the corrected entry on the next launch.
+
 ## [1.5.0] — 2026-10-13
 
 ### Added

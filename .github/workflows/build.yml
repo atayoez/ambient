@@ -200,7 +200,8 @@ jobs:
             librsvg2-dev \
             patchelf \
             xdg-utils \
-            libfuse2
+            libfuse2 \
+            squashfs-tools
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
@@ -236,6 +237,21 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           NO_STRIP: 'true'
         run: bun x tauri build --ci --target ${{ matrix.target }}
+
+      # Drop the bundled libwayland (22.04's 1.20 is too old for the host's
+      # EGL driver: black window) and fix the dangling .DirIcon, then
+      # re-sign. See the script header.
+      - name: Fix up the AppImage
+        if: startsWith(matrix.runner, 'ubuntu-')
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          for f in src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage; do
+            bash scripts/appimage-fixup.sh "$f"
+          done
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
