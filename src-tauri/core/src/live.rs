@@ -98,12 +98,15 @@ async fn build_spec(config: &serde_json::Value) -> Result<String, String> {
         // Global animation-speed multiplier — the delivery layers (QML
         // Timer, WebGL runner, emoji drift) scale their clocks by it.
         obj.insert("speed".to_string(), serde_json::json!(settings.animation_speed));
-        // Live-clock overlay — every delivery draws it (a QML twin in the
-        // Plasma plugin, ClockOverlay in the desktop-layer webview).
+        // Live-clock overlay — every delivery draws it (Widgets.qml in the
+        // Plasma plugin, widgets/WidgetLayer in the desktop-layer webview).
         obj.insert(
             "clock".to_string(),
             serde_json::to_value(settings.live_clock).unwrap_or(serde_json::Value::Null),
         );
+        // Weather / calendar / countdown / note + the shared widget style,
+        // drawn by the same deliveries as the clock.
+        obj.insert("widgets".to_string(), widgets_value(&settings));
     }
 
     // Resolve the per-type knobs into the shader's p1/p2/p3 uniforms (and
@@ -149,8 +152,14 @@ async fn build_video_spec(config: &serde_json::Value) -> Result<String, String> 
         "format": video_format(std::path::Path::new(path)),
         "speed": settings.animation_speed,
         "clock": serde_json::to_value(settings.live_clock).unwrap_or(serde_json::Value::Null),
+        "widgets": widgets_value(&settings),
     });
     serde_json::to_string(&spec).map_err(|e| format!("serialize live spec: {e}"))
+}
+
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+fn widgets_value(settings: &crate::types::Settings) -> serde_json::Value {
+    serde_json::to_value(&settings.live_widgets).unwrap_or(serde_json::Value::Null)
 }
 
 /// Whether a live spec is a video / GIF (`kind: "video"`) rather than a
@@ -405,6 +414,12 @@ const ASSETS: &[Asset] = &[
         rel: "contents/ui/main.qml",
         bytes: include_bytes!(concat!(
             "../../../plasma/wallpapers/me.oezcan.ambient/contents/ui/main.qml"
+        )),
+    },
+    Asset {
+        rel: "contents/ui/Widgets.qml",
+        bytes: include_bytes!(concat!(
+            "../../../plasma/wallpapers/me.oezcan.ambient/contents/ui/Widgets.qml"
         )),
     },
     Asset {

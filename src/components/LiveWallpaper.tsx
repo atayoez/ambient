@@ -3,10 +3,10 @@ import { listen } from '@tauri-apps/api/event';
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { type LiveShaderHandle, startLiveShader } from '../lib/liveShader';
 import { ANIMATABLE, type PatternConfig, type PatternType } from '../lib/patterns';
-import type { LiveClock } from '../lib/types';
-import ClockOverlay from './ClockOverlay';
+import type { LiveClock, LiveWidgets } from '../lib/types';
 import EmojiField from './EmojiField';
 import VideoFill from './VideoFill';
+import WidgetLayer from './widgets/WidgetLayer';
 
 // Fullscreen wallpaper renderer for the desktop-layer live-wallpaper window
 // (live_win.rs parents it behind the icons under WorkerW, live_mac.rs drops
@@ -39,8 +39,9 @@ type Spec = PatternConfig & {
   maxRenderEdge?: number;
   fps?: number;
   speed?: number;
-  // Live-clock overlay config from Settings (see ClockOverlay).
+  // Widget overlays from Settings (see widgets/WidgetLayer).
   clock?: LiveClock;
+  widgets?: LiveWidgets;
 };
 
 declare global {
@@ -83,10 +84,14 @@ export default function LiveWallpaper() {
 
   if (!spec) return <div style={root} />;
 
-  // The clock sits on top of whichever renderer is active below.
-  const clock = spec.clock?.enabled ? (
-    <ClockOverlay clock={spec.clock} background={spec.colors?.[0]} />
-  ) : null;
+  // The widgets sit on top of whichever renderer is active below.
+  const widgets = (
+    <WidgetLayer
+      clock={spec.clock}
+      widgets={spec.widgets}
+      background={spec.colors?.[0]}
+    />
+  );
 
   let content: React.ReactNode = null;
   if (spec.kind === 'video') {
@@ -115,7 +120,7 @@ export default function LiveWallpaper() {
   return (
     <div style={root}>
       {content}
-      {clock}
+      {widgets}
     </div>
   );
 }

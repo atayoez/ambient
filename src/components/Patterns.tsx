@@ -32,7 +32,6 @@ import {
   StatusInline,
   toast,
 } from '../ui';
-import ClockOverlay from './ClockOverlay';
 import EmojiField from './EmojiField';
 import { CheckIcon, FilmIcon, PaletteIcon, PlusIcon, ShuffleIcon, XIcon } from './Icons';
 import LivePreview from './LivePreview';
@@ -42,6 +41,7 @@ import { THEME_MODE_OPTIONS } from './themeOptions';
 import { useApplyPattern } from './useApplyPattern';
 import { usePalette } from './usePalette';
 import VideoFill from './VideoFill';
+import WidgetLayer from './widgets/WidgetLayer';
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 1_000_000);
@@ -335,8 +335,12 @@ export default function Patterns({ active = true }: { active?: boolean }) {
           <EmojiField config={{ ...previewConfig, speed }} className="gen-bg" />
         )}
         {video && <VideoFill path={video} speed={speed} className="gen-bg" />}
-        {(animated || video) && settings?.liveClock.enabled && (
-          <ClockOverlay clock={settings.liveClock} background={previewConfig.colors[0]} />
+        {(animated || video) && settings && (
+          <WidgetLayer
+            clock={settings.liveClock}
+            widgets={settings.liveWidgets}
+            background={previewConfig.colors[0]}
+          />
         )}
 
         <div className="gen-panel pat-top">
