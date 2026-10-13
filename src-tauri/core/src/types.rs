@@ -133,7 +133,7 @@ impl ClockPosition {
 }
 
 /// Clock widget drawn on top of a live wallpaper by every delivery (the
-/// Plasma plugin's QML, the desktop-layer webview's ClockOverlay). Stamped
+/// Plasma plugin's Widgets.qml, the desktop-layer webview's WidgetLayer). Stamped
 /// into the live spec as `clock` by live::build_spec; the Widgets tab and the
 /// Patterns preview show the same overlay so placement can be judged before
 /// applying. Placement is anchor + free position: `position` says which
@@ -239,6 +239,166 @@ impl<'de> Deserialize<'de> for LiveClock {
     }
 }
 
+/// How every live-wallpaper widget (the clock included) is drawn: bare text
+/// with a soft shadow, or on a frosted translucent card.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "kebab-case")]
+pub enum WidgetStyle {
+    #[default]
+    Plain,
+    Glass,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "kebab-case")]
+pub enum TempUnit {
+    #[default]
+    Celsius,
+    Fahrenheit,
+}
+
+// The widgets beside the clock share its placement model (see LiveClock):
+// `position` is the pinned corner, `x`/`y` where that point sits in percent
+// of the screen, `size` the widget's headline text height in percent of the
+// shorter screen edge. Struct-level `#[serde(default)]` so a store written
+// before a field existed fills it from Default instead of failing the load.
+
+/// Current conditions + a short daily forecast from Open-Meteo (no API key).
+/// The renderers (WeatherWidget.tsx, the Plasma plugin's Widgets.qml) fetch
+/// it themselves from `latitude`/`longitude`; `location` is only the label.
+/// An empty `location` means none was picked yet and the widget stays empty.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WeatherWidget {
+    pub enabled: bool,
+    pub position: ClockPosition,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub location: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub unit: TempUnit,
+    /// Next three days' highs / lows under the current conditions.
+    pub show_forecast: bool,
+}
+
+impl Default for WeatherWidget {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            position: ClockPosition::TopLeft,
+            x: 4.0,
+            y: 4.0,
+            size: 6.0,
+            location: String::new(),
+            latitude: 0.0,
+            longitude: 0.0,
+            unit: TempUnit::Celsius,
+            show_forecast: true,
+        }
+    }
+}
+
+/// This month as a grid, today highlighted.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CalendarWidget {
+    pub enabled: bool,
+    pub position: ClockPosition,
+    pub x: f32,
+    pub y: f32,
+    /// Day-number text height.
+    pub size: f32,
+    pub week_starts_monday: bool,
+}
+
+impl Default for CalendarWidget {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            position: ClockPosition::BottomLeft,
+            x: 4.0,
+            y: 96.0,
+            size: 2.0,
+            week_starts_monday: true,
+        }
+    }
+}
+
+/// Days left until (or since) a date the user picks, with a label.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CountdownWidget {
+    pub enabled: bool,
+    pub position: ClockPosition,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub label: String,
+    /// Local calendar date, `YYYY-MM-DD`; empty = not set.
+    pub date: String,
+}
+
+impl Default for CountdownWidget {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            position: ClockPosition::Center,
+            x: 50.0,
+            y: 50.0,
+            size: 6.0,
+            label: String::new(),
+            date: String::new(),
+        }
+    }
+}
+
+/// Free text — a quote, a reminder, a name.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NoteWidget {
+    pub enabled: bool,
+    pub position: ClockPosition,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub text: String,
+}
+
+impl Default for NoteWidget {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            position: ClockPosition::BottomRight,
+            x: 96.0,
+            y: 96.0,
+            size: 2.5,
+            text: String::new(),
+        }
+    }
+}
+
+/// Every widget beside the clock, plus the style all of them (the clock
+/// too) are drawn in. Stamped into the live spec as `widgets` next to
+/// `clock` by live::build_spec.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default, TS)]
+#[ts(export, export_to = TS_EXPORT_DIR)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LiveWidgets {
+    pub style: WidgetStyle,
+    pub weather: WeatherWidget,
+    pub calendar: CalendarWidget,
+    pub countdown: CountdownWidget,
+    pub note: NoteWidget,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = TS_EXPORT_DIR)]
 #[serde(rename_all = "camelCase")]
@@ -321,6 +481,10 @@ pub struct Settings {
     // stores land on "off" with the default placement.
     #[serde(default)]
     pub live_clock: LiveClock,
+    // Weather / calendar / countdown / note widgets and the shared widget
+    // style. `#[serde(default)]` → legacy stores land on all-off.
+    #[serde(default)]
+    pub live_widgets: LiveWidgets,
 }
 
 fn default_cache_limit_gb() -> u32 {
@@ -359,6 +523,7 @@ impl Default for Settings {
             cache_limit_gb: default_cache_limit_gb(),
             animation_speed: default_animation_speed(),
             live_clock: LiveClock::default(),
+            live_widgets: LiveWidgets::default(),
         }
     }
 }
@@ -414,6 +579,32 @@ mod tests {
         let empty: LiveClock = serde_json::from_str("{}").unwrap();
         assert_eq!(empty, LiveClock::default());
         assert_eq!((empty.x, empty.y), (96.0, 4.0));
+    }
+
+    // A store from before the widgets existed, or one missing fields a
+    // later version added, loads with defaults filled in.
+    #[test]
+    fn live_widgets_fill_missing_fields() {
+        let empty: LiveWidgets = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty, LiveWidgets::default());
+
+        let partial: LiveWidgets = serde_json::from_str(
+            r#"{"style":"glass","weather":{"enabled":true,"location":"Berlin","latitude":52.52,"longitude":13.4}}"#,
+        )
+        .unwrap();
+        assert_eq!(partial.style, WidgetStyle::Glass);
+        assert!(partial.weather.enabled);
+        assert_eq!(partial.weather.unit, TempUnit::Celsius);
+        assert!(partial.weather.show_forecast);
+        assert_eq!(partial.calendar, CalendarWidget::default());
+
+        let settings: Settings = serde_json::from_str(
+            &serde_json::to_string(&Settings::default())
+                .unwrap()
+                .replace(",\"liveWidgets\":", ",\"ignored\":"),
+        )
+        .unwrap();
+        assert_eq!(settings.live_widgets, LiveWidgets::default());
     }
 
     #[test]

@@ -1689,67 +1689,249 @@ button.primary.icon-btn {
   display: none;
 }
 
-/* Live clock overlay (ClockOverlay.tsx) — shared by the Patterns preview,
-   the Widgets tab stage, and the desktop-layer live-wallpaper window. The
-   outer element fills its positioned host (and is what gets measured); the
-   inner box is pinned at (x%, y%) and translated so the configured anchor
-   corner sits on that point. --clock-size is set inline from the measured
-   stage. Painted after the backdrop and before the glass panels in DOM
-   order, so it sits above the pattern and below the controls without
-   z-index. */
-.live-clock {
+/* Live-wallpaper widgets (widgets/WidgetLayer.tsx) — shared by the Patterns
+   preview, the Widgets tab stage, and the desktop-layer live-wallpaper
+   window. The layer fills its positioned host (and is what gets measured);
+   each box is pinned at (x%, y%) and translated so its anchor corner sits on
+   that point. A box's font-size is its headline height (--w-size, set
+   inline from the measured stage) and every face sizes in em off it, so a
+   widget scales as one piece. Painted after the backdrop and before the
+   glass panels in DOM order, so it sits above the pattern and below the
+   controls without z-index. */
+.widget-layer {
+  --w-ink: #fff;
+  --w-ink-inverse: #1a1a1f;
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
   user-select: none;
-  color: #fff;
+  color: var(--w-ink);
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   text-shadow:
     0 2px 14px rgb(0 0 0 / 0.45),
     0 0 2px rgb(0 0 0 / 0.5);
 }
-.live-clock--on-light {
-  color: #1a1a1f;
+.widget-layer--on-light {
+  --w-ink: #1a1a1f;
+  --w-ink-inverse: #fff;
   text-shadow:
     0 2px 14px rgb(255 255 255 / 0.5),
     0 0 2px rgb(255 255 255 / 0.6);
 }
-.live-clock-box {
+.widget-box {
   position: absolute;
   display: flex;
   flex-direction: column;
   white-space: nowrap;
-}
-.live-clock--align-left .live-clock-box { align-items: flex-start; text-align: left; }
-.live-clock--align-right .live-clock-box { align-items: flex-end; text-align: right; }
-.live-clock--align-center .live-clock-box { align-items: center; text-align: center; }
-.live-clock-time {
-  font-size: var(--clock-size, 64px);
-  font-weight: 600;
+  font-size: var(--w-size, 48px);
   line-height: 1;
+  border-radius: 0.3em;
 }
-.live-clock-date {
-  font-size: calc(var(--clock-size, 64px) * 0.3);
+.widget-box--align-left { align-items: flex-start; text-align: left; }
+.widget-box--align-right { align-items: flex-end; text-align: right; }
+.widget-box--align-center { align-items: center; text-align: center; }
+
+/* Glass style: each widget on a frosted card. Padding scales with the
+   headline (the calendar's headline is small, so its padding factor is
+   larger). The card replaces the text shadow. */
+.widget-layer--glass {
+  text-shadow: none;
+}
+.widget-layer--glass .widget-box {
+  padding: 0.4em 0.5em;
+  background: rgb(20 20 32 / 0.34);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+}
+.widget-layer--glass.widget-layer--on-light .widget-box {
+  background: rgb(255 255 255 / 0.4);
+  border-color: rgb(255 255 255 / 0.65);
+}
+.widget-layer--glass .widget-clock { padding: 0.3em 0.4em; }
+.widget-layer--glass .widget-calendar { padding: 0.9em 1em; border-radius: 0.9em; }
+.widget-layer--glass .widget-note { padding: 0.6em 0.8em; border-radius: 0.6em; }
+
+/* Editing (Widgets tab stage): widgets take the pointer and show a ring
+   when picked. Outlines are in px so they stay crisp at any widget size. */
+.widget-layer--edit .widget-box--editable {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  outline: 1px dashed transparent;
+  outline-offset: 4px;
+  transition: outline-color var(--t-fast) ease;
+}
+.widget-layer--edit .widget-box--editable:hover {
+  outline-color: rgb(255 255 255 / 0.45);
+}
+.widget-layer--edit .widget-box--editable:active {
+  cursor: grabbing;
+}
+.widget-layer--edit .widget-box--editable.is-selected,
+.widget-layer--edit .widget-box--editable:focus-visible {
+  outline: 2px solid var(--accent-os, var(--accent));
+}
+
+/* Clock */
+.wclock-time {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.wclock-date {
+  font-size: 0.3em;
   font-weight: 500;
   opacity: 0.85;
-  margin-top: calc(var(--clock-size, 64px) * 0.12);
+  margin-top: 0.4em;
+}
+
+/* Weather */
+.wweather-now {
+  display: flex;
+  align-items: center;
+  gap: 0.18em;
+}
+.wweather-icon {
+  width: 0.95em;
+  height: 0.95em;
+  flex: none;
+  filter: drop-shadow(0 1px 6px rgb(0 0 0 / 0.25));
+}
+.wweather-temp {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.wweather-line {
+  font-size: 0.27em;
+  font-weight: 500;
+  margin-top: 0.35em;
+}
+.wweather-sub {
+  font-size: 0.22em;
+  opacity: 0.8;
+  margin-top: 0.35em;
+}
+.wweather-msg {
+  font-size: 0.3em;
+  font-weight: 500;
+  opacity: 0.85;
+}
+.wweather-days {
+  display: flex;
+  gap: 1.6em;
+  font-size: 0.22em;
+  margin-top: 0.9em;
+}
+.wweather-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+}
+.wweather-day > span:first-child {
+  opacity: 0.8;
+}
+.wweather-day-icon {
+  width: 2em;
+  height: 2em;
+}
+.wweather-min {
+  opacity: 0.65;
+}
+
+/* Calendar — the box font-size is the day-number size. */
+.wcal-title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+}
+.wcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1.9em);
+  grid-auto-rows: 1.75em;
+  text-align: center;
+  isolation: isolate;
+}
+.wcal-grid > span {
+  display: grid;
+  place-items: center;
+}
+.wcal-head {
+  font-size: 0.75em;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.wcal-today {
+  position: relative;
+  font-weight: 600;
+  color: var(--w-ink-inverse);
+  text-shadow: none;
+}
+.wcal-today::before {
+  content: '';
+  position: absolute;
+  width: 1.6em;
+  height: 1.6em;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--w-ink);
+  z-index: -1;
+}
+
+/* Countdown */
+.wcount-value {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.wcount-unit {
+  font-size: 0.4em;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.wcount-caption {
+  font-size: 0.3em;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-top: 0.4em;
+}
+
+/* Note */
+.wnote {
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 24em;
+}
+.wnote-empty {
+  opacity: 0.55;
+  font-style: italic;
 }
 
 /* Widgets tab — a screen-shaped stage (the real monitor aspect) showing the
-   last applied wallpaper with the widgets laid over it, so position/size
-   edits can be judged in place. */
+   last applied wallpaper with the widgets laid over it, a gallery of widget
+   tiles, then the picked widget's settings. */
+.widgets-inner {
+  max-width: 720px;
+}
+.widget-stage-group {
+  padding: 10px;
+  gap: 8px;
+}
 .widget-stage {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  margin-bottom: 14px;
-  border-radius: var(--radius-md, 12px);
+  border-radius: var(--radius-inline);
   overflow: hidden;
   background: var(--bg-base);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-strong);
 }
 .widget-stage > img {
   position: absolute;
@@ -1758,14 +1940,183 @@ button.primary.icon-btn {
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
 }
 .widget-stage-empty {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--text-dim, rgba(255, 255, 255, 0.55));
-  font-size: 13px;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  pointer-events: none;
+}
+.widget-hint,
+.widget-credit {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  text-align: center;
+}
+
+.widget-gallery {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 760px) {
+  .widget-gallery {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.widget-tile {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  transition:
+    border-color var(--t-fast) ease,
+    background var(--t-fast) ease;
+}
+.widget-tile:hover {
+  background: var(--surface-2);
+}
+.widget-tile.is-selected {
+  border-color: var(--accent-os, var(--accent));
+  background: var(--surface-2);
+}
+.widget-tile-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 12px 12px 10px;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.widget-tile-main:focus-visible {
+  outline: 2px solid var(--accent-fill);
+  outline-offset: -2px;
+  border-radius: var(--radius-container);
+}
+.widget-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  transition:
+    background var(--t-fast) ease,
+    color var(--t-fast) ease;
+}
+.widget-tile.is-on .widget-tile-icon {
+  background: var(--accent-fill);
+  color: var(--accent-text);
+}
+.widget-tile-name {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+.widget-tile-sub {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.widget-tile-switch {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  transform: scale(0.85);
+  transform-origin: top right;
+}
+
+.set-row input[type='date'] {
+  flex: 0 0 auto;
+  width: 240px;
+  max-width: 56%;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-inline);
+}
+.widget-note-input {
+  width: 100%;
+  resize: none;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-inline);
+}
+.widget-note-input:focus-visible {
+  outline: none;
+  border-color: var(--accent-os, var(--accent));
+}
+
+.widget-location {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.widget-location-current,
+.widget-location-status {
+  align-self: flex-end;
+  width: 240px;
+  max-width: 56%;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+.widget-location-results {
+  align-self: flex-end;
+  width: 240px;
+  max-width: 56%;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-inline);
+}
+.widget-location-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.widget-location-result:hover,
+.widget-location-result:focus-visible {
+  outline: none;
+  background: var(--surface-3);
+}
+.widget-location-detail {
+  font-size: var(--fs-caption);
+  color: var(--muted);
 }
 
 /* Animated emoji field (Animate + Emoji). Each glyph drifts (individual

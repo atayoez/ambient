@@ -17,15 +17,22 @@
 // - Wallpaper.source is a free-form origin label ("nasa-apod" |
 //   "unsplash" | … | "generated"); no code branches on it.
 
+export type { CalendarWidget } from './generated/CalendarWidget';
 export type { ClockPosition } from './generated/ClockPosition';
+export type { CountdownWidget } from './generated/CountdownWidget';
 export type { GenProvider } from './generated/GenProvider';
 export type { LiveClock } from './generated/LiveClock';
 export type { LiveQuality } from './generated/LiveQuality';
+export type { LiveWidgets } from './generated/LiveWidgets';
+export type { NoteWidget } from './generated/NoteWidget';
 export type { RotationSource } from './generated/RotationSource';
 export type { Settings } from './generated/Settings';
 export type { SourceKind } from './generated/SourceKind';
+export type { TempUnit } from './generated/TempUnit';
 export type { Wallpaper } from './generated/Wallpaper';
 export type { WallpaperMode } from './generated/WallpaperMode';
+export type { WeatherWidget } from './generated/WeatherWidget';
+export type { WidgetStyle } from './generated/WidgetStyle';
 
 // TS-only: the resolution presets offered by the Generate tab. The Rust
 // side keeps gen_resolution a free-form string on purpose — a new option

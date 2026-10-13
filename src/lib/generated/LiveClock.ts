@@ -3,7 +3,7 @@ import type { ClockPosition } from "./ClockPosition";
 
 /**
  * Clock widget drawn on top of a live wallpaper by every delivery (the
- * Plasma plugin's QML, the desktop-layer webview's ClockOverlay). Stamped
+ * Plasma plugin's Widgets.qml, the desktop-layer webview's WidgetLayer). Stamped
  * into the live spec as `clock` by live::build_spec; the Widgets tab and the
  * Patterns preview show the same overlay so placement can be judged before
  * applying. Placement is anchor + free position: `position` says which

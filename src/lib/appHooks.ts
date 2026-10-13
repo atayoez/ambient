@@ -24,8 +24,9 @@ import { useDebouncedSettingsPatch } from './hooks';
 import { getStartupLicense, type LicenseInfo } from './license';
 import { reapplyLiveWallpaper, SPEED_MAX, SPEED_MIN } from './live';
 import { loadSettings } from './store';
-import type { LiveClock, Settings } from './types';
+import type { LiveClock, LiveWidgets, Settings } from './types';
 import { checkForUpdate, type UpdateInfo } from './updater';
+import { DEFAULT_LIVE_WIDGETS, type ExtraWidgetId } from './widgets';
 
 // ---------------------------------------------------------------------
 // Settings (Rust-owned): load + optional live subscription
@@ -150,6 +151,54 @@ export function useLiveClock(): [LiveClock, (p: Partial<LiveClock>) => void] {
   );
 
   return [current, patchClock];
+}
+
+// ---------------------------------------------------------------------
+// Weather / calendar / countdown / note widgets (Settings.liveWidgets)
+// ---------------------------------------------------------------------
+
+// [widgets, patchWidget, setStyle] — the same draft → debounced whole-object
+// write → re-apply flow as useLiveClock, for the LiveWidgets block.
+export function useLiveWidgets(): [
+  LiveWidgets,
+  <K extends ExtraWidgetId>(id: K, p: Partial<LiveWidgets[K]>) => void,
+  (style: LiveWidgets['style']) => void,
+] {
+  const [settings] = useSettings({ subscribe: true });
+  const persisted = settings?.liveWidgets ?? DEFAULT_LIVE_WIDGETS;
+  const [draft, setDraft] = useState<LiveWidgets | null>(null);
+  const patch = useDebouncedSettingsPatch(() => void reapplyLiveWallpaper(), 300);
+
+  const persistedKey = JSON.stringify(persisted);
+  useEffect(() => {
+    setDraft(null);
+  }, [persistedKey]);
+
+  const current = draft ?? persisted;
+  const currentRef = useRef(current);
+  currentRef.current = current;
+
+  const write = useCallback(
+    (next: LiveWidgets) => {
+      currentRef.current = next;
+      setDraft(next);
+      patch({ liveWidgets: next });
+    },
+    [patch],
+  );
+  const patchWidget = useCallback(
+    <K extends ExtraWidgetId>(id: K, p: Partial<LiveWidgets[K]>) => {
+      const cur = currentRef.current;
+      write({ ...cur, [id]: { ...cur[id], ...p } });
+    },
+    [write],
+  );
+  const setStyle = useCallback(
+    (style: LiveWidgets['style']) => write({ ...currentRef.current, style }),
+    [write],
+  );
+
+  return [current, patchWidget, setStyle];
 }
 
 // ---------------------------------------------------------------------
