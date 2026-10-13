@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "ambient"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "ambient-core",
  "block2",
