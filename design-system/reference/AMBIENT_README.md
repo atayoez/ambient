@@ -119,9 +119,9 @@ ambient/
 │  └─ icons/             Platform-specific icon set
 ├─ flatpak/              Flathub manifest + .desktop + AppStream metainfo
 ├─ app-icon.svg          Source for generated icons
-└─ LICENSE               Proprietary
+└─ LICENSE               MIT
 ```
 
 ## License
 
-Proprietary — see `LICENSE`.
+MIT — see `LICENSE`.

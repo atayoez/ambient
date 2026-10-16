@@ -8,7 +8,7 @@ user-invocable: true
 
 Ambient is a **Linux wallpaper-generator desktop app, distributed as a Flatpak on Flathub** (Tauri 2 + React + TS). One window, five tabs, a frosted-glass aesthetic with a sliding-pill tab indicator floating over the user's live desktop wallpaper. Dark by default; full light-mode override. Native COSMIC desktop integration (writes directly to `cosmic-bg`'s RON config); GNOME/KDE/sway/X11 via the `wallpaper` crate. macOS/Windows/mobile/web are explicitly **future, not v0**.
 
-Repo: [github.com/atayoez/ambient](https://github.com/atayoez/ambient) (proprietary). App ID: `com.ambient.app`. AppStream summary: *"Wallpaper generator with patterns, emoji, and AI."*
+Repo: [github.com/atayoez/ambient](https://github.com/atayoez/ambient) (MIT). App ID: `com.ambient.app`. AppStream summary: *"Wallpaper generator with patterns, emoji, and AI."*
 
 ## What's in here
 

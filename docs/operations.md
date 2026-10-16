@@ -159,6 +159,6 @@ ssh oci 'sudo docker restart adguardhome'
 
 ## License model
 
-Repo is private as of 2026-05-15. LICENSE file is now proprietary going forward.
+Repo was private from 2026-05-15 to 2026-10-16 with a proprietary LICENSE in between; it is public and MIT-licensed again as of 2026-10-16.
 
-**The MIT genie cannot be put back in the bottle for prior public commits.** Every commit pushed publicly between the first commit and `9cada15` was MIT-licensed at the moment it was visible. Anyone who already cloned, forked, or scraped the repo retains MIT rights to those specific historical snapshots. Future commits and the current LICENSE file are proprietary.
+Commits made during the proprietary window remain in history under the licence they were published with; everything from the MIT re-licence commit onward is MIT.

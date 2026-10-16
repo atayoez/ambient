@@ -16,8 +16,8 @@ pkgver=${AMBIENT_VERSION:-0.9.0}
 pkgrel=1
 pkgdesc="Wallpaper studio with patterns, emoji, sources, and AI"
 arch=('x86_64')
-url="https://ambient.oezcan.me"
-license=('LicenseRef-proprietary')
+url="https://github.com/atayoez/ambient"
+license=('MIT')
 # Hard deps are what the binary actually links (ldd): webkit2gtk-4.1 + gtk3.
 # The appindicator lib is dlopen'd at runtime only for the tray icon, so
 # it's optional — the app runs fine without it (tray just won't show).

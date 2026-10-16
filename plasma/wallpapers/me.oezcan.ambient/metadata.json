@@ -11,7 +11,7 @@
             }
         ],
         "Category": "",
-        "License": "Proprietary",
+        "License": "MIT",
         "Website": "https://oezcan.me"
     },
     "X-KDE-ParentApp": "org.kde.plasmashell"

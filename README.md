@@ -13,7 +13,7 @@ A native wallpaper studio for macOS, Windows and Linux. Generate animated patter
 ![Platforms](https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-333?logo=linux&logoColor=white)
 ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-2024-orange?logo=rust&logoColor=white)
-[![License: Proprietary](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/atayozc)
 
 <img src="docs/screenshots/patterns.png" width="800" alt="The Patterns tab: an emoji wallpaper preview on the left, the emoji picker open, and the palette and density controls on the right">
@@ -156,6 +156,6 @@ If Ambient earns a spot on your desktop, a coffee keeps the releases coming:
 
 ## License
 
-Proprietary. See [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).
 
 The Microsoft Fluent emoji art used by the Emoji pattern is MIT-licensed by Microsoft — see [Microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji).
