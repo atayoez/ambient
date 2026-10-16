@@ -86,17 +86,6 @@ fn set_autostart(enabled: bool) -> Result<(), String> {
     integrate::set_autostart(enabled)
 }
 
-/// Whether this process can update itself in place. True only for the
-/// Linux AppImage ($APPIMAGE set) — that's the one desktop format
-/// tauri-plugin-updater replaces on disk without an OS installer prompt.
-/// On macOS/Windows the bundles aren't OS-code-signed, so an in-app
-/// install would trip Gatekeeper/SmartScreen mid-update; those keep the
-/// "open the download page" path instead. Always false off Linux.
-#[tauri::command]
-fn running_as_appimage() -> bool {
-    cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_some()
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Headless uninstall path: `Ambient.AppImage --uninstall` (also what
@@ -138,7 +127,7 @@ pub fn run() {
     // really an `ambient` process, waits up to ~0.8s for it to vanish,
     // then writes our own PID. Runs BEFORE the tauri::Builder so we
     // never have two webviews / two trays competing for the shared
-    // settings/library/license files. Desktop-only — Android's activity
+    // settings/library files. Desktop-only — Android's activity
     // model already guarantees a single instance.
     #[cfg(desktop)]
     solo_instance::ensure_solo();
@@ -147,14 +136,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init());
 
-    // Updater is desktop-only: mobile updates ship through the store /
-    // APK installs, and tauri-plugin-updater has no mobile support (the
-    // crate is a desktop-gated target dep in Cargo.toml).
+    // The native file-picker plugin is a desktop-gated target dep in
+    // Cargo.toml (no mobile import path).
     #[cfg(desktop)]
-    let builder = builder
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_dialog::init());
+    let builder = builder.plugin(tauri_plugin_dialog::init());
 
     builder
         .invoke_handler(tauri::generate_handler![
@@ -166,10 +151,6 @@ pub fn run() {
             commands::delete_local_wallpapers,
             commands::get_library,
             commands::patch_library,
-            commands::get_startup_license,
-            commands::request_login_code,
-            commands::login_with_code,
-            commands::clear_license,
             commands::get_primary_monitor_pixels,
             commands::get_system_accent,
             commands::get_secret,
@@ -192,7 +173,6 @@ pub fn run() {
             uninstall_self,
             get_autostart,
             set_autostart,
-            running_as_appimage,
         ])
         .setup(|app| {
             // Self-integrate when launched from an AppImage on Linux —
@@ -303,7 +283,7 @@ pub fn run() {
             });
 
             // One-time core bootstrap: secrets backend + key migration,
-            // emoji cache, then the settings / library / license
+            // emoji cache, then the settings / library
             // singletons (same ordering the pre-extraction setup used).
             // The shell injects the data dir so Tauri's app.path()
             // remains the single source of truth for where user data
@@ -312,31 +292,12 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .expect("resolve app_data_dir for state load");
-            let needs_reval = ambient_core::state::init(app_data_dir);
-
-            // License gate runs before the webview's first paint. Disk
-            // load is synchronous (~ms); Polar revalidation runs in a
-            // background task so cold launches don't pay the network
-            // round-trip — the frontend mounts on cached state and
-            // listens for `license-revoked` (via the sink) if Polar
-            // rejects later.
-            if needs_reval {
-                tauri::async_runtime::spawn(async {
-                    ambient_core::license::revalidate_background().await;
-                });
-            }
+            ambient_core::state::init(app_data_dir);
 
             // Startup cache-limit pass: catches a limit lowered while the
             // app wasn't running and pre-limit libraries that already
             // exceed the cap.
             tauri::async_runtime::spawn(ambient_core::library::enforce_cache_limit());
-
-            // Trial keys expire mid-session (the app lives in the tray for
-            // days); this watcher revalidates at the key's expiry instant
-            // so a lapsed trial gates immediately, not at the next launch.
-            tauri::async_runtime::spawn(async {
-                ambient_core::license::watch_expiry().await;
-            });
 
             // Background rotation + theme-follow tasks. Both survive
             // webview destroy/rebuild (the whole reason these moved

@@ -4,15 +4,12 @@
 //   1. events::set_sink(..)   — register the app-event bridge first so
 //      no core event fires into the void.
 //   2. state::init(data_dir)  — one-time bootstrap: secrets backend,
-//      emoji cache, settings/library/license singletons. Returns
-//      whether the cached license is stale; if so the shell spawns
-//      license::revalidate_background().
+//      emoji cache, settings/library singletons.
 //   3. Call any facade fn below from any thread/task.
 //
 // Events fired through the sink (names + payloads are the pre-extraction
 // Tauri event contract, verbatim): `settings-changed` (Settings),
-// `library-changed` (Vec<Wallpaper>), `wallpaper-applied` (path string),
-// `license-revoked` (message string).
+// `library-changed` (Vec<Wallpaper>), `wallpaper-applied` (path string).
 
 pub mod accent;
 pub mod aigen;
@@ -24,7 +21,6 @@ pub mod events;
 pub mod gpu;
 pub mod library;
 pub mod library_store;
-pub mod license;
 pub mod live;
 pub mod monitor;
 pub mod renderer;

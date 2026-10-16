@@ -1,16 +1,13 @@
 // App-level hooks. Each owns one of the cross-cutting concerns that
-// used to live as a giant useEffect inside App.tsx: license gating,
-// update check, window maximize tracking, system accent, tray theme
-// sync, and Cmd+N tab switching. Splitting these out shrinks App.tsx
+// used to live as a giant useEffect inside App.tsx: window maximize
+// tracking, system accent, tray theme sync, and Cmd+N tab switching. Splitting these out shrinks App.tsx
 // to mostly JSX and makes each concern testable in isolation.
 //
 // Auto-rotation + theme-follow moved to Rust tokio tasks in Phase 4
 // so they survive webview destroy/rebuild (the pre-Phase-4 JS
 // setInterval / matchMedia listener died when the user closed to tray).
 
-import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
-import { listen as listenTauri } from '@tauri-apps/api/event';
 import {
   type Dispatch,
   type SetStateAction,
@@ -21,11 +18,9 @@ import {
 } from 'react';
 import { listen } from './events';
 import { useDebouncedSettingsPatch } from './hooks';
-import { getStartupLicense, type LicenseInfo } from './license';
 import { reapplyLiveWallpaper, SPEED_MAX, SPEED_MIN } from './live';
 import { loadSettings } from './store';
 import type { LiveClock, LiveWidgets, Settings } from './types';
-import { checkForUpdate, type UpdateInfo } from './updater';
 import { DEFAULT_LIVE_WIDGETS, type ExtraWidgetId } from './widgets';
 
 // ---------------------------------------------------------------------
@@ -199,94 +194,6 @@ export function useLiveWidgets(): [
   );
 
   return [current, patchWidget, setStyle];
-}
-
-// ---------------------------------------------------------------------
-// License gate
-// ---------------------------------------------------------------------
-
-export interface UseLicenseGate {
-  license: LicenseInfo | null;
-  licenseLoaded: boolean;
-  revokedMsg: string | undefined;
-  onActivated: (info: LicenseInfo) => void;
-}
-
-export function useLicenseGate(): UseLicenseGate {
-  const [license, setLicense] = useState<LicenseInfo | null>(null);
-  const [licenseLoaded, setLicenseLoaded] = useState(false);
-  const [revokedMsg, setRevokedMsg] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-    let unlistenRevoked: (() => void) | null = null;
-    (async () => {
-      // Rust resolved the gate decision in setup() before the webview
-      // painted. The invoke is just a ~ms RAM read — no Polar call,
-      // no loading flash. Background revalidation (if the cache was
-      // stale) is already running; if it rejects, we'll get a
-      // `license-revoked` Tauri event below.
-      const startup = await getStartupLicense();
-      if (cancelled) return;
-      if (startup.status === 'valid') {
-        setLicense(startup.info);
-      } else if (startup.status === 'invalid') {
-        setRevokedMsg(startup.message);
-      }
-      setLicenseLoaded(true);
-
-      unlistenRevoked = await listenTauri<string>('license-revoked', (event) => {
-        if (cancelled) return;
-        setLicense(null);
-        setRevokedMsg(event.payload ?? 'Your license is no longer valid.');
-      });
-    })();
-    return () => {
-      cancelled = true;
-      unlistenRevoked?.();
-    };
-  }, []);
-
-  const onActivated = useCallback((info: LicenseInfo) => {
-    setLicense(info);
-    setRevokedMsg(undefined);
-  }, []);
-
-  return { license, licenseLoaded, revokedMsg, onActivated };
-}
-
-// ---------------------------------------------------------------------
-// Update banner
-// ---------------------------------------------------------------------
-
-export interface UseUpdateBanner {
-  updateInfo: UpdateInfo | null;
-  dismiss: () => void;
-}
-
-export function useUpdateBanner(license: LicenseInfo | null): UseUpdateBanner {
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-
-  useEffect(() => {
-    if (!license) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const current = await getVersion();
-        const info = await checkForUpdate(current);
-        if (!cancelled && info) setUpdateInfo(info);
-      } catch {
-        // Update check is best-effort. Don't surface failures.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [license]);
-
-  const dismiss = useCallback(() => setUpdateInfo(null), []);
-
-  return { updateInfo, dismiss };
 }
 
 // ---------------------------------------------------------------------

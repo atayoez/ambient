@@ -9,14 +9,6 @@
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://ambient.oezcan.me/downloads/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDRDg0QTQ3NTc2RDZDQzcKUldUSGJHMVhSMHJZdk96Y3p0dnRxS2xwU1cvWFZWNU5yOWZ3K1pueEpDWlpmZFJtV1I1STNEaS8K"
-    }
-  },
   "app": {
     "withGlobalTauri": false,
     "windows": [
@@ -58,13 +50,12 @@
       "dmg",
       "nsis"
     ],
-    "createUpdaterArtifacts": true,
     "category": "GraphicsAndDesign",
     "shortDescription": "Wallpaper studio with patterns, emoji, sources, and AI",
     "longDescription": "Cross-platform wallpaper studio. Create dynamic patterns with colors and emoji, pull from curated sources (NASA APOD, Unsplash, Pexels), or generate via AI — all rendered at your exact screen resolution.",
     "publisher": "Atay Özcan",
     "copyright": "© 2026 Atay Özcan. All rights reserved.",
-    "homepage": "https://ambient.oezcan.me",
+    "homepage": "https://github.com/atayoez/ambient",
     "license": "Proprietary",
     "licenseFile": "../LICENSE",
     "icon": [

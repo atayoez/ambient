@@ -1,5 +1,5 @@
 # ambient-core — Ambient's Tauri-independent backend: the pattern
-# renderer, source fetchers, AI generation, library/settings/license
+# renderer, source fetchers, AI generation, library/settings
 # stores, secrets, and the desktop wallpaper-apply pipeline.
 #
 # No tauri dependency by design: the crate is consumed by src-tauri's
@@ -22,7 +22,7 @@ publish = false
 serde_json = "1"
 
 [dependencies]
-# Rust-side HTTP client for license validation, source APIs (NASA,
+# Rust-side HTTP client for source APIs (NASA,
 # Bing, Unsplash, Pexels, Wallhaven, Picsum), AI generation
 # (Pollinations, OpenAI), and image downloads. rustls + webpki-roots
 # to stay off the system OpenSSL.
@@ -32,7 +32,7 @@ serde_json = "1"
 # Image decoding for the Library thumbnail cache. Minimal feature set:
 # just the formats the Library can actually store.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
-# sync (RwLock, watch) owns the in-memory settings/library/license
+# sync (RwLock, watch) owns the in-memory settings/library
 # state; macros + time + rt for the render pipeline's spawn_blocking
 # and the source caches; rt-multi-thread for the block_in_place that
 # keeps store persistence from stalling a runtime worker (the shells

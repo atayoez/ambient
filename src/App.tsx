@@ -11,18 +11,11 @@ import {
   WandIcon,
 } from './components/Icons';
 import Library from './components/Library';
-import LicenseGate from './components/LicenseGate';
 import Patterns from './components/Patterns';
 import Settings from './components/Settings';
 import Sources from './components/Sources';
-import UpdateBanner from './components/UpdateBanner';
 import Widgets from './components/Widgets';
-import {
-  useLicenseGate,
-  useTabKeybindings,
-  useTrayThemeSync,
-  useUpdateBanner,
-} from './lib/appHooks';
+import { useTabKeybindings, useTrayThemeSync } from './lib/appHooks';
 import { dispatch } from './lib/events';
 import { usePersistedState } from './lib/hooks';
 import type { Wallpaper } from './lib/types';
@@ -108,8 +101,6 @@ export default function App() {
 
   // Cross-cutting app concerns. Each hook owns one effect; App.tsx
   // stays declarative.
-  const { license, licenseLoaded, revokedMsg, onActivated } = useLicenseGate();
-  const { updateInfo, dismiss: dismissUpdate } = useUpdateBanner(license);
   // OS-accent chrome tinting intentionally removed: the app is fully
   // achromatic liquid glass now (colour comes from the preview behind the
   // glass, never the system accent). The System palette preset still
@@ -127,67 +118,53 @@ export default function App() {
   return (
     <div className="app">
       <main className="content">
-        {!licenseLoaded ? (
-          // Briefly empty while loadLicense() finishes — usually a
-          // single frame on warm disk cache.
-          <div className="splash" />
-        ) : !license ? (
-          <LicenseGate revokedMessage={revokedMsg} onActivated={onActivated} />
-        ) : (
-          <>
-            {updateInfo && <UpdateBanner info={updateInfo} onDismiss={dismissUpdate} />}
-            {TABS.map((t) => {
-              // Lazy on first visit, sticky after — preserves draft
-              // state across tab switches. display:contents makes the
-              // wrapper transparent to flex layout so each tab's CSS
-              // (.patterns/.sources/.library/.generate) keeps owning
-              // its own flex/scroll geometry.
-              if (!visited.has(t.id)) return null;
-              return (
-                <div
-                  key={t.id}
-                  style={tab === t.id ? { display: 'contents' } : { display: 'none' }}
-                >
-                  <ErrorBoundary>
-                    {/* `active` gates each tab's window-level shortcuts
-                        (Cmd+Enter / Cmd+Shift+R): hidden-but-mounted tabs
-                        must not respond to one keypress in parallel. */}
-                    {t.id === 'patterns' && <Patterns active={tab === t.id} />}
-                    {t.id === 'sources' && <Sources active={tab === t.id} />}
-                    {t.id === 'generate' && <Generate active={tab === t.id} />}
-                    {t.id === 'library' && <Library />}
-                    {t.id === 'widgets' && <Widgets />}
-                    {t.id === 'settings' && <Settings />}
-                  </ErrorBoundary>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </main>
-      {license && (
-        // Floating tab bar — Liquid-Glass-style pill anchored at the
-        // bottom-center of the window. Outside <main> so it doesn't
-        // participate in tab-content scroll, and gated on `license` so the
-        // gate screen isn't littered with non-functional nav.
-        <nav
-          className="tabs"
-          style={{ '--active-index': activeTabIndex } as React.CSSProperties}
-        >
-          <div className="tab-indicator" />
-          {TABS.map(({ id, label, icon }) => (
-            <button
-              key={id}
-              className={tab === id ? 'tab active' : 'tab'}
-              onClick={() => setTab(id)}
-              aria-label={label}
-              title={label}
+        {TABS.map((t) => {
+          // Lazy on first visit, sticky after — preserves draft
+          // state across tab switches. display:contents makes the
+          // wrapper transparent to flex layout so each tab's CSS
+          // (.patterns/.sources/.library/.generate) keeps owning
+          // its own flex/scroll geometry.
+          if (!visited.has(t.id)) return null;
+          return (
+            <div
+              key={t.id}
+              style={tab === t.id ? { display: 'contents' } : { display: 'none' }}
             >
-              <span aria-hidden="true">{icon}</span>
-            </button>
-          ))}
-        </nav>
-      )}
+              <ErrorBoundary>
+                {/* `active` gates each tab's window-level shortcuts
+                    (Cmd+Enter / Cmd+Shift+R): hidden-but-mounted tabs
+                    must not respond to one keypress in parallel. */}
+                {t.id === 'patterns' && <Patterns active={tab === t.id} />}
+                {t.id === 'sources' && <Sources active={tab === t.id} />}
+                {t.id === 'generate' && <Generate active={tab === t.id} />}
+                {t.id === 'library' && <Library />}
+                {t.id === 'widgets' && <Widgets />}
+                {t.id === 'settings' && <Settings />}
+              </ErrorBoundary>
+            </div>
+          );
+        })}
+      </main>
+      {/* Floating tab bar — Liquid-Glass-style pill anchored at the
+          bottom-center of the window. Outside <main> so it doesn't
+          participate in tab-content scroll. */}
+      <nav
+        className="tabs"
+        style={{ '--active-index': activeTabIndex } as React.CSSProperties}
+      >
+        <div className="tab-indicator" />
+        {TABS.map(({ id, label, icon }) => (
+          <button
+            key={id}
+            className={tab === id ? 'tab active' : 'tab'}
+            onClick={() => setTab(id)}
+            aria-label={label}
+            title={label}
+          >
+            <span aria-hidden="true">{icon}</span>
+          </button>
+        ))}
+      </nav>
       {/* One notification surface for the whole app — success/error/info
           from every tab land in the same bottom-right stack. */}
       <Toaster />

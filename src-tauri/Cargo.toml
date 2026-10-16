@@ -1,6 +1,6 @@
 # The Tauri shell. Domain logic lives in the ambient-core workspace
 # member (core/) — this crate owns only what is inherently shell:
-# the webview/window lifecycle, tray, solo-instance handoff, updater,
+# the webview/window lifecycle, tray, solo-instance handoff,
 # desktop integration (AppImage/autostart), the rotation scheduler, and
 # the thin #[tauri::command] wrappers in src/commands.rs.
 [package]
@@ -33,7 +33,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # The Tauri-independent backend: renderer, sources, AI generation,
-# settings/library/license stores, secrets, wallpaper apply.
+# settings/library stores, secrets, wallpaper apply.
 ambient-core = { path = "core" }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
@@ -58,13 +58,9 @@ tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 
-# Updater plugin handles signed delta installs — desktop only: mobile
-# updates ship through the store / APK installs and the plugin has no
-# mobile support, so it must not even build there.
+# Native file picker for the video/GIF live-wallpaper import — desktop
+# only; mobile has no such import path.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
-# Relaunch after an in-app update (the Linux AppImage self-update path).
-tauri-plugin-process = "2"
 # Native file picker for the video/GIF live-wallpaper import. Driven from
 # Rust only (commands::import_live_video), so no JS dialog permission is
 # granted to the webview.

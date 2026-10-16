@@ -6,7 +6,6 @@
 // the sink registered in lib.rs's setup.)
 
 use ambient_core::library_store::LibraryOp;
-use ambient_core::license::{LicenseInfo, StartupLicense};
 use ambient_core::monitor::MonitorInfo;
 use ambient_core::renderer::PatternConfig;
 use ambient_core::types::{Settings, Wallpaper};
@@ -55,29 +54,6 @@ pub async fn get_library() -> Result<Vec<Wallpaper>, String> {
 #[tauri::command]
 pub async fn patch_library(op: LibraryOp) -> Result<Vec<Wallpaper>, String> {
     ambient_core::state::library().patch(op).await
-}
-
-// --- license ---------------------------------------------------------
-
-#[tauri::command]
-pub async fn get_startup_license() -> Result<StartupLicense, String> {
-    Ok(ambient_core::license::get_startup_license().await)
-}
-
-#[tauri::command]
-pub async fn request_login_code(email: String) -> Result<(), String> {
-    ambient_core::license::request_login_code(email).await
-}
-
-#[tauri::command]
-pub async fn login_with_code(code: String) -> Result<LicenseInfo, String> {
-    ambient_core::license::login_with_code(code).await
-}
-
-#[tauri::command]
-pub async fn clear_license() -> Result<(), String> {
-    ambient_core::license::clear_license().await;
-    Ok(())
 }
 
 // --- platform queries ------------------------------------------------

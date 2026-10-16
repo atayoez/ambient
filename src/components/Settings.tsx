@@ -1,33 +1,21 @@
 // Settings tab — consolidates what used to be scattered across tabs: API
 // keys (were in Sources/Generate), auto-rotate (was a per-tab control),
-// lock screen + start-on-login, About (version/update), and uninstall.
+// lock screen + start-on-login, About (version), and uninstall.
 // One consistent row layout: a label on the left, a fixed-width control
 // on the right.
 
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { useEffect, useState } from 'react';
 import { useSettings } from '../lib/appHooks';
-import { getStartupLicense, type LicenseInfo } from '../lib/license';
 import { reapplyLiveWallpaper } from '../lib/live';
 import { useSecret } from '../lib/secrets';
 import { patchSettings } from '../lib/store';
 import { toast } from '../lib/toast';
 import type { Settings as AppSettings, LiveQuality, RotationSource } from '../lib/types';
-import {
-  canSelfUpdate,
-  checkForUpdateManual,
-  type InstallProgress,
-  installUpdate,
-} from '../lib/updater';
 import { clearThumbnailCache, deleteLocalWallpapers } from '../lib/wallpaper';
 import { OptionScroller } from '../ui';
-import { RefreshIcon } from './Icons';
 import SpeedSlider from './SpeedSlider';
-
-const HOMEPAGE = 'https://ambient.oezcan.me';
-const DOWNLOAD_URL = 'https://ambient.oezcan.me/#download';
 
 // Single-select uses the same OptionScroller as every other picker in the
 // app — no native <select> island here.
@@ -56,21 +44,6 @@ const CACHE_LIMIT_OPTIONS: { id: string; label: string }[] = [
   { id: '0', label: 'Unlimited' },
 ];
 
-type UpdateState =
-  | { kind: 'idle' }
-  | { kind: 'checking' }
-  | { kind: 'uptodate' }
-  | { kind: 'available'; version: string }
-  | { kind: 'installing'; progress: InstallProgress }
-  | { kind: 'error' };
-
-function installLabel(p: InstallProgress): string {
-  if (p.phase === 'installing') return 'Installing…';
-  if (p.phase === 'relaunching') return 'Restarting…';
-  if (p.total) return `Downloading… ${Math.round((p.downloaded / p.total) * 100)}%`;
-  return 'Downloading…';
-}
-
 export default function Settings() {
   // null until the Rust-owned settings load (a ~ms RAM read).
   const [settings, setSettings] = useSettings();
@@ -84,8 +57,6 @@ export default function Settings() {
   // Seeded from settings once they load (see the effect below).
   const [intervalDraft, setIntervalDraft] = useState('');
   const [version, setVersion] = useState('');
-  const [update, setUpdate] = useState<UpdateState>({ kind: 'idle' });
-  const [selfUpdate, setSelfUpdate] = useState(false);
 
   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
   const [purgeData, setPurgeData] = useState(false);
@@ -96,18 +67,11 @@ export default function Settings() {
   const [confirmingWipe, setConfirmingWipe] = useState(false);
   const [wiping, setWiping] = useState(false);
 
-  const [account, setAccount] = useState<LicenseInfo | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
-
   useEffect(() => {
-    void getStartupLicense().then((s) => {
-      if (s.status === 'valid') setAccount(s.info);
-    });
     void invoke<boolean>('get_autostart')
       .then(setAutostart)
       .catch(() => {});
     void getVersion().then(setVersion);
-    void canSelfUpdate().then(setSelfUpdate);
   }, []);
 
   // Seed the rotation-interval draft from the loaded settings, once —
@@ -157,34 +121,6 @@ export default function Settings() {
     }
   }
 
-  async function checkUpdates() {
-    if (update.kind === 'checking') return;
-    setUpdate({ kind: 'checking' });
-    const r = await checkForUpdateManual();
-    if (r.status === 'available') setUpdate({ kind: 'available', version: r.version });
-    else if (r.status === 'uptodate') setUpdate({ kind: 'uptodate' });
-    else setUpdate({ kind: 'error' });
-  }
-
-  // On the AppImage (selfUpdate) we install in place + relaunch; everywhere
-  // else open the download page so the user handles the OS prompt themselves
-  // (see ../lib/updater for why the split).
-  async function applyUpdate() {
-    if (!selfUpdate) {
-      void openUrl(DOWNLOAD_URL);
-      return;
-    }
-    try {
-      // installUpdate relaunches on success, so this only returns on failure.
-      await installUpdate((progress) => setUpdate({ kind: 'installing', progress }));
-      setUpdate({ kind: 'installing', progress: { phase: 'relaunching' } });
-    } catch {
-      // Self-install failed — fall back to the download page.
-      setUpdate({ kind: 'error' });
-      void openUrl(DOWNLOAD_URL);
-    }
-  }
-
   async function doUninstall() {
     if (uninstalling) return;
     setUninstalling(true);
@@ -223,24 +159,6 @@ export default function Settings() {
       setWiping(false);
     }
   }
-
-  async function signOut() {
-    setSigningOut(true);
-    try {
-      await invoke('clear_license');
-      // Reload re-runs the startup gate decision (get_startup_license →
-      // None → gate). Cheaper than threading gate state down from App.
-      window.location.reload();
-    } catch (e) {
-      toast.fromError(e);
-      setSigningOut(false);
-    }
-  }
-
-  // Trial keys carry an expiry; purchased keys don't.
-  const trialDaysLeft = account?.expiresAt
-    ? Math.max(0, Math.ceil((account.expiresAt - Date.now()) / 86_400_000))
-    : null;
 
   // Settings haven't loaded yet (first frame) — all hooks are above, so
   // the early return is safe.
@@ -391,93 +309,12 @@ export default function Settings() {
         </section>
 
         <section className="set-group">
-          <h3 className="set-title">Account</h3>
-          <div className="set-row">
-            <span>Signed in as</span>
-            <span className="set-value">{account?.email ?? '—'}</span>
-          </div>
-          {trialDaysLeft !== null && (
-            <>
-              <div className="set-row">
-                <span>License</span>
-                <span className="set-value">
-                  {trialDaysLeft > 0
-                    ? `Free trial — ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left`
-                    : 'Free trial — ends today'}
-                </span>
-              </div>
-              <div className="set-row">
-                <span>Keep it forever</span>
-                <button
-                  type="button"
-                  className="set-link"
-                  onClick={() => void openUrl(`${HOMEPAGE}/#pricing`)}
-                >
-                  Buy Ambient
-                </button>
-              </div>
-            </>
-          )}
-          <div className="set-row">
-            <span>Sign out</span>
-            <button
-              type="button"
-              className="set-btn"
-              onClick={signOut}
-              disabled={signingOut}
-            >
-              {signingOut ? 'Signing out…' : 'Sign out'}
-            </button>
-          </div>
-        </section>
-
-        <section className="set-group">
           <h3 className="set-title">About</h3>
           <div className="set-row">
             <span>Version</span>
             <span className="set-value">
               {version ? `Ambient ${version}` : 'Ambient'}
             </span>
-          </div>
-          <div className="set-row">
-            <span>Updates</span>
-            <button
-              type="button"
-              className="set-btn"
-              onClick={update.kind === 'available' ? applyUpdate : checkUpdates}
-              disabled={update.kind === 'checking' || update.kind === 'installing'}
-            >
-              {update.kind === 'available' ? (
-                <span>
-                  {selfUpdate ? 'Install & restart' : `Download ${update.version}`}
-                </span>
-              ) : update.kind === 'installing' ? (
-                <span>{installLabel(update.progress)}</span>
-              ) : (
-                <>
-                  <RefreshIcon size={13} />
-                  <span>
-                    {update.kind === 'checking'
-                      ? 'Checking…'
-                      : update.kind === 'uptodate'
-                        ? 'Up to date'
-                        : update.kind === 'error'
-                          ? 'Try again'
-                          : 'Check for updates'}
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-          <div className="set-row">
-            <span>Website</span>
-            <button
-              type="button"
-              className="set-link"
-              onClick={() => void openUrl(HOMEPAGE)}
-            >
-              ambient.oezcan.me
-            </button>
           </div>
         </section>
 

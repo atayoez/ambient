@@ -121,6 +121,6 @@ CI runs the same `check` job on every push/PR. The six-cell installer matrix ({L
 
 ## License
 
-Proprietary. See [`LICENSE`](LICENSE). End-user usage rights are granted via license keys purchased from [ambient.oezcan.me](https://ambient.oezcan.me).
+Proprietary. See [`LICENSE`](LICENSE).
 
 The Microsoft Fluent emoji art used by the Emoji pattern is MIT-licensed by Microsoft — see [Microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji).
