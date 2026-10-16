@@ -34,7 +34,7 @@ on:
   # paths-ignore on PRs only — never on push, so a tag push (= a release)
   # always builds regardless of which files the release commit touched.
   # Docs/website/marketing-only PRs don't need the full Rust compile +
-  # tests; deploy-site.yml covers website/** independently.
+  # tests.
   pull_request:
     paths-ignore:
       - 'website/**'

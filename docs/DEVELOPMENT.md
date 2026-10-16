@@ -201,5 +201,4 @@ Library view.
 - **`publish`** — runs even if some cells failed (partial-aware), on tag
   pushes automatically and on dispatch when `publish: true`.
 
-`security.yml` (cargo-audit + gitleaks) and `deploy-site.yml` (the
-Cloudflare Worker) are independent of the release flow.
+`security.yml` (cargo-audit + gitleaks) is independent of the release flow.
