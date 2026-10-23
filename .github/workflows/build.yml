@@ -11,19 +11,17 @@
 #            Tag pushes + manual dispatch only — macOS minutes bill at 10×
 #            and Windows at 2×, so plain main pushes only spend `check`.
 #   publish  Downloads whatever cells succeeded and runs scripts/publish.sh
-#            (partial-aware: a cell that failed keeps pointing at the
-#            previous release in latest.json), uploads to R2, and cuts /
-#            updates the GitHub release. Automatic on tag pushes; opt-in
-#            (`publish: true`) on dispatch.
+#            (partial-aware: a cell that failed never blocks the others)
+#            to cut / update the GitHub release with the installers
+#            attached. Automatic on tag pushes; opt-in (`publish: true`)
+#            on dispatch.
 #
 # Release flow: `bun run release X.Y.Z` bumps + tags + pushes; this workflow
 # does everything else. Re-cut one platform without rebuilding the world:
 #   gh workflow run build.yml -f targets=macos-aarch64 -f publish=true
 #
-# Required repo secrets:
-#   TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD)  updater signatures (.sig)
-#   CLOUDFLARE_API_TOKEN                     R2 object write on ambient-releases
-# GITHUB_TOKEN (automatic) creates the release + uploads assets.
+# No repo secrets needed: GITHUB_TOKEN (automatic) creates the release +
+# uploads assets.
 
 name: Build
 
@@ -50,7 +48,7 @@ on:
         type: string
         default: all
       publish:
-        description: Publish the built cells (R2 + GitHub release, partial-aware)
+        description: Publish the built cells to the GitHub release (partial-aware)
         type: boolean
         default: false
 
@@ -224,14 +222,10 @@ jobs:
 
       # tauri.conf.json's bundle.targets (app, appimage, dmg, nsis) is
       # filtered per OS by the CLI, so no --bundles here: Linux → AppImage,
-      # Windows → NSIS setup.exe, macOS → .app + .dmg. With the signing key
-      # present, createUpdaterArtifacts also emits the .sig files (and the
-      # macOS .app.tar.gz) the updater feed needs. --ci = never prompt.
+      # Windows → NSIS setup.exe, macOS → .app + .dmg. --ci = never prompt.
       - name: Build the app
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # AppImage tooling on a runner: no FUSE mount (extract-and-run),
           # and skip linuxdeploy's strip pass (it corrupts some binaries).
           APPIMAGE_EXTRACT_AND_RUN: '1'
@@ -239,14 +233,12 @@ jobs:
         run: bun x tauri build --ci --target ${{ matrix.target }}
 
       # Drop the bundled libwayland (22.04's 1.20 is too old for the host's
-      # EGL driver: black window) and fix the dangling .DirIcon, then
-      # re-sign. See the script header.
+      # EGL driver: black window) and fix the dangling .DirIcon. See the
+      # script header.
       - name: Fix up the AppImage
         if: startsWith(matrix.runner, 'ubuntu-')
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
           for f in src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage; do
@@ -260,12 +252,8 @@ jobs:
           # One glob list for all OSes; only this cell's bundle kinds match.
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage.sig
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
-            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe.sig
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
           # The publish job consumes these within minutes; the 90-day
           # default piled up GB of installers and blew the account's
@@ -276,8 +264,8 @@ jobs:
     name: Publish (partial-aware)
     needs: [plan, build]
     # Run even when some cells failed (fail-fast is off) — publish.sh ships
-    # what exists and leaves the rest at the previous release. Skipped when
-    # the whole run was cancelled or the plan itself failed.
+    # what exists; a missing cell can be rebuilt and attached later. Skipped
+    # when the whole run was cancelled or the plan itself failed.
     if: ${{ !cancelled() && needs.plan.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || inputs.publish == true) }}
     runs-on: ubuntu-latest
     permissions:
@@ -301,7 +289,5 @@ jobs:
 
       - name: Publish
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: '848c6419822ef3e91b6f66d69ebe63eb'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/publish.sh --from dist

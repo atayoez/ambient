@@ -13,9 +13,6 @@
 # absolute symlink into the build machine's AppDir, which is dangling on
 # every user's machine (AppImageLauncher / Gear Lever show no icon).
 #
-# Re-signs the updater signature (.sig) when TAURI_SIGNING_PRIVATE_KEY is
-# set, since the file's bytes change.
-#
 # Needs: squashfs-tools (unsquashfs/mksquashfs) and the AppImage runnable on
 # this machine (same CPU arch) to read its runtime offset.
 #
@@ -44,10 +41,3 @@ mksquashfs "$work/root" "$work/fs" -comp zstd -b 131072 -root-owned -noappend -n
 cat "$work/runtime" "$work/fs" > "$work/out"
 chmod 755 "$work/out"
 mv "$work/out" "$img"
-
-if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-  rm -f "$img.sig"
-  bun x tauri signer sign "$img" > /dev/null
-  [ -s "$img.sig" ] || { echo "appimage-fixup: re-signing failed" >&2; exit 1; }
-  echo "appimage-fixup: re-signed $(basename "$img").sig"
-fi

@@ -28,15 +28,15 @@ bun run tauri dev
 ```
 
 The dev app shares the production app's data dir
-(`~/.local/share/me.oezcan.ambient/`), so license state, settings, and
-the wallpaper library carry over.
+(`~/.local/share/me.oezcan.ambient/`), so settings and the wallpaper
+library carry over.
 
 ## Tests
 
 ```bash
 # JS unit tests — Bun's built-in runner (Jest-style describe/it/expect,
 # imports from "bun:test"). Covers the event bus, theme resolution,
-# pattern manifest, updater dismissal, and the live-clock formatter.
+# pattern manifest, and the live-clock formatter.
 bun run test
 bun run test:coverage     # built-in coverage report
 
@@ -48,8 +48,7 @@ cd src-tauri && cargo test --workspace --lib
 `bun test` has no DOM. The tests are written against pure modules;
 the one browser global they need (`window` as an EventTarget for
 `src/lib/events.ts`) comes from `scripts/test-preload.ts` (wired in
-`bunfig.toml`), and a test that needs more stubs it explicitly — see
-`src/lib/updater.test.ts` for the localStorage pattern.
+`bunfig.toml`), and a test that needs more stubs it explicitly.
 
 `cargo test` without `--lib` runs the binary's tests (which don't
 exist), reports zero, and silently skips the library. Always pass
@@ -114,55 +113,40 @@ The tag push is the release. `.github/workflows/build.yml` then:
 4. Runs `check`, then the **six-cell matrix** — linux/windows/macos ×
    x86_64/aarch64 — each cell natively on a hosted runner of that OS +
    CPU (`ubuntu-22.04`, `ubuntu-22.04-arm`, `windows-latest`,
-   `windows-11-arm`, `macos-15-intel`, `macos-latest`). Every cell signs
-   its updater artifact with the `TAURI_SIGNING_PRIVATE_KEY` secret.
+   `windows-11-arm`, `macos-15-intel`, `macos-latest`).
 5. Runs `publish` → `scripts/publish.sh`: renames to the
-   `Ambient-VERSION-Platform-Arch.ext` convention, merges the LIVE
-   `latest.json` (only the cells that built are bumped; a failed cell
-   keeps its previous release — the feed never breaks), uploads to the
-   `ambient-releases` R2 bucket, and creates/updates the GitHub release
-   with the installers attached.
+   `Ambient-VERSION-Platform-Arch.ext` convention (only the cells that
+   built; a failed cell never blocks the others), pulls the release
+   notes from `CHANGELOG.md`, and creates/updates the GitHub release
+   with the installers attached. GitHub Releases is the only
+   distribution channel; there is no in-app updater.
 
 ### Release-time notes
 
 - The matrix runs only on `v*` tags and manual dispatch — pushes to
   main spend just the cheap `check` minutes. macOS runners bill at 10×,
-  Windows at 2×; a full six-cell release is roughly 300–400 billable
-  minutes on a private repo, so don't dispatch it casually.
+  Windows at 2× (free on a public repo, but don't dispatch it casually).
 - Rebuild one platform (e.g. a cell that failed) without the others:
   `gh workflow run build.yml -f targets=macos-aarch64 -f publish=true`.
   `targets` is a comma-separated list of cells or `all`.
 - Re-run only the publish step for a finished run:
   `bun run release:publish -- 1.x.y --run <run-id>` (downloads that
   run's `ambient-*` artifacts into `dist/` first).
-- The Tauri updater pubkey embedded in `tauri.conf.json` pairs with the
-  private key in the `TAURI_SIGNING_PRIVATE_KEY` repo secret (keep the
-  original at `~/.config/ambient/updater-private.key` backed up
-  somewhere outside the laptop — losing it means every 0.4+ install
-  loses the ability to verify future updates).
-- `publish` needs `CLOUDFLARE_API_TOKEN` (R2 object write on
-  `ambient-releases`) as a repo secret; `GITHUB_TOKEN` handles the
-  release itself.
+- No repo secrets are needed: the automatic `GITHUB_TOKEN` creates the
+  release and uploads the assets.
 
 ## Resetting state during development
 
-Sometimes you want to test the activation flow, a fresh library, or
-the empty-state UI. The Tauri store lives at
-`~/.local/share/com.ambient.app/ambient.json`. Surgical edits via
-`jq`:
+Sometimes you want to test a fresh library or the empty-state UI. The
+Tauri store lives at `~/.local/share/me.oezcan.ambient/ambient.json`:
 
 ```bash
-# Clear license only (re-triggers the LicenseGate on next launch).
-jq 'del(."license.state")' \
-  ~/.local/share/com.ambient.app/ambient.json \
-  > /tmp/x && mv /tmp/x ~/.local/share/com.ambient.app/ambient.json
-
-# Nuke everything (library, settings, license).
-rm ~/.local/share/com.ambient.app/ambient.json
+# Nuke everything (library, settings).
+rm ~/.local/share/me.oezcan.ambient/ambient.json
 ```
 
 Wallpapers themselves live at
-`~/.local/share/com.ambient.app/wallpapers/`. Thumbnails are under
+`~/.local/share/me.oezcan.ambient/wallpapers/`. Thumbnails are under
 `wallpapers/thumbs/` — safe to delete; they regenerate on next
 Library view.
 
@@ -176,15 +160,6 @@ Library view.
   see the next auto-rotation / theme-follow event surface as a toast.
   Foreground events stay quiet because the in-app status pill is
   enough.
-- **Update banner needs latest.json to advertise a newer `version`
-  than `getVersion()`** to appear. To test the install path without
-  cutting a real release: edit `latest.json` in the R2 bucket
-  directly via `wrangler r2 object put`. The plugin will reject the
-  install if signatures are missing or invalid — falls back to
-  opening the download page silently.
-- **License re-validation is throttled to once per 24h.** To force
-  a re-check, clear the `license.state` block (above) and re-paste
-  the key.
 
 ## CI structure
 
@@ -199,6 +174,7 @@ Library view.
   `windows-x86_64`, `windows-aarch64`, `macos-x86_64`, `macos-aarch64`,
   each on a native hosted runner, uploading `ambient-<cell>` artifacts.
 - **`publish`** — runs even if some cells failed (partial-aware), on tag
-  pushes automatically and on dispatch when `publish: true`.
+  pushes automatically and on dispatch when `publish: true`. Attaches
+  the installers to the GitHub release.
 
 `security.yml` (cargo-audit + gitleaks) is independent of the release flow.

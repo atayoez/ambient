@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # scripts/publish.sh — publish a release from a set of built cells: rename to
-# the release naming, merge latest.json, upload to R2, cut / update the GitHub
-# release. PARTIAL-AWARE: it publishes whatever cells are present and leaves
-# every other platform pointing at the previous release in latest.json, so a
-# cell that failed to build never breaks the updater feed.
+# the release naming and cut / update the GitHub release. PARTIAL-AWARE: it
+# publishes whatever cells are present, so a cell that failed to build never
+# blocks the others from shipping; rebuild it alone and re-run to attach it.
 #
 # Normally run by the `publish` job in .github/workflows/build.yml. Runnable
 # locally too, e.g. to re-publish a finished CI run:
@@ -14,15 +13,14 @@
 #   --from <dir> where the cell dirs live (default: dist/)
 #
 # Expected layout (build.yml's artifact names, one dir per matrix cell):
-#   <dir>/ambient-linux-x86_64/     *.AppImage(.sig)
-#   <dir>/ambient-linux-aarch64/    *.AppImage(.sig)
-#   <dir>/ambient-windows-x86_64/   *-setup.exe(.sig)
-#   <dir>/ambient-windows-aarch64/  *-setup.exe(.sig)
-#   <dir>/ambient-macos-x86_64/     *.dmg  *.app.tar.gz(.sig)
-#   <dir>/ambient-macos-aarch64/    *.dmg  *.app.tar.gz(.sig)
+#   <dir>/ambient-linux-x86_64/     *.AppImage
+#   <dir>/ambient-linux-aarch64/    *.AppImage
+#   <dir>/ambient-windows-x86_64/   *-setup.exe
+#   <dir>/ambient-windows-aarch64/  *-setup.exe
+#   <dir>/ambient-macos-x86_64/     *.dmg
+#   <dir>/ambient-macos-aarch64/    *.dmg
 #
-# Env: CLOUDFLARE_API_TOKEN (or a logged-in wrangler), CLOUDFLARE_ACCOUNT_ID
-# (defaults below), GH_TOKEN / gh auth for the release.
+# Env: GH_TOKEN / gh auth for the release.
 
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO_ROOT"
@@ -41,8 +39,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-848c6419822ef3e91b6f66d69ebe63eb}"
-WRANGLER="bunx wrangler@4"
 CELLS=(linux-x86_64 linux-aarch64 windows-x86_64 windows-aarch64 macos-x86_64 macos-aarch64)
 
 if [[ -n "$RUN_ID" ]]; then
@@ -55,40 +51,27 @@ if [[ -n "$RUN_ID" ]]; then
   gh run download "$RUN_ID" --dir "$SRC" --pattern 'ambient-*' || echo "   (no artifacts downloaded; continuing partial)"
 fi
 
-# Start the rename staging dir EMPTY: the upload + GH-release globs match
+# Start the rename staging dir EMPTY: the GH-release glob matches
 # `Ambient-*`, so a previous release's renamed artifacts left here would be
-# re-uploaded and attached to this version's release. Wipe, don't merge.
+# attached to this version's release. Wipe, don't merge.
 OUT="$SRC/renamed"; rm -rf "$OUT"; mkdir -p "$OUT"
 
-# Nothing to sign here: every cell is built with the updater key in CI, so
-# the .sig files arrive next to their bundles.
-
 # Rename present artifacts to the release convention + remember which we
-# have. HAVE keys feed merge-latest-json.mjs: `<cell>` = the download,
-# `<cell>_sig` = its updater signature, `<cell>_up` = the macOS updater
-# tarball (the .dmg is the download, the .app.tar.gz is what the updater
-# installs — Tauri never signs the .dmg).
+# have.
 declare -A HAVE
-stage() { # <cell> <glob> <release-name> <have-key>
+stage() { # <cell> <glob> <release-name>
   local dir="$SRC/ambient-$1" f
   f=$(find "$dir" -name "$2" 2>/dev/null | head -1 || true)
   [[ -n "$f" && -f "$f" ]] || return 0
-  cp "$f" "$OUT/$3"; HAVE[$4]="$OUT/$3"; echo "   have $4 -> $3"
+  cp "$f" "$OUT/$3"; HAVE[$1]="$OUT/$3"; echo "   have $1 -> $3"
 }
 echo "==> Staging present cells from $SRC/"
 for cell in "${CELLS[@]}"; do
   os="${cell%-*}"; arch="${cell##*-}"
   case "$os" in
-    linux)
-      stage "$cell" '*.AppImage'     "Ambient-$VERSION-Linux-$arch.AppImage"     "$cell"
-      stage "$cell" '*.AppImage.sig' "Ambient-$VERSION-Linux-$arch.AppImage.sig" "${cell}_sig";;
-    windows)
-      stage "$cell" '*-setup.exe'     "Ambient-$VERSION-Windows-$arch-setup.exe"     "$cell"
-      stage "$cell" '*-setup.exe.sig' "Ambient-$VERSION-Windows-$arch-setup.exe.sig" "${cell}_sig";;
-    macos)
-      stage "$cell" '*.dmg'            "Ambient-$VERSION-macOS-$arch.dmg"            "$cell"
-      stage "$cell" '*.app.tar.gz'     "Ambient-$VERSION-macOS-$arch.app.tar.gz"     "${cell}_up"
-      stage "$cell" '*.app.tar.gz.sig' "Ambient-$VERSION-macOS-$arch.app.tar.gz.sig" "${cell}_sig";;
+    linux)   stage "$cell" '*.AppImage'  "Ambient-$VERSION-Linux-$arch.AppImage";;
+    windows) stage "$cell" '*-setup.exe' "Ambient-$VERSION-Windows-$arch-setup.exe";;
+    macos)   stage "$cell" '*.dmg'       "Ambient-$VERSION-macOS-$arch.dmg";;
   esac
 done
 if [[ ${#HAVE[@]} -eq 0 ]]; then
@@ -96,34 +79,15 @@ if [[ ${#HAVE[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Merge latest.json: start from the LIVE manifest, bump only what we rebuilt.
-echo "==> Building latest.json (merged with live)"
-# Read it from the bucket, not the public URL: the site answers 403 to
-# GitHub-hosted runners, which failed the v1.5.0 tag run.
-$WRANGLER r2 object get "ambient-releases/latest.json" --file="$OUT/live.json" --remote
-HAVE_JSON=$(for k in "${!HAVE[@]}"; do printf '%s\t%s\n' "$k" "${HAVE[$k]}"; done)
-PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" RELEASED="$(date -u +%Y-%m-%d)" \
-VERSION="$VERSION" HAVE_JSON="$HAVE_JSON" bun scripts/merge-latest-json.mjs \
-  "$OUT/live.json" "$OUT/latest.json"
-
 echo "==> Release notes"
 bun scripts/extract-changelog.mjs --version "$VERSION" --output "$OUT/notes.md" || echo "Release v$VERSION" > "$OUT/notes.md"
 
-echo "==> Uploading present artifacts + latest.json to R2"
-ct() { case "$1" in *.dmg) echo application/x-apple-diskimage;; *.app.tar.gz) echo application/gzip;;
-  *-setup.exe) echo application/x-msdownload;; *.AppImage) echo application/x-executable;;
-  *.json) echo application/json;; *) echo application/octet-stream;; esac; }
-for f in "$OUT"/Ambient-* "$OUT/latest.json"; do
-  [[ -f "$f" ]] || continue
-  $WRANGLER r2 object put "ambient-releases/$(basename "$f")" --file="$f" --content-type="$(ct "$f")" --remote
-done
-
 echo "==> GitHub release v$VERSION"
-ASSETS=(); for f in "$OUT"/Ambient-*; do [[ "$f" == *.sig ]] || ASSETS+=("$f"); done
+ASSETS=("$OUT"/Ambient-*)
 if gh release view "v$VERSION" >/dev/null 2>&1; then
   gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
   gh release edit "v$VERSION" --draft=false --latest --title "v$VERSION" --notes-file "$OUT/notes.md"
 else
   gh release create "v$VERSION" --latest --title "v$VERSION" --notes-file "$OUT/notes.md" "${ASSETS[@]}"
 fi
-echo; echo "✓ v$VERSION published (${!HAVE[*]}). Live: https://ambient.oezcan.me/downloads/latest.json"
+echo; echo "✓ v$VERSION published (${!HAVE[*]}): https://github.com/atayoez/ambient/releases/tag/v$VERSION"

@@ -15,7 +15,7 @@
 #   5. With --watch: follows the CI run to completion in the terminal
 #
 # Nothing is built or published on this machine. To re-run only the
-# publish step for a finished CI run (e.g. after fixing an R2 hiccup):
+# publish step for a finished CI run (e.g. after a GitHub outage):
 #   scripts/publish.sh <version> --run <run-id>
 # To rebuild one platform:  gh workflow run build.yml -f targets=<cell> -f publish=true
 #
@@ -146,8 +146,7 @@ cat <<EOF
     gh run list --workflow build.yml --limit 1
     gh run watch                       # follow it
   Release:  https://github.com/atayoez/ambient/releases/tag/v$VERSION
-  Manifest: https://ambient.oezcan.me/downloads/latest.json
-  A cell that fails keeps its previous release in the feed; rebuild it alone with
+  A cell that fails doesn't block the others; rebuild it alone and attach it with
     gh workflow run build.yml -f targets=<cell> -f publish=true
 EOF
 
