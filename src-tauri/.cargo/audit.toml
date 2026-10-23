@@ -37,4 +37,11 @@ ignore = [
   "RUSTSEC-2025-0081", # unic-char-property
   "RUSTSEC-2025-0098", # unic-ucd-version
   "RUSTSEC-2025-0100", # unic-ucd-ident
+  # zvariant/zbus_names were merged into zbus 6 and the standalone crates
+  # declared unmaintained; every released tauri-plugin-opener and
+  # notify-rust (via tauri-plugin-notification) still requires zbus 5, so
+  # these stay until those plugins move to zbus 6.
+  "RUSTSEC-2026-0370", # zvariant
+  "RUSTSEC-2026-0371", # zbus_names
+  "RUSTSEC-2026-0372", # zvariant_derive
 ]
